@@ -1,0 +1,100 @@
+# eval-spec.yaml — S1 阶段集成测试断言规格
+metadata:
+  skill: srs-formalizer
+  stage: S1
+  version: "0.1.0"
+
+metrics:
+  kpis: [pass_rate, shard_count, gap_count, execution_time_ms]
+
+tests:
+  - id: s1_init_basic
+    description: "init creates full directory tree"
+    command: "npx tsx index.ts init --output .srs_formalizer"
+    assert:
+      - status: ok
+      - dirs_exist:
+          - ".srs_formalizer/shard"
+          - ".srs_formalizer/_ctx"
+          - ".srs_formalizer/r1-explicit"
+          - ".srs_formalizer/r2-implicit"
+          - ".srs_formalizer/r3-relational"
+          - ".srs_formalizer/graph"
+          - ".srs_formalizer/analysis/subagent_prompts"
+          - ".srs_formalizer/features"
+          - ".srs_formalizer/specs"
+          - ".srs_formalizer/proofs"
+          - ".srs_formalizer/outputs/knowledge_graph"
+          - ".srs_formalizer/outputs/brainstorming"
+          - ".srs_formalizer/backups"
+      - file_exists: ".srs_formalizer/STATE.md"
+      - file_contains:
+          path: ".srs_formalizer/STATE.md"
+          text: "当前阶段"
+
+  - id: s1_init_idempotent
+    description: "init on existing dir is idempotent"
+    command: "npx tsx index.ts init --output .srs_formalizer"
+    assert:
+      - status: ok
+      - message_contains: "已存在"
+
+  - id: s1_init_reject_bad_path
+    description: "init rejects non-.srs_formalizer output"
+    command: "npx tsx index.ts init --output other_dir"
+    assert:
+      - status: error
+      - exit_code: 1
+
+  - id: s1_manifest_single_md
+    description: "manifest processes single markdown SRS"
+    command: "npx tsx index.ts manifest --src tests/fixtures/srs-sample-zh.md --lang zh --workdir .srs_formalizer"
+    assert:
+      - status: ok
+      - shard_count_gte: 2
+      - gap_exists_with_priority: P0
+      - shard_index_language: zh
+      - source_hash_length: 64
+
+  - id: s1_manifest_deterministic
+    description: "manifest produces same output on same input"
+    command: "npx tsx index.ts manifest --src tests/fixtures/srs-sample-zh.md --lang zh --workdir .srs_formalizer"
+    assert:
+      - status: ok
+      - hash_unchanged: true
+      - shard_count_unchanged: true
+
+  - id: s1_manifest_reject_bad_workdir
+    description: "manifest rejects non-.srs_formalizer workdir"
+    command: "npx tsx index.ts manifest --src tests/fixtures/srs-sample-zh.md --lang zh --workdir /tmp/evil"
+    assert:
+      - status: error
+      - exit_code: 1
+
+  - id: s1_manifest_nonexistent_src
+    description: "manifest handles nonexistent source file"
+    command: "npx tsx index.ts manifest --src /tmp/nonexistent.md --lang zh --workdir .srs_formalizer"
+    assert:
+      - status: error
+
+negative_controls:
+  - id: nc_init_no_output_arg
+    description: "init without --output"
+    command: "npx tsx index.ts init"
+    assert:
+      - status: error
+      - exit_code: 1
+
+  - id: nc_manifest_no_src
+    description: "manifest without --src"
+    command: "npx tsx index.ts manifest --lang zh --workdir .srs_formalizer"
+    assert:
+      - status: error
+      - exit_code: 1
+
+  - id: nc_manifest_no_workdir
+    description: "manifest without --workdir"
+    command: "npx tsx index.ts manifest --src tests/fixtures/srs-sample-zh.md --lang zh"
+    assert:
+      - status: error
+      - exit_code: 1
