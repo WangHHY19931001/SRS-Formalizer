@@ -111,18 +111,5 @@ S2 子阶段:
 | `references/tlaplus-guide.md` | TLA+ 编写指南 |
 | `references/lean4-guide.md` | Lean 4 编写指南 |
 | `references/agent-integration-guide.md` | **Agent 集成指南**：15 平台技能目录、规则注入、AGENTS.md 配置 |
-| `references/hooks-integration.md` | **Hooks+Commands+Agents 协同**：强制激活钩子、斜杠命令、子代理分工 |
+| `references/hooks-integration.md` | **多平台激活参考**：15 平台 Hook/Rules/Commands 配置 + 抽象兜底 |
 | `templates/*.md.template` | 产出文件模板 |
-
-## 激活策略（四层协同）
-
-仅靠 SKILL.md description 匹配，激活率约 25%。建议部署完整四层架构：
-
-| 层 | 机制 | 作用 | 配置位置 |
-|----|------|------|---------|
-| **Hooks** | `UserPromptSubmit` 强制评估 | 检测 SRS 关键词 → 必然激活技能 | `.claude/settings.json` + `hooks/skill-forced-eval.js` |
-| **Skills** | SKILL.md 知识注入 | 提供 6 阶段流水线规范 | `.claude/skills/srs-formalizer/` |
-| **Commands** | `/srs-formalizer` 流程编排 | 一键触发完整工作流 | `.claude/commands/srs-formalizer.md` |
-| **Agents** | `@srs-extractor` `@srs-verifier` | 并行提取 + 独立校验 | Agent 定义文件 |
-
-详细配置参见 `references/hooks-integration.md`。
