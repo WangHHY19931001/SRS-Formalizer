@@ -371,6 +371,42 @@ function checkMindmapModules(workDir: string): CheckResult {
   }
 }
 
+/** 读取 CHECKLIST.md 并验证所有 checkbox 已打勾 */
+function checkChecklistComplete(stageDir: string, workDir: string): CheckResult {
+  try {
+    const checklistPath = path.join(workDir, stageDir, 'CHECKLIST.md');
+    if (!fs.existsSync(checklistPath)) {
+      return {
+        name: `${stageDir}/CHECKLIST.md complete`,
+        passed: false,
+        detail: `CHECKLIST.md not found in ${stageDir}/`,
+      };
+    }
+    const content = fs.readFileSync(checklistPath, 'utf-8');
+    const lines = content.split('\n');
+    let total = 0;
+    let checked = 0;
+    const unchecked: string[] = [];
+    for (const line of lines) {
+      if (line.match(/^-\s*\[x\]/i)) { total++; checked++; }
+      else if (line.match(/^-\s*\[\s*\]/)) {
+        total++;
+        unchecked.push(line.replace(/^-\s*\[\s*\]\s*/, '').trim().substring(0, 80));
+      }
+    }
+    const allChecked = total > 0 && unchecked.length === 0;
+    return {
+      name: `${stageDir}/CHECKLIST.md complete`,
+      passed: allChecked,
+      detail: allChecked
+        ? `All ${total}/${total} checked`
+        : `${checked}/${total} checked, ${unchecked.length} unchecked: ${unchecked.slice(0, 3).join('; ')}${unchecked.length > 3 ? '...' : ''}`,
+    };
+  } catch {
+    return { name: `${stageDir}/CHECKLIST.md complete`, passed: false, detail: 'Could not read CHECKLIST.md' };
+  }
+}
+
 /** S1: 验证 shard_index.json 中每个分片文件实际存在 */
 function checkShardCompleteness(workDir: string): CheckResult {
   try {
@@ -499,6 +535,15 @@ export async function main(args: string[]): Promise<CliResult> {
   allChecks.push(checkR1HasJsonlFiles(workDir));
   allChecks.push(checkShardCompleteness(workDir));
 
+  // === Stage checklist gates (S1/R3/FINAL) ===
+  if (stageArg === 'S1' || stageArg === 'R3' || stageArg === 'FINAL') {
+    allChecks.push(checkChecklistComplete('1_shard', workDir));
+  }
+  if (stageArg === 'R3' || stageArg === 'FINAL') {
+    allChecks.push(checkChecklistComplete('2_extract', workDir));
+    allChecks.push(checkChecklistComplete('3_graph', workDir));
+  }
+
   // === R3 / FINAL additional checks ===
   if (stageArg !== 'S1') {
     allChecks.push(checkAllJsonlDirsHaveFiles(workDir));
@@ -511,6 +556,9 @@ export async function main(args: string[]): Promise<CliResult> {
 
   // === FINAL-only checks ===
   if (stageArg === 'FINAL') {
+    allChecks.push(checkChecklistComplete('4_bdd', workDir));
+    allChecks.push(checkChecklistComplete('5_formal', workDir));
+    allChecks.push(checkChecklistComplete('6_outputs', workDir));
     allChecks.push(checkValidateBddPasses(workDir));
     allChecks.push(checkMergedGraphExists(workDir));
     allChecks.push(checkSchemaCypherExists(workDir));
