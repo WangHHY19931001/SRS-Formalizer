@@ -121,9 +121,11 @@ function buildNameMap(graph: Graph): Map<string, string> {
  */
 function ensureModuleNode(
   graph: Graph,
-  name: string,
+  name: string | null | undefined,
   nameMap: Map<string, string>,
 ): string {
+  // Guard against null/undefined/empty names from LLM-generated arch records
+  if (!name) return '';
   const existingId = nameMap.get(name);
   if (existingId) return existingId;
 
@@ -220,7 +222,7 @@ function processArch1(graph: Graph, records: Arch1Record[], metrics: ArchMetrics
     }
 
     // -- PARENT_OF edge: parent module → child module --
-    if (rec.parent !== null && rec.type === 'module') {
+    if (rec.parent != null && rec.type === 'module') {
       const parentId = ensureModuleNode(graph, rec.parent, nameMap);
       const edgeId = `${parentId}--:PARENT_OF--${rec.id}`;
       if (!graphHasEdge(graph, edgeId)) {
@@ -264,7 +266,7 @@ function processArch2(graph: Graph, records: Arch2Record[], metrics: ArchMetrics
         }
 
         // Parent link
-        if (rec.parent !== null && rec.name !== null) {
+        if (rec.parent != null && rec.name !== null) {
           const parentId = ensureModuleNode(graph, rec.parent, nameMap);
           const edgeId = `${parentId}--:PARENT_OF--${rec.id}`;
           if (!graphHasEdge(graph, edgeId)) {
@@ -362,7 +364,7 @@ function processArch2(graph: Graph, records: Arch2Record[], metrics: ArchMetrics
         );
 
         // Add new PARENT_OF edge
-        if (rec.parent !== null) {
+        if (rec.parent != null) {
           const parentId = ensureModuleNode(graph, rec.parent, nameMap);
           // Rebuild graph without old parent edges, then add new one
           let rebuilt = new Graph();
@@ -423,7 +425,7 @@ function processArch2(graph: Graph, records: Arch2Record[], metrics: ArchMetrics
         }
 
         // Parent link
-        if (rec.parent !== null) {
+        if (rec.parent != null) {
           const parentId = ensureModuleNode(graph, rec.parent, nameMap);
           const edgeId = `${parentId}--:PARENT_OF--${rec.id}`;
           if (!graphHasEdge(graph, edgeId)) {
