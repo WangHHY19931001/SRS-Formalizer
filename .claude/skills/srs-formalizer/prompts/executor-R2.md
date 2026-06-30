@@ -1,42 +1,39 @@
 # 执行者-R2：隐式需求推导
 
 ## 角色
-从显式需求 + **架构层次**中推导**隐式需求**——SRS 未明确声明但实现必须满足的约束、前提条件和副作用。
+从显式需求+架构中推导隐式需求。**你只有填空权。**
 
 ## 输入
+- 架构层次：`{{ARCHITECTURE}}`
+- 显式需求：`{{R1_OUTPUT}}`
+- 分片上下文：`{{SHARD_CONTENT}}`
 
-### 当前系统架构（来自 S2.2，含 Module/Actor/Constraint 层次和 CONTAINS 关系）：
-```
-{{ARCHITECTURE}}
-```
+## 输出模板（逐字复制，只填 `<...>`）
 
-### 显式需求列表（R1 输出）：
-```
-{{R1_OUTPUT}}
-```
-
-### 分片上下文：
-```
-{{SHARD_CONTENT}}
-```
-
-## ⚠️ 硬性约束
-- **id 格式严格遵守 `R[123]-[A-Za-z0-9_.]+-\d{4}`**：仅 ASCII 字母数字下划线点，禁止中文
-- **category 必须是 `implicit`**，不得使用其他任何值
-- **derived_from 必须引用真实存在的 R1 id**
-
-## 输出格式
 ```jsonl
-{"id":"R2-<SAFE_ID>-NNNN","category":"implicit","statement":"<推导的需求>","source_file":"<分片>","confidence":"high|medium|low","metadata":{"derived_from":"R1-xxx-0001","affected_module":"<模块名>"}}
+{"id":"R2-<SAFE_ID>-<SEQ>","category":"implicit","statement":"<推导描述>","source_file":"<SHARD_ID>_S1.md","confidence":"<CONF>","metadata":{"derived_from":"<R1_ID>"}}
 ```
 
-## 推导规则（利用架构信息）
+| 占位符 | 规则 |
+|--------|------|
+| `<SAFE_ID>` | 仅 ASCII 字母数字下划线 |
+| `<SEQ>` | 4 位序号 0001 起 |
+| `<推导描述>` | 从架构层次或模块边界推导，标注逻辑链条 |
+| `<R1_ID>` | 引用的 R1 记录 id，如 `R1-S001-0001` |
+| `<CONF>` | `high`（强推导）/ `medium`（合理推导）/ `low`（推测） |
 
-1. **模块边界安全**：架构中"执行器"模块含 R1"embed 输入"，推导"执行器应校验输入维度"——安全约束归属到具体模块
-2. **跨模块隐式依赖**：架构中"知识库"被"决策器"依赖，推导"知识库应支持高并发读取"
-3. **Actor 视角**：架构中有"用户"Actor，推导"系统应提供操作审计日志"
-4. **Constraint 传播**：架构中"执行器冻结"为顶层约束，推导"执行器所有子组件不可训练"
-5. **禁止编造**：推导必须有明确逻辑链条，标注 derived_from 和 affected_module
+## 硬性约束
+1. **key 名不可变**：`id` `category` `statement` `source_file` `confidence` `metadata` —— 禁止增减
+2. **category 只能是 `implicit`**
+3. **id 正则 `^R2-[A-Za-z0-9_.]+-\d{4}$`**：禁止中文
+4. **derived_from 必须在 metadata 内**：禁止放到顶层
+5. **每条 derived_from 引用真实存在的 R1 id**
+6. **空分片输出空文件**
+
+## 推导方向（从架构信息驱动）
+- 架构中模块 A 含 R1 需求 B → "模块 A 应防止 B 的误用/越权"
+- 架构中模块 A 被模块 C 依赖 → "模块 A 应支持高并发"
+- 架构中有 Actor 用户 → "系统应提供操作审计"
 
 ## 文件操作约束
-输出写入 `.srs_formalizer/2_extract/r2-implicit/{{SOURCE_ID}}.jsonl`。
+输出写入 `.srs_formalizer/2_extract/r2-implicit/{{SOURCE_ID}}.jsonl`
