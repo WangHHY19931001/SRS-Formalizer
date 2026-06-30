@@ -127,11 +127,54 @@
 
 ---
 
-## 四、编码智能体自动适配流程
+## 四、能力探测系统（TS 出题→LLM 回答→TS 判分）
+
+**不使用 LLM 自报告**——模型自评能力不可靠。采用标准化评估：
+
+```
+capability-probe --mode generate  → 输出 6 道标准化评估题（含 mini SRS 样本）
+        ↓
+编排者将题面发送给 LLM → LLM 返回 JSON 答案
+        ↓
+capability-probe --mode score --file <llm_answer.json>  → TS 脚本判分
+        ↓
+输出: capability_profile + estimated_tier + per-stage recommendations
+```
+
+### 六维度评估题
+
+| 维度 | 题数 | 题型 |
+|------|------|------|
+| instruction_following | 1 | 给填空模板+3条需求→输出JSONL |
+| structured_output | 1 | 给不规则文本→输出合法JSONL |
+| precision | 1 | 6条需求含3条编造→只提取真实需求 |
+| hierarchical_reasoning | 1 | 10条需求→归类到模块 |
+| logical_reasoning | 1 | 4条需求→推导DEPENDS_ON关系 |
+| creative_reasoning | 1 | 3条需求→推导1条隐式需求 |
+
+每题评分 0-100。`capability_profile` = 各维度得分。`estimated_tier` = 综合六维度最低分判定。
+
+### 使用示例
+
+```bash
+# 1. 生成评估题
+npx tsx index.ts capability-probe --mode generate > probes.json
+
+# 2. 编排者将 probes.json 中的每道题 prompt 发给 LLM
+#    LLM 答案收集为 answers.json: {"answers": {"instruction_following-1": "...", ...}}
+
+# 3. 判分
+npx tsx index.ts capability-probe --mode score --file answers.json
+# → {"capability_profile":{"instruction_following":100,...},"estimated_tier":"medium","recommendations":[...]}
+```
+
+---
+
+## 五、编码智能体自动适配流程
 
 智能体在首次执行 srs-formalizer 时应：
 
-1. **评估当前 LLM 能力**——根据模型名称查找本表，或运行轻量能力探测（给 executor-R1 填空模板→统计 validate-jsonl 一次通过率→估算 instruction_following 分数）
+1. **运行能力探测**——`capability-probe --mode generate` → 发送给 LLM → `--mode score` 判分
 2. **确定 Tier**——取各阶段所需维度的最低分，对照 Tier 阈值
 3. **生成适配配置**——写入 `STATE.md` 的能力适配章节：
    ```markdown

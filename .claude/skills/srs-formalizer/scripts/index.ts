@@ -24,6 +24,8 @@ Commands:
   build-architecture Build architecture graph from architecture JSONL files
   validate-architecture Validate architecture JSONL records (6 checks)
   validate-cypher   Validate .cypher script file (4 checks)
+  validate-checklist Validate CHECKLIST.md file
+  capability-probe  LLM capability probe evaluation (--mode generate|score)
 
 Options:
   --help    Show this help message
@@ -143,6 +145,18 @@ async function main(): Promise<void> {
     case 'validate-cypher': {
       const { main: validateCypherMain } = await import('./commands/validate-cypher.js');
       const result = await validateCypherMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'validate-checklist': {
+      const { main: validateChecklistMain } = await import('./commands/validate-checklist.js');
+      const result = await validateChecklistMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'capability-probe': {
+      const { main: probeMain } = await import('./commands/capability-probe.js');
+      const result = await probeMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }
