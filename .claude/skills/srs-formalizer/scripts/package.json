@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test --experimental-test-coverage __tests__/",
+    "test": "node --test --experimental-test-coverage __tests__/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
