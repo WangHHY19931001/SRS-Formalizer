@@ -21,6 +21,7 @@ Commands:
   generate-bdd       Generate Gherkin BDD skeleton from requirement graph
   validate-bdd       Validate .feature files in the workdir
   query-graph        Graph query and traversal interface (--query <type> --params '<json>')
+  build-architecture Build architecture graph from architecture JSONL files
 
 Options:
   --help    Show this help message
@@ -122,6 +123,12 @@ async function main(): Promise<void> {
     case 'query-graph': {
       const { main: queryGraphMain } = await import('./commands/query-graph.js');
       const result = await queryGraphMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'build-architecture': {
+      const { main: buildArchMain } = await import('./commands/build-architecture.js');
+      const result = await buildArchMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }
