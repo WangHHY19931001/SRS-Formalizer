@@ -137,32 +137,49 @@ function buildGraph(records: JsonlRecord[]): Graph {
     const meta = record.metadata;
     if (!meta) continue;
 
-    // -- DERIVED_FROM --
+    // -- DERIVED_FROM (string or string[]) --
     const derivedFrom = meta.derived_from;
     if (typeof derivedFrom === 'string') {
       const edgeType = ':DERIVED_FROM';
-      const edgeId = `${record.id}--${edgeType}--${derivedFrom}`;
       graph.addEdge({
-        id: edgeId,
-        source: record.id,
-        target: derivedFrom,
-        type: edgeType,
+        id: `${record.id}--${edgeType}--${derivedFrom}`,
+        source: record.id, target: derivedFrom, type: edgeType,
       });
+    } else if (Array.isArray(derivedFrom)) {
+      for (const target of derivedFrom) {
+        if (typeof target !== 'string') continue;
+        const edgeType = ':DERIVED_FROM';
+        graph.addEdge({
+          id: `${record.id}--${edgeType}--${target}`,
+          source: record.id, target, type: edgeType,
+        });
+      }
     }
 
     // -- relation: DEPENDS_ON | REFINES | CONFLICTS_WITH --
+    // Format A (prompt): meta.relation is type string, meta.source_id + meta.target_id
+    // Format B (legacy): meta.relation is {type, target} object or array of objects
     const rawRelation = meta.relation;
-    if (rawRelation !== undefined) {
+    if (typeof rawRelation === 'string' && VALID_RELATION_TYPES.includes(rawRelation)) {
+      // Format A: relation is the type, source_id/target_id are siblings
+      const sourceId = meta.source_id;
+      const targetId = meta.target_id;
+      if (typeof sourceId === 'string' && typeof targetId === 'string') {
+        const edgeType = `:${rawRelation}`;
+        graph.addEdge({
+          id: `${record.id}--${edgeType}--${targetId}`,
+          source: sourceId, target: targetId, type: edgeType,
+        });
+      }
+    } else if (rawRelation !== undefined) {
+      // Format B: legacy {type, target} object/array
       const relations = extractRelations(rawRelation);
       for (const rel of relations) {
         if (!VALID_RELATION_TYPES.includes(rel.type)) continue;
         const edgeType = `:${rel.type}`;
-        const edgeId = `${record.id}--${edgeType}--${rel.target}`;
         graph.addEdge({
-          id: edgeId,
-          source: record.id,
-          target: rel.target,
-          type: edgeType,
+          id: `${record.id}--${edgeType}--${rel.target}`,
+          source: record.id, target: rel.target, type: edgeType,
         });
       }
     }

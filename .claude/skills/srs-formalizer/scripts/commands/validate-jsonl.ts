@@ -63,12 +63,58 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   const errors: string[] = [];
+  const warnings: string[] = [];
   const seenIds = new Map<string, number[]>();
 
   for (let i = 0; i < records.length; i++) {
     const record = records[i]!;
     const recordErrors = validateJsonlRecord(record, i);
     errors.push(...recordErrors);
+
+    // -- Metadata structure validation (hard gate) --
+    const meta = record.metadata;
+    const prefix = `record[${i}] (${record.id || 'no-id'})`;
+
+    // R2 (implicit): must have metadata.derived_from
+    if (record.category === 'implicit') {
+      if (!meta || meta.derived_from === undefined) {
+        errors.push(`${prefix}: R2 implicit record must have metadata.derived_from`);
+      } else {
+        const df = meta.derived_from;
+        if (typeof df !== 'string' && !Array.isArray(df)) {
+          errors.push(`${prefix}: metadata.derived_from must be string or string[]`);
+        }
+      }
+      // derived_from must NOT be at top level
+      if ((record as unknown as Record<string,unknown>).derived_from !== undefined && !meta) {
+        errors.push(`${prefix}: derived_from must be inside metadata, not at top level`);
+      }
+    }
+
+    // R3 (relational): must have metadata.relation + source_id + target_id
+    if (record.category === 'relational') {
+      if (!meta) {
+        errors.push(`${prefix}: R3 relational record must have metadata`);
+      } else {
+        const rel = meta.relation;
+        const srcId = meta.source_id;
+        const tgtId = meta.target_id;
+        if (typeof rel !== 'string' || !['DEPENDS_ON','REFINES','CONFLICTS_WITH'].includes(rel)) {
+          errors.push(`${prefix}: metadata.relation must be DEPENDS_ON|REFINES|CONFLICTS_WITH`);
+        }
+        if (typeof srcId !== 'string' || srcId.length === 0) {
+          errors.push(`${prefix}: metadata.source_id is required and must be a non-empty string`);
+        }
+        if (typeof tgtId !== 'string' || tgtId.length === 0) {
+          errors.push(`${prefix}: metadata.target_id is required and must be a non-empty string`);
+        }
+      }
+      // relation/source_id/target_id must NOT be at top level
+      const top = record as unknown as Record<string,unknown>;
+      if ((top.relation || top.source_id || top.target_id) && !meta) {
+        errors.push(`${prefix}: relation/source_id/target_id must be inside metadata`);
+      }
+    }
 
     if (record.id) {
       const indices = seenIds.get(record.id);
@@ -94,7 +140,7 @@ export async function main(args: string[]): Promise<CliResult> {
     data: {
       valid: errors.length === 0,
       errors,
-      warnings: [],
+      warnings,
       record_count: records.length,
     },
   };
