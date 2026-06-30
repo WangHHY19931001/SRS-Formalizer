@@ -371,6 +371,96 @@ function checkMindmapModules(workDir: string): CheckResult {
   }
 }
 
+/** S1: 验证 shard_index.json 中每个分片文件实际存在 */
+function checkShardCompleteness(workDir: string): CheckResult {
+  try {
+    const indexPath = path.join(workDir, '_ctx', 'shard_index.json');
+    if (!fs.existsSync(indexPath)) {
+      return { name: 'Shard completeness', passed: false, detail: 'shard_index.json not found' };
+    }
+    const index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+    const shards = index.shards || [];
+    const shardDir = path.join(workDir, '1_shard');
+    const missing: string[] = [];
+    for (const shard of shards) {
+      if (!fs.existsSync(path.join(shardDir, shard.file))) {
+        missing.push(shard.file);
+      }
+    }
+    return {
+      name: 'Shard completeness',
+      passed: missing.length === 0,
+      detail: missing.length === 0
+        ? `All ${shards.length} shard files exist`
+        : `Missing ${missing.length}/${shards.length}: ${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '...' : ''}`,
+    };
+  } catch {
+    return { name: 'Shard completeness', passed: false, detail: 'Could not verify shards' };
+  }
+}
+
+/** R3: 验证架构 JSONL 文件存在且非空 */
+function checkArchitectureExists(workDir: string): CheckResult {
+  try {
+    const archDir = path.join(workDir, '2_extract', 'architecture');
+    if (!fs.existsSync(archDir)) {
+      return { name: 'Architecture JSONL exists', passed: false, detail: 'architecture/ directory not found' };
+    }
+    const files = fs.readdirSync(archDir).filter(f => f.endsWith('.jsonl'));
+    if (files.length === 0) {
+      return { name: 'Architecture JSONL exists', passed: false, detail: 'No architecture JSONL files' };
+    }
+    const empty: string[] = [];
+    for (const f of files) {
+      const stat = fs.statSync(path.join(archDir, f));
+      if (stat.size === 0) empty.push(f);
+    }
+    return {
+      name: 'Architecture JSONL exists',
+      passed: true,
+      detail: `${files.length} file(s)${empty.length > 0 ? ` (empty: ${empty.join(',')})` : ''}`,
+    };
+  } catch {
+    return { name: 'Architecture JSONL exists', passed: false, detail: 'Could not check architecture' };
+  }
+}
+
+/** R3: 验证图谱中每条边的 source 和 target 节点存在 */
+function checkGraphEdgeIntegrity(workDir: string): CheckResult {
+  try {
+    const graphPaths = [
+      path.join(workDir, '3_graph', 'graph', 'graph.merged.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.json'),
+    ];
+    let graphData: { nodes: {id:string}[], edges: {id:string,source:string,target:string,type:string}[] } | null = null;
+    for (const gp of graphPaths) {
+      if (fs.existsSync(gp)) {
+        graphData = JSON.parse(fs.readFileSync(gp, 'utf-8'));
+        break;
+      }
+    }
+    if (!graphData) {
+      return { name: 'Graph edge integrity', passed: false, detail: 'No graph file found' };
+    }
+    const nodeIds = new Set(graphData.nodes.map(n => n.id));
+    const danglingEdges: string[] = [];
+    for (const e of graphData.edges) {
+      if (!nodeIds.has(e.source)) danglingEdges.push(`${e.id}: source "${e.source}" not found`);
+      if (!nodeIds.has(e.target)) danglingEdges.push(`${e.id}: target "${e.target}" not found`);
+    }
+    return {
+      name: 'Graph edge integrity',
+      passed: danglingEdges.length === 0,
+      detail: danglingEdges.length === 0
+        ? `All ${graphData.edges.length} edges reference existing nodes`
+        : danglingEdges.slice(0, 5).join('; '),
+    };
+  } catch {
+    return { name: 'Graph edge integrity', passed: false, detail: 'Could not verify edges' };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
@@ -407,12 +497,15 @@ export async function main(args: string[]): Promise<CliResult> {
   allChecks.push(checkStateMd(workDir));
   allChecks.push(checkShardIndex(workDir));
   allChecks.push(checkR1HasJsonlFiles(workDir));
+  allChecks.push(checkShardCompleteness(workDir));
 
   // === R3 / FINAL additional checks ===
   if (stageArg !== 'S1') {
     allChecks.push(checkAllJsonlDirsHaveFiles(workDir));
+    allChecks.push(checkArchitectureExists(workDir));
     allChecks.push(checkIdUniqueness(workDir));
     allChecks.push(checkGraphLoadable(workDir));
+    allChecks.push(checkGraphEdgeIntegrity(workDir));
     allChecks.push(checkNodeCountVsR1(workDir));
   }
 
