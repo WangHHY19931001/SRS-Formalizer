@@ -7,11 +7,13 @@
 const USAGE = `Usage: npx tsx index.ts <command> [options]
 
 Commands:
-  init            Initialize .srs_formalizer working directory
-  manifest        Shard SRS and recognize chapters
-  inject-prompt   Inject params into a template and output result
-  validate-jsonl  Validate JSONL file (6 checks)
-  build-graph     Build requirement knowledge graph from JSONL files
+  init               Initialize .srs_formalizer working directory
+  manifest           Shard SRS and recognize chapters
+  inject-prompt      Inject params into a template and output result
+  validate-jsonl     Validate JSONL file (6 checks)
+  build-graph        Build requirement knowledge graph from JSONL files
+  analyze-structure  Analyze graph for structural defects
+  merge-structure    Merge sub-agent completion suggestions into graph
 
 Options:
   --help    Show this help message
@@ -59,6 +61,18 @@ async function main(): Promise<void> {
     case 'build-graph': {
       const { main: buildGraphMain } = await import('./commands/build-graph.js');
       const result = await buildGraphMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'analyze-structure': {
+      const { main: analyzeMain } = await import('./commands/analyze-structure.js');
+      const result = await analyzeMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'merge-structure': {
+      const { main: mergeMain } = await import('./commands/merge-structure.js');
+      const result = await mergeMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }
