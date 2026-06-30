@@ -1,0 +1,8 @@
+#!/bin/bash
+# SRS-Formalizer 终极验收脚本
+set -e
+echo "=== SRS-Formalizer Acceptance Gate ==="
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts verify-gate --workdir .srs_formalizer --stage FINAL
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-bdd --workdir .srs_formalizer
+node --test .claude/skills/srs-formalizer/scripts/__tests__/*.test.ts
+echo "=== ALL CHECKS PASSED ==="
