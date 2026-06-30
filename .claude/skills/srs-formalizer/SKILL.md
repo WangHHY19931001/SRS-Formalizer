@@ -45,6 +45,20 @@ metadata:
     windsurf: { rule_type: always_on }
     qoder: { rule_type: always_apply }
     default: { agents_md: "SRS processing rule" }
+  capability_requirements:
+    # 每个流水线阶段对 LLM 能力的最低要求（0=跳过, 1=需人工, 2=引导式, 3=自动）
+    S0_discovery: { text_analysis: 2, reasoning: 2 }
+    S2_1_R1_extraction: { instruction_following: 3, structured_output: 3, precision: 3 }
+    S2_2_arch_decomposition: { hierarchical_reasoning: 3, induction: 2 }
+    S2_3_R2_derivation: { creative_reasoning: 3, safety_awareness: 2 }
+    S2_5_R3_relations: { logical_reasoning: 3, contradiction_detection: 3 }
+    S5_tlaplus: { formal_reasoning: 3, state_machine_modeling: 3 }
+    S5_lean4: { theorem_proving: 3, dependent_type_understanding: 3 }
+  capability_tiers:
+    # 根据模型能力画像自动选择适配层级
+    strong:  { min_capability_score: 80, adaptation: "full_auto" }
+    medium:  { min_capability_score: 50, adaptation: "guided" }
+    weak:    { min_capability_score: 0,  adaptation: "human_in_loop" }
 ---
 
 # SRS Formalizer
