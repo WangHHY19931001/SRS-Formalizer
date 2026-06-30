@@ -11,6 +11,7 @@ Commands:
   manifest        Shard SRS and recognize chapters
   inject-prompt   Inject params into a template and output result
   validate-jsonl  Validate JSONL file (6 checks)
+  build-graph     Build requirement knowledge graph from JSONL files
 
 Options:
   --help    Show this help message
@@ -52,6 +53,12 @@ async function main(): Promise<void> {
     case 'validate-jsonl': {
       const { main: validateMain } = await import('./commands/validate-jsonl.js');
       const result = await validateMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'build-graph': {
+      const { main: buildGraphMain } = await import('./commands/build-graph.js');
+      const result = await buildGraphMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }
