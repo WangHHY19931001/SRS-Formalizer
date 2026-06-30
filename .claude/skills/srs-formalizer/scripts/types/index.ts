@@ -43,6 +43,12 @@ export interface ShardEntry {
   file: string;
   module: string;
   chapter_ref: string;
+  /** 源文件绝对路径 */
+  source_path: string;
+  /** 源文件中的起始行号（1-based） */
+  source_start_line: number;
+  /** 源文件中的结束行号（1-based，含） */
+  source_end_line: number;
   char_count: number;
   estimated_tokens: number;
 }

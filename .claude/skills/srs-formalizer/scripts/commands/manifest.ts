@@ -83,49 +83,61 @@ function estimateTokens(text: string, lang: 'zh' | 'en'): number {
 function shardContent(
   content: string,
   chapters: ChapterInfo[],
-  lang: 'zh' | 'en'
+  lang: 'zh' | 'en',
+  sourcePath: string
 ): { shards: ShardEntry[]; shardContents: Map<string, string> } {
   const shardEntries: ShardEntry[] = [];
   const shardContents = new Map<string, string>();
   const lines = content.split('\n');
+  const absPath = path.resolve(sourcePath);
+
+  function makeHeader(id: string, startLine: number, endLine: number): string {
+    return [
+      `# shard_id: ${id}`,
+      `# source: ${absPath}:${startLine + 1}-${endLine}`,
+      `# total_shards: <TOTAL>`,
+      '',
+    ].join('\n');
+  }
 
   const moduleChapters = chapters.filter(ch => ch.level === 2 || ch.level === 3);
 
   if (moduleChapters.length === 0) {
     const id = 'S001';
     const fileName = 'S001.md';
+    const header = makeHeader(id, 0, lines.length);
+    const fullContent = content;
     shardEntries.push({
-      id,
-      file: fileName,
-      module: '全文',
-      chapter_ref: '全文',
-      char_count: content.length,
-      estimated_tokens: estimateTokens(content, lang),
+      id, file: fileName, module: '全文', chapter_ref: '全文',
+      source_path: absPath, source_start_line: 1, source_end_line: lines.length,
+      char_count: fullContent.length, estimated_tokens: estimateTokens(fullContent, lang),
     });
-    shardContents.set(fileName, content);
+    shardContents.set(fileName, header.replace('<TOTAL>', '1') + fullContent);
     return { shards: shardEntries, shardContents };
   }
 
+  const total = moduleChapters.length;
   for (let i = 0; i < moduleChapters.length; i++) {
     const ch = moduleChapters[i]!;
     const nextCh = moduleChapters[i + 1];
-    const startLine = ch.line;
+    const startLine = ch.line;              // 0-based line index
     const endLine = nextCh ? nextCh.line : lines.length;
 
     const shardLines = lines.slice(startLine, endLine);
     const shardText = shardLines.join('\n');
     const id = `S${String(i + 1).padStart(3, '0')}`;
     const fileName = `S${String(i + 1).padStart(3, '0')}.md`;
+    const header = makeHeader(id, startLine, endLine).replace('<TOTAL>', String(total));
 
     shardEntries.push({
-      id,
-      file: fileName,
-      module: ch.title,
-      chapter_ref: ch.raw,
+      id, file: fileName, module: ch.title, chapter_ref: ch.raw,
+      source_path: absPath,
+      source_start_line: startLine + 1,  // 1-based for human reading
+      source_end_line: endLine,          // endLine 已经在前面指向下一个章节起始行（1-based from lines array）
       char_count: shardText.length,
       estimated_tokens: estimateTokens(shardText, lang),
     });
-    shardContents.set(fileName, shardText);
+    shardContents.set(fileName, header + shardText);
   }
 
   return { shards: shardEntries, shardContents };
@@ -269,7 +281,7 @@ export async function main(args: string[]): Promise<CliResult> {
     warnings.push('未识别到任何 SRS 章节，将全文作为单分片处理');
   }
 
-  const { shards, shardContents } = shardContent(content, chapters, lang);
+  const { shards, shardContents } = shardContent(content, chapters, lang, absSrc);
   const gaps = detectGaps(content, chapters);
 
   const shardDir = path.join(workDir, '1_shard');
