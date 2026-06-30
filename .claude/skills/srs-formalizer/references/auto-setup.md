@@ -4,6 +4,25 @@
 
 编码智能体在执行 `/init`、项目初始化、或首次部署本技能时，应读取本文档以自动完成平台检测和激活机制配置。
 
+## 核心原则：元数据单源真相
+
+所有平台的激活配置**编译自同一份元数据**——SKILL.md 的 frontmatter `metadata` 字段。修改只需改一处，各平台配置重新生成。
+
+```
+SKILL.md metadata (单源真相)
+  │
+  ├── trigger_keywords  →  Claude Code hook / Codex Python / AGENTS.md
+  ├── file_globs        →  Cursor .mdc / Windsurf rules
+  ├── platform_activation → 各平台 Hook/Rule/Command 类型选择
+  └── pipeline_stages   →  Antigravity TOML / slash commands
+```
+
+**编译规则**：编码智能体读取 `metadata` → 根据检测到的平台 → 从 `platform_activation` 选择对应激活类型 → 用 `trigger_keywords` 和 `file_globs` 生成配置。
+
+> 参考实现见 `github.com/Nexa-Language/Skill-Compiler`（SkIR 中间表示，<10ms 编译，O(m+n) 适配复杂度）。
+
+---
+
 ## Step 1：平台检测
 
 按以下优先级检测当前环境中的编码智能体平台：
@@ -37,11 +56,13 @@
 mkdir -p .claude/hooks
 
 cat > .claude/hooks/srs-eval.js << 'HOOKEOF'
+// 关键词从 SKILL.md frontmatter metadata.trigger_keywords 编译生成
+// 修改关键词请在 SKILL.md 中改，然后重新运行本脚本
 const SRS_KEYWORDS = [
   'SRS', '需求规格', '软件需求', '系统需求', '功能需求',
   '需求文档', '需求分析', '形式化', '知识图谱', 'BDD',
   'Gherkin', 'TLA+', 'Lean', 'Cypher', 'Neo4j',
-  'srs.md', '需求说明书', '规格说明', '§1.', '§2.',
+  'srs.md', '需求说明书', '规格说明', '§1.',
 ];
 export default async function({ prompt }) {
   const text = prompt.toLowerCase();
@@ -94,6 +115,7 @@ echo "✅ Cursor: .mdc rule configured with glob patterns"
 mkdir -p .codex/hooks
 
 cat > .codex/hooks/srs-activate.py << 'PYEOF'
+# 关键词从 SKILL.md frontmatter metadata.trigger_keywords 编译生成
 import sys, json
 SRS_KEYWORDS = [
     'SRS', '需求规格', '软件需求', '系统需求', '功能需求',

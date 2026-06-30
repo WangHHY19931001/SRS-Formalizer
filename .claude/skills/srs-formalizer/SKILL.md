@@ -1,6 +1,50 @@
 ---
 name: srs-formalizer
-description: 当用户提供 SRS（软件需求规格说明）文档并要求生成形式化产出时使用——包括需求知识图谱、BDD 特性文件、TLA+ 形式化规约或 Lean 4 算法证明。触发条件：用户上传或引用 SRS 文档（HTML/Markdown/多目录包），要求"形式化"、"生成知识图谱"、"生成 BDD"、"TLA+ 建模"、"Lean 证明"。
+description: 将 SRS 文档转化为需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约和 Lean 4 证明。当用户提供或引用 SRS 文档（HTML/Markdown/多目录包），要求"形式化"、"生成知识图谱"、"生成 BDD"、"TLA+ 建模"、"Lean 证明"时使用。
+compatibility: requires Node.js≥20, typescript≥5.5
+tags: [srs, requirements, knowledge-graph, bdd, tla+, lean, formal-methods, cypher, gherkin, verification]
+metadata:
+  version: "0.3.0"
+  trigger_keywords:
+    - SRS
+    - 需求规格
+    - 软件需求
+    - 系统需求
+    - 功能需求
+    - 需求文档
+    - 需求分析
+    - 形式化
+    - 知识图谱
+    - BDD
+    - Gherkin
+    - TLA+
+    - Lean
+    - Cypher
+    - Neo4j
+    - srs.md
+    - 需求说明书
+    - 规格说明
+    - "§1."
+  file_globs:
+    - "**/*srs*.md"
+    - "**/*需求*.md"
+    - "**/*规格*.md"
+  pipeline_stages: [S0-discovery, S1-preprocess, S2-extract, S3-graph, S4-bdd, S5-formal, S6-gate]
+  stage_gates:
+    - validate-jsonl
+    - validate-architecture
+    - validate-cypher
+    - validate-bdd
+    - validate-checklist
+    - verify-gate
+  platform_activation:
+    claude-code: { hook: UserPromptSubmit, forced_eval: true }
+    cursor: { rule_type: glob_attached, always_apply: false }
+    codex: { hook: UserPromptSubmit, scan_keywords: true }
+    antigravity: { command: /srs-formalizer }
+    windsurf: { rule_type: always_on }
+    qoder: { rule_type: always_apply }
+    default: { agents_md: "SRS processing rule" }
 ---
 
 # SRS Formalizer
