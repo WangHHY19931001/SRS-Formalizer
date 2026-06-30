@@ -110,4 +110,5 @@ S2 子阶段:
 | `references/gherkin-syntax.md` | Gherkin 语法参考 |
 | `references/tlaplus-guide.md` | TLA+ 编写指南 |
 | `references/lean4-guide.md` | Lean 4 编写指南 |
+| `references/agent-integration-guide.md` | **Agent 集成指南**：hook 注册、规则注入、CLAUDE.md 配置 |
 | `templates/*.md.template` | 产出文件模板 |
