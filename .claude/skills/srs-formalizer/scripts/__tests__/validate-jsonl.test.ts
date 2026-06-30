@@ -4,6 +4,13 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
+interface ValidationResultData {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  record_count: number;
+}
+
 const TMP = path.join(os.tmpdir(), `srs-formalizer-validate-test-${Date.now()}`);
 const WORKDIR = path.join(TMP, '.srs_formalizer');
 
@@ -32,8 +39,8 @@ describe('validate-jsonl command', () => {
     const { main } = await import('../commands/validate-jsonl.js');
     const result = await main(['--file', fp, '--workdir', WORKDIR]);
     assert.equal(result.status, 'ok');
-    assert.equal(result.data.valid, true);
-    assert.equal(result.data.record_count, 2);
+    assert.equal((result.data as ValidationResultData).valid, true);
+    assert.equal((result.data as ValidationResultData).record_count, 2);
   });
 
   it('rejects invalid JSON lines', async () => {
@@ -43,8 +50,8 @@ describe('validate-jsonl command', () => {
     ]);
     const { main } = await import('../commands/validate-jsonl.js');
     const result = await main(['--file', fp, '--workdir', WORKDIR]);
-    assert.equal(result.data.valid, false);
-    assert.ok(result.data.errors.length > 0);
+    assert.equal((result.data as ValidationResultData).valid, false);
+    assert.ok((result.data as ValidationResultData).errors.length > 0);
   });
 
   it('rejects missing required fields', async () => {
@@ -53,7 +60,7 @@ describe('validate-jsonl command', () => {
     ]);
     const { main } = await import('../commands/validate-jsonl.js');
     const result = await main(['--file', fp, '--workdir', WORKDIR]);
-    assert.equal(result.data.valid, false);
+    assert.equal((result.data as ValidationResultData).valid, false);
   });
 
   it('rejects invalid id format', async () => {
@@ -62,7 +69,7 @@ describe('validate-jsonl command', () => {
     ]);
     const { main } = await import('../commands/validate-jsonl.js');
     const result = await main(['--file', fp, '--workdir', WORKDIR]);
-    assert.equal(result.data.valid, false);
+    assert.equal((result.data as ValidationResultData).valid, false);
   });
 
   it('rejects invalid category enum', async () => {
@@ -71,7 +78,7 @@ describe('validate-jsonl command', () => {
     ]);
     const { main } = await import('../commands/validate-jsonl.js');
     const result = await main(['--file', fp, '--workdir', WORKDIR]);
-    assert.equal(result.data.valid, false);
+    assert.equal((result.data as ValidationResultData).valid, false);
   });
 
   it('rejects empty statement', async () => {
@@ -80,7 +87,7 @@ describe('validate-jsonl command', () => {
     ]);
     const { main } = await import('../commands/validate-jsonl.js');
     const result = await main(['--file', fp, '--workdir', WORKDIR]);
-    assert.equal(result.data.valid, false);
+    assert.equal((result.data as ValidationResultData).valid, false);
   });
 
   it('detects duplicate ids', async () => {
@@ -90,7 +97,7 @@ describe('validate-jsonl command', () => {
     ]);
     const { main } = await import('../commands/validate-jsonl.js');
     const result = await main(['--file', fp, '--workdir', WORKDIR]);
-    assert.equal(result.data.valid, false);
+    assert.equal((result.data as ValidationResultData).valid, false);
   });
 
   it('rejects file path outside .srs_formalizer', async () => {
@@ -107,10 +114,10 @@ describe('validate-jsonl command', () => {
     const { main } = await import('../commands/validate-jsonl.js');
     const result = await main(['--file', fp, '--workdir', WORKDIR]);
     assert.equal(result.status, 'ok');
-    assert.equal(typeof result.data.valid, 'boolean');
-    assert.ok(Array.isArray(result.data.errors));
-    assert.ok(Array.isArray(result.data.warnings));
-    assert.equal(result.data.record_count, 2);
+    assert.equal(typeof (result.data as ValidationResultData).valid, 'boolean');
+    assert.ok(Array.isArray((result.data as ValidationResultData).errors));
+    assert.ok(Array.isArray((result.data as ValidationResultData).warnings));
+    assert.equal((result.data as ValidationResultData).record_count, 2);
   });
 
   it('handles missing --file argument', async () => {
