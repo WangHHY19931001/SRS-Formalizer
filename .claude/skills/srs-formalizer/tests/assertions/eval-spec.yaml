@@ -98,3 +98,58 @@ negative_controls:
     assert:
       - status: error
       - exit_code: 1
+
+  # === S2 tests ===
+  - id: s2_inject_basic
+    description: "inject-prompt replaces placeholders"
+    command: "npx tsx index.ts inject-prompt --template prompts/executor-R1.md --params '{\"SHARD_CONTENT\":\"test\",\"SHARD_ID\":\"S001\"}'"
+    assert:
+      - status: ok
+      - stdout_not_contains: "{{SHARD_CONTENT}}"
+      - stdout_not_contains: "{{SHARD_ID}}"
+
+  - id: s2_inject_injection_protection
+    description: "inject-prompt escapes user {{ }} in params"
+    command: "npx tsx index.ts inject-prompt --template prompts/executor-R1.md --params '{\"SHARD_CONTENT\":\"{{malicious}}\",\"SHARD_ID\":\"S001\"}'"
+    assert:
+      - status: ok
+      - stdout_contains: "{{malicious}}"
+
+  - id: s2_inject_reject_bad_template
+    description: "inject-prompt rejects template outside prompts/"
+    command: "npx tsx index.ts inject-prompt --template /etc/passwd --params '{}'"
+    assert:
+      - status: error
+
+  - id: s2_validate_valid_jsonl
+    description: "validate-jsonl accepts valid records"
+    command: "npx tsx index.ts validate-jsonl --file .srs_formalizer/r1-explicit/valid.jsonl --workdir .srs_formalizer"
+    assert:
+      - valid: true
+
+  - id: s2_validate_bad_id_format
+    description: "validate-jsonl rejects invalid id"
+    command: "npx tsx index.ts validate-jsonl --file .srs_formalizer/r1-explicit/bad_id.jsonl --workdir .srs_formalizer"
+    assert:
+      - valid: false
+
+  - id: s2_validate_duplicates
+    description: "validate-jsonl detects duplicate ids"
+    command: "npx tsx index.ts validate-jsonl --file .srs_formalizer/r1-explicit/dupes.jsonl --workdir .srs_formalizer"
+    assert:
+      - valid: false
+
+negative_controls:
+  - id: nc_inject_no_template
+    description: "inject-prompt without --template"
+    command: "npx tsx index.ts inject-prompt --params '{}'"
+    assert:
+      - status: error
+      - exit_code: 1
+
+  - id: nc_validate_no_file
+    description: "validate-jsonl without --file"
+    command: "npx tsx index.ts validate-jsonl --workdir .srs_formalizer"
+    assert:
+      - status: error
+      - exit_code: 1
