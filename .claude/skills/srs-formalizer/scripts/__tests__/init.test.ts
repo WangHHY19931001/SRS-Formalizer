@@ -22,12 +22,14 @@ describe('init command', () => {
 
     assert.equal(result.status, 'ok');
     const expectedDirs = [
-      'shard', '_ctx',
-      'r1-explicit', 'r2-implicit', 'r3-relational',
-      'graph',
-      'analysis/subagent_prompts',
-      'features', 'specs', 'proofs',
-      'outputs/knowledge_graph', 'outputs/brainstorming',
+      '1_shard',
+      '_ctx',
+      '2_extract/r1-explicit', '2_extract/r2-implicit', '2_extract/r3-relational',
+      '3_graph/graph',
+      '3_graph/analysis/subagent_prompts',
+      '4_bdd/features',
+      '5_formal/specs', '5_formal/proofs',
+      '6_outputs/knowledge_graph', '6_outputs/brainstorming',
       'backups',
     ];
     for (const dir of expectedDirs) {

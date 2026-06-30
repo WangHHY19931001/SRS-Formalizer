@@ -16,9 +16,9 @@ const WORKDIR = path.join(TMP, '.srs_formalizer');
 
 describe('validate-jsonl command', () => {
   before(() => {
-    fs.mkdirSync(path.join(WORKDIR, 'r1-explicit'), { recursive: true });
-    fs.mkdirSync(path.join(WORKDIR, 'r2-implicit'), { recursive: true });
-    fs.mkdirSync(path.join(WORKDIR, 'r3-relational'), { recursive: true });
+    fs.mkdirSync(path.join(WORKDIR, '2_extract', 'r1-explicit'), { recursive: true });
+    fs.mkdirSync(path.join(WORKDIR, '2_extract', 'r2-implicit'), { recursive: true });
+    fs.mkdirSync(path.join(WORKDIR, '2_extract', 'r3-relational'), { recursive: true });
   });
 
   after(() => {
@@ -32,7 +32,7 @@ describe('validate-jsonl command', () => {
   }
 
   it('validates correct JSONL as valid', async () => {
-    const fp = writeJsonl('r1-explicit', 'valid.jsonl', [
+    const fp = writeJsonl('2_extract/r1-explicit', 'valid.jsonl', [
       '{"id":"R1-S001-0001","category":"explicit","statement":"系统应支持注册","source_file":"s1.md","confidence":"high"}',
       '{"id":"R1-S001-0002","category":"explicit","statement":"系统应支持登录","source_file":"s1.md","confidence":"medium"}',
     ]);
@@ -44,7 +44,7 @@ describe('validate-jsonl command', () => {
   });
 
   it('rejects invalid JSON lines', async () => {
-    const fp = writeJsonl('r1-explicit', 'bad.jsonl', [
+    const fp = writeJsonl('2_extract/r1-explicit', 'bad.jsonl', [
       '{"id":"R1-S001-0001","category":"explicit","statement":"ok","source_file":"s1.md","confidence":"high"}',
       '{this is not json}',
     ]);
@@ -55,7 +55,7 @@ describe('validate-jsonl command', () => {
   });
 
   it('rejects missing required fields', async () => {
-    const fp = writeJsonl('r1-explicit', 'missing.jsonl', [
+    const fp = writeJsonl('2_extract/r1-explicit', 'missing.jsonl', [
       '{"id":"R1-S001-0001","category":"explicit","source_file":"s1.md","confidence":"high"}',
     ]);
     const { main } = await import('../commands/validate-jsonl.js');
@@ -64,7 +64,7 @@ describe('validate-jsonl command', () => {
   });
 
   it('rejects invalid id format', async () => {
-    const fp = writeJsonl('r1-explicit', 'bad_id.jsonl', [
+    const fp = writeJsonl('2_extract/r1-explicit', 'bad_id.jsonl', [
       '{"id":"bad-format","category":"explicit","statement":"test","source_file":"s1.md","confidence":"high"}',
     ]);
     const { main } = await import('../commands/validate-jsonl.js');
@@ -73,7 +73,7 @@ describe('validate-jsonl command', () => {
   });
 
   it('rejects invalid category enum', async () => {
-    const fp = writeJsonl('r1-explicit', 'bad_cat.jsonl', [
+    const fp = writeJsonl('2_extract/r1-explicit', 'bad_cat.jsonl', [
       '{"id":"R1-S001-0001","category":"unknown_type","statement":"test","source_file":"s1.md","confidence":"high"}',
     ]);
     const { main } = await import('../commands/validate-jsonl.js');
@@ -82,7 +82,7 @@ describe('validate-jsonl command', () => {
   });
 
   it('rejects empty statement', async () => {
-    const fp = writeJsonl('r1-explicit', 'empty.jsonl', [
+    const fp = writeJsonl('2_extract/r1-explicit', 'empty.jsonl', [
       '{"id":"R1-S001-0001","category":"explicit","statement":"  ","source_file":"s1.md","confidence":"high"}',
     ]);
     const { main } = await import('../commands/validate-jsonl.js');
@@ -91,7 +91,7 @@ describe('validate-jsonl command', () => {
   });
 
   it('detects duplicate ids', async () => {
-    const fp = writeJsonl('r1-explicit', 'dupes.jsonl', [
+    const fp = writeJsonl('2_extract/r1-explicit', 'dupes.jsonl', [
       '{"id":"R1-S001-0001","category":"explicit","statement":"first","source_file":"s1.md","confidence":"high"}',
       '{"id":"R1-S001-0001","category":"explicit","statement":"second","source_file":"s2.md","confidence":"high"}',
     ]);
@@ -107,7 +107,7 @@ describe('validate-jsonl command', () => {
   });
 
   it('returns structured JSON with errors/warnings/record_count', async () => {
-    const fp = writeJsonl('r1-explicit', 'mixed.jsonl', [
+    const fp = writeJsonl('2_extract/r1-explicit', 'mixed.jsonl', [
       '{"id":"R1-S001-0001","category":"explicit","statement":"valid","source_file":"s1.md","confidence":"high"}',
       '{"id":"bad-id","category":"explicit","statement":"bad","source_file":"s1.md","confidence":"high"}',
     ]);

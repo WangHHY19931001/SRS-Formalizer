@@ -12,7 +12,7 @@ const TMP = path.join(os.tmpdir(), `srs-formalizer-export-cypher-test-${Date.now
  */
 function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
-  fs.mkdirSync(path.join(workDir, 'graph'), { recursive: true });
+  fs.mkdirSync(path.join(workDir, '3_graph', 'graph'), { recursive: true });
   return workDir;
 }
 
@@ -20,7 +20,7 @@ function createWorkDir(name: string): string {
  * Write a graph JSON file to the workdir's graph/ subdirectory.
  */
 function writeGraphFile(workDir: string, filename: string, data: GraphData): void {
-  const filePath = path.join(workDir, 'graph', filename);
+  const filePath = path.join(workDir, '3_graph', 'graph', filename);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
@@ -56,7 +56,7 @@ describe('export-cypher command', () => {
     assert.equal(data.edge_count, 1);
 
     // Verify output file exists
-    const cypherPath = path.join(workDir, 'outputs', 'knowledge_graph', 'schema.cypher');
+    const cypherPath = path.join(workDir, '6_outputs', 'knowledge_graph', 'schema.cypher');
     assert.ok(fs.existsSync(cypherPath), 'schema.cypher should exist');
 
     const content = fs.readFileSync(cypherPath, 'utf-8');
@@ -85,7 +85,7 @@ describe('export-cypher command', () => {
     const data = result.data as Record<string, unknown>;
     assert.equal(data.node_count, 1);
 
-    const cypherPath = path.join(workDir, 'outputs', 'knowledge_graph', 'schema.cypher');
+    const cypherPath = path.join(workDir, '6_outputs', 'knowledge_graph', 'schema.cypher');
     assert.ok(fs.existsSync(cypherPath));
     const content = fs.readFileSync(cypherPath, 'utf-8');
     // Node id appears in edge MATCH statements; since there are no edges,
@@ -111,7 +111,7 @@ describe('export-cypher command', () => {
     const data = result.data as Record<string, unknown>;
     assert.equal(data.node_count, 1);
 
-    const cypherPath = path.join(workDir, 'outputs', 'knowledge_graph', 'schema.cypher');
+    const cypherPath = path.join(workDir, '6_outputs', 'knowledge_graph', 'schema.cypher');
     assert.ok(fs.existsSync(cypherPath));
   });
 
@@ -163,8 +163,8 @@ describe('export-cypher command', () => {
     assert.equal(resultA.status, 'ok');
     assert.equal(resultB.status, 'ok');
 
-    const outputA = path.join(workDirA, 'outputs', 'knowledge_graph', 'schema.cypher');
-    const outputB = path.join(workDirB, 'outputs', 'knowledge_graph', 'schema.cypher');
+    const outputA = path.join(workDirA, '6_outputs', 'knowledge_graph', 'schema.cypher');
+    const outputB = path.join(workDirB, '6_outputs', 'knowledge_graph', 'schema.cypher');
     const contentA = fs.readFileSync(outputA, 'utf-8');
     const contentB = fs.readFileSync(outputB, 'utf-8');
 
@@ -185,7 +185,7 @@ describe('export-cypher command', () => {
     assert.equal(data.node_count, 0);
     assert.equal(data.edge_count, 0);
 
-    const cypherPath = path.join(workDir, 'outputs', 'knowledge_graph', 'schema.cypher');
+    const cypherPath = path.join(workDir, '6_outputs', 'knowledge_graph', 'schema.cypher');
     assert.ok(fs.existsSync(cypherPath));
     const content = fs.readFileSync(cypherPath, 'utf-8');
     // Should still have constraints and header

@@ -75,7 +75,7 @@ function checkShardIndex(workDir: string): CheckResult {
 }
 
 function checkR1HasJsonlFiles(workDir: string): CheckResult {
-  const r1Dir = path.join(workDir, 'r1-explicit');
+  const r1Dir = path.join(workDir, '2_extract', 'r1-explicit');
   let fileCount = 0;
   if (fs.existsSync(r1Dir)) {
     try {
@@ -90,7 +90,7 @@ function checkR1HasJsonlFiles(workDir: string): CheckResult {
 }
 
 function checkAllJsonlDirsHaveFiles(workDir: string): CheckResult {
-  const jsonlDirs = ['r1-explicit', 'r2-implicit', 'r3-relational'];
+  const jsonlDirs = ['2_extract/r1-explicit', '2_extract/r2-implicit', '2_extract/r3-relational'];
   const results: string[] = [];
   let allHaveFiles = true;
 
@@ -123,7 +123,7 @@ function checkAllJsonlDirsHaveFiles(workDir: string): CheckResult {
 }
 
 function checkIdUniqueness(workDir: string): CheckResult {
-  const jsonlDirs = ['r1-explicit', 'r2-implicit', 'r3-relational'];
+  const jsonlDirs = ['2_extract/r1-explicit', '2_extract/r2-implicit', '2_extract/r3-relational'];
   const seenIds = new Set<string>();
   const duplicateIds: string[] = [];
 
@@ -154,8 +154,8 @@ function checkIdUniqueness(workDir: string): CheckResult {
 }
 
 function checkGraphLoadable(workDir: string): CheckResult {
-  const mergedPath = path.join(workDir, 'graph', 'graph.merged.json');
-  const basePath = path.join(workDir, 'graph', 'graph.json');
+  const mergedPath = path.join(workDir, '3_graph', 'graph', 'graph.merged.json');
+  const basePath = path.join(workDir, '3_graph', 'graph', 'graph.json');
   let graphFile: string | null = null;
 
   if (fs.existsSync(mergedPath)) {
@@ -193,7 +193,7 @@ function checkGraphLoadable(workDir: string): CheckResult {
 function checkNodeCountVsR1(workDir: string): CheckResult {
   // Count R1 explicit JSONL records
   let r1Count = 0;
-  const r1Dir = path.join(workDir, 'r1-explicit');
+  const r1Dir = path.join(workDir, '2_extract', 'r1-explicit');
   if (fs.existsSync(r1Dir)) {
     try {
       const files = listJsonlFiles(r1Dir, workDir);
@@ -205,8 +205,8 @@ function checkNodeCountVsR1(workDir: string): CheckResult {
   }
 
   // Get node count from graph
-  const mergedPath = path.join(workDir, 'graph', 'graph.merged.json');
-  const basePath = path.join(workDir, 'graph', 'graph.json');
+  const mergedPath = path.join(workDir, '3_graph', 'graph', 'graph.merged.json');
+  const basePath = path.join(workDir, '3_graph', 'graph', 'graph.json');
   const graphFile = fs.existsSync(mergedPath) ? mergedPath : (fs.existsSync(basePath) ? basePath : null);
 
   if (!graphFile) {
@@ -247,7 +247,7 @@ function checkNodeCountVsR1(workDir: string): CheckResult {
 function checkValidateBddPasses(workDir: string): CheckResult {
   // Basic validation of .feature files — checks each file for valid Gherkin structure.
   // For full validation, run: npx tsx index.ts validate-bdd --workdir <dir>
-  const featuresDir = path.join(workDir, 'features');
+  const featuresDir = path.join(workDir, '4_bdd', 'features');
   if (!fs.existsSync(featuresDir)) {
     return {
       name: 'validate-bdd passes',
@@ -300,7 +300,7 @@ function checkValidateBddPasses(workDir: string): CheckResult {
 }
 
 function checkMergedGraphExists(workDir: string): CheckResult {
-  const mergedPath = path.join(workDir, 'graph', 'graph.merged.json');
+  const mergedPath = path.join(workDir, '3_graph', 'graph', 'graph.merged.json');
   const exists = fs.existsSync(mergedPath);
   return {
     name: 'graph.merged.json exists',
@@ -310,7 +310,7 @@ function checkMergedGraphExists(workDir: string): CheckResult {
 }
 
 function checkSchemaCypherExists(workDir: string): CheckResult {
-  const cypherPath = path.join(workDir, 'outputs', 'knowledge_graph', 'schema.cypher');
+  const cypherPath = path.join(workDir, '6_outputs', 'knowledge_graph', 'schema.cypher');
   const exists = fs.existsSync(cypherPath);
   return {
     name: 'outputs/knowledge_graph/schema.cypher exists',
@@ -320,7 +320,7 @@ function checkSchemaCypherExists(workDir: string): CheckResult {
 }
 
 function checkBrainstormContextExists(workDir: string): CheckResult {
-  const bsPath = path.join(workDir, 'outputs', 'brainstorming', 'brainstorm_context.json');
+  const bsPath = path.join(workDir, '6_outputs', 'brainstorming', 'brainstorm_context.json');
   const exists = fs.existsSync(bsPath);
   return {
     name: 'outputs/brainstorming/brainstorm_context.json exists',

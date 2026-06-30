@@ -28,7 +28,7 @@ const CATEGORY_LABEL = {
     relational: ':RelationalRequirement',
 };
 /** 子目录按此顺序处理，保证确定性。 */
-const SUBDIRS = ['r1-explicit', 'r2-implicit', 'r3-relational'];
+const SUBDIRS = ['2_extract/r1-explicit', '2_extract/r2-implicit', '2_extract/r3-relational'];
 const VALID_RELATION_TYPES = ['DEPENDS_ON', 'REFINES', 'CONFLICTS_WITH'];
 function isRelationMeta(value) {
     if (typeof value !== 'object' || value === null)
@@ -168,7 +168,7 @@ export async function main(args) {
     // Build graph
     const graph = buildGraph(uniqueRecords);
     // Write output file
-    const graphDir = path.join(workDir, 'graph');
+    const graphDir = path.join(workDir, '3_graph', 'graph');
     if (!fs.existsSync(graphDir)) {
         fs.mkdirSync(graphDir, { recursive: true });
     }

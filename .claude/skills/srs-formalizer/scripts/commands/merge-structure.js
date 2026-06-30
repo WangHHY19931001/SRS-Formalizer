@@ -52,7 +52,7 @@ export async function main(args) {
         return { status: 'error', message: err.message };
     }
     // Read graph/graph.json
-    const graphPath = path.join(workDir, 'graph', 'graph.json');
+    const graphPath = path.join(workDir, '3_graph', 'graph', 'graph.json');
     if (!fs.existsSync(graphPath)) {
         return { status: 'error', message: `Graph file not found: ${graphPath}` };
     }
@@ -67,7 +67,7 @@ export async function main(args) {
     let graph = Graph.fromJSON(graphData);
     const logEntries = [];
     // Collect suggestion JSONL files from analysis/
-    const analysisDir = path.join(workDir, 'analysis');
+    const analysisDir = path.join(workDir, '3_graph', 'analysis');
     const suggestionFiles = [];
     try {
         const files = listJsonlFiles(analysisDir, workDir);
@@ -284,7 +284,7 @@ export async function main(args) {
         }
     }
     // Write updated graph
-    const graphDir = path.join(workDir, 'graph');
+    const graphDir = path.join(workDir, '3_graph', 'graph');
     if (!fs.existsSync(graphDir)) {
         fs.mkdirSync(graphDir, { recursive: true });
     }

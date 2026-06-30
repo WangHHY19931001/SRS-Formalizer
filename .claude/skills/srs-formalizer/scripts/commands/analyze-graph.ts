@@ -335,8 +335,8 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   // Read graph — prefer graph.structure_fixed.json, fallback to graph.json
-  const fixedGraphPath = path.join(workDir, 'graph', 'graph.structure_fixed.json');
-  const fallbackGraphPath = path.join(workDir, 'graph', 'graph.json');
+  const fixedGraphPath = path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json');
+  const fallbackGraphPath = path.join(workDir, '3_graph', 'graph', 'graph.json');
   let graphPath: string;
 
   if (fs.existsSync(fixedGraphPath)) {
@@ -366,7 +366,7 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   // Ensure output directories
-  const analysisDir = path.join(workDir, 'analysis');
+  const analysisDir = path.join(workDir, '3_graph', 'analysis');
   const promptsDir = path.join(analysisDir, 'subagent_prompts');
   ensureDir(analysisDir);
   ensureDir(promptsDir);

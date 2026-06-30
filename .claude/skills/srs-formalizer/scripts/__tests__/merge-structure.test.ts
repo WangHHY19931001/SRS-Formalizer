@@ -13,8 +13,8 @@ const TMP = path.join(os.tmpdir(), `srs-formalizer-merge-structure-test-${Date.n
  */
 function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
-  fs.mkdirSync(path.join(workDir, 'graph'), { recursive: true });
-  fs.mkdirSync(path.join(workDir, 'analysis'), { recursive: true });
+  fs.mkdirSync(path.join(workDir, '3_graph', 'graph'), { recursive: true });
+  fs.mkdirSync(path.join(workDir, '3_graph', 'analysis'), { recursive: true });
   return workDir;
 }
 
@@ -22,7 +22,7 @@ function createWorkDir(name: string): string {
  * Write graph/graph.json in the workdir.
  */
 function writeGraph(workDir: string, data: GraphData): void {
-  const graphPath = path.join(workDir, 'graph', 'graph.json');
+  const graphPath = path.join(workDir, '3_graph', 'graph', 'graph.json');
   fs.writeFileSync(graphPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
@@ -55,7 +55,7 @@ describe('merge-structure command', () => {
       edges: [],
     });
 
-    writeSuggestions(path.join(workDir, 'analysis'), 'suggestions.jsonl', [
+    writeSuggestions(path.join(workDir, '3_graph', 'analysis'), 'suggestions.jsonl', [
       {
         gap_id: 'ORPHAN-001',
         suggestion_type: 'add_relation',
@@ -75,7 +75,7 @@ describe('merge-structure command', () => {
     assert.equal(data.skipped, 0);
 
     // Verify the output graph has the new edge
-    const outputPath = path.join(workDir, 'graph', 'graph.structure_fixed.json');
+    const outputPath = path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json');
     assert.ok(fs.existsSync(outputPath));
     const outputGraph = JSON.parse(fs.readFileSync(outputPath, 'utf-8')) as GraphData;
     assert.equal(outputGraph.edges.length, 1);
@@ -84,7 +84,7 @@ describe('merge-structure command', () => {
     assert.equal(outputGraph.edges[0]!.type, ':DEPENDS_ON');
 
     // Verify merge log
-    const logPath = path.join(workDir, 'graph', 'structure_merge_log.jsonl');
+    const logPath = path.join(workDir, '3_graph', 'graph', 'structure_merge_log.jsonl');
     assert.ok(fs.existsSync(logPath));
     const logLines = fs.readFileSync(logPath, 'utf-8').trim().split('\n');
     assert.equal(logLines.length, 1);
@@ -107,7 +107,7 @@ describe('merge-structure command', () => {
       ],
     });
 
-    writeSuggestions(path.join(workDir, 'analysis'), 'suggestions.jsonl', [
+    writeSuggestions(path.join(workDir, '3_graph', 'analysis'), 'suggestions.jsonl', [
       {
         gap_id: 'DANGLE-001',
         suggestion_type: 'fix_dangling',
@@ -125,7 +125,7 @@ describe('merge-structure command', () => {
     assert.equal(data.applied, 1);
 
     // Verify the fixed edge target
-    const outputPath = path.join(workDir, 'graph', 'graph.structure_fixed.json');
+    const outputPath = path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json');
     const outputGraph = JSON.parse(fs.readFileSync(outputPath, 'utf-8')) as GraphData;
     const fixedEdge = outputGraph.edges.find(e => e.id === 'R3-REL-0001--:DEPENDS_ON--MISSING');
     assert.ok(fixedEdge);
@@ -143,7 +143,7 @@ describe('merge-structure command', () => {
       edges: [],
     });
 
-    writeSuggestions(path.join(workDir, 'analysis'), 'suggestions.jsonl', [
+    writeSuggestions(path.join(workDir, '3_graph', 'analysis'), 'suggestions.jsonl', [
       {
         gap_id: 'ORPHAN-001',
         suggestion_type: 'add_requirement',
@@ -167,7 +167,7 @@ describe('merge-structure command', () => {
     assert.equal(data.applied, 1);
 
     // Verify the new node in output graph
-    const outputPath = path.join(workDir, 'graph', 'graph.structure_fixed.json');
+    const outputPath = path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json');
     const outputGraph = JSON.parse(fs.readFileSync(outputPath, 'utf-8')) as GraphData;
     assert.equal(outputGraph.nodes.length, 2);
     const newNode = outputGraph.nodes.find(n => n.id === 'R1-REQ-NEW-0001');
@@ -187,7 +187,7 @@ describe('merge-structure command', () => {
       edges: [],
     });
 
-    writeSuggestions(path.join(workDir, 'analysis'), 'bad_suggestions.jsonl', [
+    writeSuggestions(path.join(workDir, '3_graph', 'analysis'), 'bad_suggestions.jsonl', [
       {
         gap_id: 'UNKNOWN-001',
         suggestion_type: 'delete_node',
@@ -207,7 +207,7 @@ describe('merge-structure command', () => {
     assert.equal(data.skipped, 1);
 
     // Verify log entry
-    const logPath = path.join(workDir, 'graph', 'structure_merge_log.jsonl');
+    const logPath = path.join(workDir, '3_graph', 'graph', 'structure_merge_log.jsonl');
     const logLines = fs.readFileSync(logPath, 'utf-8').trim().split('\n');
     assert.equal(logLines.length, 1);
     const logEntry = JSON.parse(logLines[0]!);
@@ -226,7 +226,7 @@ describe('merge-structure command', () => {
       edges: [],
     });
 
-    writeSuggestions(path.join(workDir, 'analysis'), 'suggestions.jsonl', [
+    writeSuggestions(path.join(workDir, '3_graph', 'analysis'), 'suggestions.jsonl', [
       {
         gap_id: 'ORPHAN-001',
         suggestion_type: 'add_relation',
@@ -245,7 +245,7 @@ describe('merge-structure command', () => {
     assert.equal(data.skipped, 1);
 
     // Edge should not exist
-    const outputPath = path.join(workDir, 'graph', 'graph.structure_fixed.json');
+    const outputPath = path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json');
     const outputGraph = JSON.parse(fs.readFileSync(outputPath, 'utf-8')) as GraphData;
     assert.equal(outputGraph.edges.length, 0);
   });
@@ -297,7 +297,7 @@ describe('merge-structure command', () => {
     assert.equal(data.skipped, 0);
 
     // Output graph should mirror input graph
-    const outputPath = path.join(workDir, 'graph', 'graph.structure_fixed.json');
+    const outputPath = path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json');
     assert.ok(fs.existsSync(outputPath));
     const outputGraph = JSON.parse(fs.readFileSync(outputPath, 'utf-8')) as GraphData;
     assert.equal(outputGraph.nodes.length, 1);
@@ -305,7 +305,7 @@ describe('merge-structure command', () => {
     assert.equal(outputGraph.edges.length, 0);
 
     // Merge log should exist (empty)
-    const logPath = path.join(workDir, 'graph', 'structure_merge_log.jsonl');
+    const logPath = path.join(workDir, '3_graph', 'graph', 'structure_merge_log.jsonl');
     assert.ok(fs.existsSync(logPath));
     const logContent = fs.readFileSync(logPath, 'utf-8').trim();
     assert.equal(logContent, '');
@@ -323,12 +323,12 @@ describe('merge-structure command', () => {
     });
 
     // orphan_nodes.jsonl should be excluded
-    writeSuggestions(path.join(workDir, 'analysis'), 'orphan_nodes.jsonl', [
+    writeSuggestions(path.join(workDir, '3_graph', 'analysis'), 'orphan_nodes.jsonl', [
       { id: 'R1-REQ-0001', statement: 'Login', category: 'explicit', confidence: 'high' },
     ]);
 
     // Real suggestion file
-    writeSuggestions(path.join(workDir, 'analysis'), 'completions.jsonl', [
+    writeSuggestions(path.join(workDir, '3_graph', 'analysis'), 'completions.jsonl', [
       {
         gap_id: 'ORPHAN-001',
         suggestion_type: 'add_relation',

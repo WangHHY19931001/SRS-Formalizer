@@ -12,8 +12,8 @@ const TMP = path.join(os.tmpdir(), `srs-formalizer-merge-analysis-test-${Date.no
  */
 function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
-  fs.mkdirSync(path.join(workDir, 'graph'), { recursive: true });
-  fs.mkdirSync(path.join(workDir, 'analysis'), { recursive: true });
+  fs.mkdirSync(path.join(workDir, '3_graph', 'graph'), { recursive: true });
+  fs.mkdirSync(path.join(workDir, '3_graph', 'analysis'), { recursive: true });
   return workDir;
 }
 
@@ -21,7 +21,7 @@ function createWorkDir(name: string): string {
  * Write graph/graph.json in the workdir.
  */
 function writeGraph(workDir: string, data: GraphData): void {
-  const graphPath = path.join(workDir, 'graph', 'graph.json');
+  const graphPath = path.join(workDir, '3_graph', 'graph', 'graph.json');
   fs.writeFileSync(graphPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
@@ -29,7 +29,7 @@ function writeGraph(workDir: string, data: GraphData): void {
  * Write graph/graph.structure_fixed.json in the workdir.
  */
 function writeFixedGraph(workDir: string, data: GraphData): void {
-  const graphPath = path.join(workDir, 'graph', 'graph.structure_fixed.json');
+  const graphPath = path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json');
   fs.writeFileSync(graphPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
@@ -76,12 +76,12 @@ describe('merge-analysis command', () => {
     });
 
     // Write analysis context files
-    writeJsonl(path.join(workDir, 'analysis'), 'suspected_duplicates.jsonl', [
+    writeJsonl(path.join(workDir, '3_graph', 'analysis'), 'suspected_duplicates.jsonl', [
       { pairId: 'DUP-001', nodeA: 'R1-REQ-0001', nodeB: 'R1-REQ-0002', similarity: 0.85, statementA: '用户可以通过邮箱登录', statementB: '用户可用邮箱登录' },
     ]);
 
     // Write verdict file
-    writeJsonl(path.join(workDir, 'analysis'), 'duplicate_verdicts.jsonl', [
+    writeJsonl(path.join(workDir, '3_graph', 'analysis'), 'duplicate_verdicts.jsonl', [
       { pair_id: 'DUP-001', verdict: 'duplicate', reasoning: '两者描述同一登录功能', recommended_action: 'merge' },
     ]);
 
@@ -94,7 +94,7 @@ describe('merge-analysis command', () => {
     assert.equal(data.applied, 1);
 
     // Verify the merged graph
-    const mergedPath = path.join(workDir, 'graph', 'graph.merged.json');
+    const mergedPath = path.join(workDir, '3_graph', 'graph', 'graph.merged.json');
     assert.ok(fs.existsSync(mergedPath));
     const mergedGraph = JSON.parse(fs.readFileSync(mergedPath, 'utf-8')) as GraphData;
 
@@ -112,7 +112,7 @@ describe('merge-analysis command', () => {
     assert.ok(edgeFrom3, 'Edge from R1-REQ-0003 to merged node should exist');
 
     // Verify merge log
-    const logPath = path.join(workDir, 'graph', 'merge_log.jsonl');
+    const logPath = path.join(workDir, '3_graph', 'graph', 'merge_log.jsonl');
     assert.ok(fs.existsSync(logPath));
     const log = readJsonlRecords<{ pair_id: string; action: string }>(logPath);
     assert.equal(log.length, 1);
@@ -132,11 +132,11 @@ describe('merge-analysis command', () => {
       edges: [],
     });
 
-    writeJsonl(path.join(workDir, 'analysis'), 'suspected_conflicts.jsonl', [
+    writeJsonl(path.join(workDir, '3_graph', 'analysis'), 'suspected_conflicts.jsonl', [
       { pairId: 'CON-001', nodeA: 'R1-REQ-0001', nodeB: 'R1-REQ-0002', similarity: 0.8, statementA: '系统应记录操作日志', statementB: '系统不应记录操作日志', negationInA: false, negationInB: true },
     ]);
 
-    writeJsonl(path.join(workDir, 'analysis'), 'conflict_verdicts.jsonl', [
+    writeJsonl(path.join(workDir, '3_graph', 'analysis'), 'conflict_verdicts.jsonl', [
       { pair_id: 'CON-001', verdict: 'conflict', reasoning: '一个要求记录日志，一个禁止记录', recommended_action: 'add_conflict_edge' },
     ]);
 
@@ -147,7 +147,7 @@ describe('merge-analysis command', () => {
     const data = result.data as Record<string, unknown>;
     assert.equal(data.applied, 1);
 
-    const mergedPath = path.join(workDir, 'graph', 'graph.merged.json');
+    const mergedPath = path.join(workDir, '3_graph', 'graph', 'graph.merged.json');
     const mergedGraph = JSON.parse(fs.readFileSync(mergedPath, 'utf-8')) as GraphData;
 
     const conflictEdge = mergedGraph.edges.find(e => e.type === ':CONFLICTS_WITH');
@@ -172,11 +172,11 @@ describe('merge-analysis command', () => {
       edges: [],
     });
 
-    writeJsonl(path.join(workDir, 'analysis'), 'same_aspect_clusters.jsonl', [
+    writeJsonl(path.join(workDir, '3_graph', 'analysis'), 'same_aspect_clusters.jsonl', [
       { clusterId: 'ASP-001', object: '用户', nodes: ['R1-REQ-0001', 'R1-REQ-0002'], statements: ['用户可以通过邮箱登录', '用户需要实名认证'] },
     ]);
 
-    writeJsonl(path.join(workDir, 'analysis'), 'aspect_verdicts.jsonl', [
+    writeJsonl(path.join(workDir, '3_graph', 'analysis'), 'aspect_verdicts.jsonl', [
       { pair_id: 'ASP-001', verdict: 'same_aspect', reasoning: '同为用户相关但不同侧面', recommended_action: 'add_same_aspect_edge' },
     ]);
 
@@ -187,7 +187,7 @@ describe('merge-analysis command', () => {
     const data = result.data as Record<string, unknown>;
     assert.equal(data.applied, 1);
 
-    const mergedPath = path.join(workDir, 'graph', 'graph.merged.json');
+    const mergedPath = path.join(workDir, '3_graph', 'graph', 'graph.merged.json');
     const mergedGraph = JSON.parse(fs.readFileSync(mergedPath, 'utf-8')) as GraphData;
 
     const aspectEdge = mergedGraph.edges.find(e => e.type === ':SAME_ASPECT');
@@ -210,11 +210,11 @@ describe('merge-analysis command', () => {
       edges: [],
     });
 
-    writeJsonl(path.join(workDir, 'analysis'), 'suspected_duplicates.jsonl', [
+    writeJsonl(path.join(workDir, '3_graph', 'analysis'), 'suspected_duplicates.jsonl', [
       { pairId: 'DUP-001', nodeA: 'R1-REQ-0001', nodeB: 'R1-REQ-0002', similarity: 0.8, statementA: '用户登录', statementB: '用户登录系统' },
     ]);
 
-    writeJsonl(path.join(workDir, 'analysis'), 'duplicate_verdicts.jsonl', [
+    writeJsonl(path.join(workDir, '3_graph', 'analysis'), 'duplicate_verdicts.jsonl', [
       { pair_id: 'DUP-001', verdict: 'duplicate', reasoning: '虽然相似但语义不同', recommended_action: 'skip' },
     ]);
 
@@ -226,13 +226,13 @@ describe('merge-analysis command', () => {
     assert.equal(data.skipped, 1);
 
     // Graph should remain unmodified (same nodes)
-    const mergedPath = path.join(workDir, 'graph', 'graph.merged.json');
+    const mergedPath = path.join(workDir, '3_graph', 'graph', 'graph.merged.json');
     const mergedGraph = JSON.parse(fs.readFileSync(mergedPath, 'utf-8')) as GraphData;
     assert.equal(mergedGraph.nodes.length, 1);
     assert.equal(mergedGraph.nodes[0]!.id, 'R1-REQ-0001');
 
     // Log should show skip
-    const logPath = path.join(workDir, 'graph', 'merge_log.jsonl');
+    const logPath = path.join(workDir, '3_graph', 'graph', 'merge_log.jsonl');
     const log = readJsonlRecords<{ action: string; details: string }>(logPath);
     assert.equal(log[0]!.action, 'skipped');
     assert.ok(log[0]!.details.includes('skip'));
@@ -250,7 +250,7 @@ describe('merge-analysis command', () => {
     });
 
     // Don't write suspected_duplicates.jsonl
-    writeJsonl(path.join(workDir, 'analysis'), 'duplicate_verdicts.jsonl', [
+    writeJsonl(path.join(workDir, '3_graph', 'analysis'), 'duplicate_verdicts.jsonl', [
       { pair_id: 'DUP-999', verdict: 'duplicate', reasoning: 'Test', recommended_action: 'merge' },
     ]);
 
@@ -261,7 +261,7 @@ describe('merge-analysis command', () => {
     const data = result.data as Record<string, unknown>;
     assert.equal(data.skipped, 1);
 
-    const logPath = path.join(workDir, 'graph', 'merge_log.jsonl');
+    const logPath = path.join(workDir, '3_graph', 'graph', 'merge_log.jsonl');
     const log = readJsonlRecords<{ action: string; details: string }>(logPath);
     assert.equal(log[0]!.action, 'skipped');
     assert.ok(log[0]!.details.includes('Pair not found'));
@@ -287,12 +287,12 @@ describe('merge-analysis command', () => {
       edges: [],
     });
 
-    writeJsonl(path.join(workDir, 'analysis'), 'suspected_duplicates.jsonl', [
+    writeJsonl(path.join(workDir, '3_graph', 'analysis'), 'suspected_duplicates.jsonl', [
       { pairId: 'DUP-001', nodeA: 'R1-REQ-0001', nodeB: 'R1-REQ-0002', similarity: 0.3, statementA: '新版需求', statementB: '用户登录' },
     ]);
 
     // This verdict references nodes from the fixed graph
-    writeJsonl(path.join(workDir, 'analysis'), 'verdicts.jsonl', [
+    writeJsonl(path.join(workDir, '3_graph', 'analysis'), 'verdicts.jsonl', [
       { pair_id: 'DUP-001', verdict: 'duplicate', reasoning: '测试', recommended_action: 'merge' },
     ]);
 
@@ -304,7 +304,7 @@ describe('merge-analysis command', () => {
     assert.equal(data.verdicts_processed, 1);
 
     // The merged graph should have 1 node after merge (R1-REQ-0002 merged into R1-REQ-0001)
-    const mergedPath = path.join(workDir, 'graph', 'graph.merged.json');
+    const mergedPath = path.join(workDir, '3_graph', 'graph', 'graph.merged.json');
     const mergedGraph = JSON.parse(fs.readFileSync(mergedPath, 'utf-8')) as GraphData;
     assert.equal(mergedGraph.nodes.length, 1);
     assert.ok(mergedGraph.nodes.some(n => n.id === 'R1-REQ-0001'));
@@ -358,14 +358,14 @@ describe('merge-analysis command', () => {
     assert.equal(data.skipped, 0);
 
     // Output graph should mirror input
-    const mergedPath = path.join(workDir, 'graph', 'graph.merged.json');
+    const mergedPath = path.join(workDir, '3_graph', 'graph', 'graph.merged.json');
     assert.ok(fs.existsSync(mergedPath));
     const mergedGraph = JSON.parse(fs.readFileSync(mergedPath, 'utf-8')) as GraphData;
     assert.equal(mergedGraph.nodes.length, 1);
     assert.equal(mergedGraph.nodes[0]!.id, 'R1-REQ-0001');
 
     // Merge log should exist (empty)
-    const logPath = path.join(workDir, 'graph', 'merge_log.jsonl');
+    const logPath = path.join(workDir, '3_graph', 'graph', 'merge_log.jsonl');
     assert.ok(fs.existsSync(logPath));
     const logContent = fs.readFileSync(logPath, 'utf-8').trim();
     assert.equal(logContent, '');

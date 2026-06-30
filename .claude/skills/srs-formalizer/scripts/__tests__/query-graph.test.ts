@@ -12,7 +12,7 @@ const TMP = path.join(os.tmpdir(), `srs-formalizer-query-graph-test-${Date.now()
  */
 function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
-  fs.mkdirSync(path.join(workDir, 'graph'), { recursive: true });
+  fs.mkdirSync(path.join(workDir, '3_graph', 'graph'), { recursive: true });
   return workDir;
 }
 
@@ -20,7 +20,7 @@ function createWorkDir(name: string): string {
  * Write a graph JSON file.
  */
 function writeGraphFile(workDir: string, filename: string, data: GraphData): void {
-  const filePath = path.join(workDir, 'graph', filename);
+  const filePath = path.join(workDir, '3_graph', 'graph', filename);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 

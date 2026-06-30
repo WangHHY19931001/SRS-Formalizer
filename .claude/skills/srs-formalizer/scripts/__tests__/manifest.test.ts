@@ -25,7 +25,7 @@ describe('manifest command', () => {
       '--src', FIXTURE, '--lang', 'zh', '--workdir', WORKDIR,
     ]);
     assert.equal(result.status, 'ok');
-    const shardDir = path.join(WORKDIR, 'shard');
+    const shardDir = path.join(WORKDIR, '1_shard');
     const shards = fs.readdirSync(shardDir).filter(f => f.endsWith('.md'));
     assert.ok(shards.length >= 2, `Expected >=2 shards, got ${shards.length}`);
   });
@@ -63,7 +63,7 @@ describe('manifest command', () => {
     const { main } = await import('../commands/manifest.js');
     await main(['--src', FIXTURE, '--lang', 'zh', '--workdir', WORKDIR]);
     const idx1 = JSON.parse(fs.readFileSync(path.join(WORKDIR, '_ctx', 'shard_index.json'), 'utf-8'));
-    fs.rmSync(path.join(WORKDIR, 'shard'), { recursive: true, force: true });
+    fs.rmSync(path.join(WORKDIR, '1_shard'), { recursive: true, force: true });
     fs.rmSync(path.join(WORKDIR, '_ctx'), { recursive: true, force: true });
     await main(['--src', FIXTURE, '--lang', 'zh', '--workdir', WORKDIR]);
     const idx2 = JSON.parse(fs.readFileSync(path.join(WORKDIR, '_ctx', 'shard_index.json'), 'utf-8'));

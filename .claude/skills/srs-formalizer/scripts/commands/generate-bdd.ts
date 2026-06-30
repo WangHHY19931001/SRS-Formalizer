@@ -28,9 +28,9 @@ function parseArg(args: string[], name: string): string | null {
 
 /** Graph files to try, in priority order. */
 const GRAPH_PATHS = [
-  'graph/graph.merged.json',
-  'graph/graph.structure_fixed.json',
-  'graph/graph.json',
+  '3_graph/graph/graph.merged.json',
+  '3_graph/graph/graph.structure_fixed.json',
+  '3_graph/graph/graph.json',
 ];
 
 /**
@@ -136,7 +136,7 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   // Ensure output directory
-  const featuresDir = path.join(workDir, 'features');
+  const featuresDir = path.join(workDir, '4_bdd', 'features');
   if (!fs.existsSync(featuresDir)) {
     fs.mkdirSync(featuresDir, { recursive: true });
   }

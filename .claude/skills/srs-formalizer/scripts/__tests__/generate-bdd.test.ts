@@ -12,7 +12,7 @@ const TMP = path.join(os.tmpdir(), `srs-formalizer-generate-bdd-test-${Date.now(
  */
 function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
-  fs.mkdirSync(path.join(workDir, 'graph'), { recursive: true });
+  fs.mkdirSync(path.join(workDir, '3_graph', 'graph'), { recursive: true });
   return workDir;
 }
 
@@ -20,7 +20,7 @@ function createWorkDir(name: string): string {
  * Write a graph JSON file to the workdir's graph/ subdirectory.
  */
 function writeGraphFile(workDir: string, filename: string, data: GraphData): void {
-  const filePath = path.join(workDir, 'graph', filename);
+  const filePath = path.join(workDir, '3_graph', 'graph', filename);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
@@ -61,7 +61,7 @@ describe('generate-bdd command', () => {
     assert.equal(data.features_created, 1);
 
     // Verify output file exists
-    const featurePath = path.join(workDir, 'features', '用户模块.feature');
+    const featurePath = path.join(workDir, '4_bdd', 'features', '用户模块.feature');
     assert.ok(fs.existsSync(featurePath), 'Feature file should exist');
     const content = fs.readFileSync(featurePath, 'utf-8');
     assert.ok(content.includes('Feature: 用户模块'));
@@ -102,8 +102,8 @@ describe('generate-bdd command', () => {
     assert.equal(data.features_created, 2);
 
     // Verify both feature files exist
-    const userFeature = path.join(workDir, 'features', '用户模块.feature');
-    const orderFeature = path.join(workDir, 'features', '订单模块.feature');
+    const userFeature = path.join(workDir, '4_bdd', 'features', '用户模块.feature');
+    const orderFeature = path.join(workDir, '4_bdd', 'features', '订单模块.feature');
 
     assert.ok(fs.existsSync(userFeature), 'User module feature should exist');
     assert.ok(fs.existsSync(orderFeature), 'Order module feature should exist');
@@ -136,7 +136,7 @@ describe('generate-bdd command', () => {
 
     assert.equal(result.status, 'ok');
 
-    const featurePath = path.join(workDir, 'features', '测试模块.feature');
+    const featurePath = path.join(workDir, '4_bdd', 'features', '测试模块.feature');
     const content = fs.readFileSync(featurePath, 'utf-8');
     assert.ok(content.includes('<THEN_PLACEHOLDER>'), 'Should contain THEN_PLACEHOLDER');
   });
@@ -161,7 +161,7 @@ describe('generate-bdd command', () => {
 
     assert.equal(result.status, 'ok');
 
-    const featurePath = path.join(workDir, 'features', '测试模块.feature');
+    const featurePath = path.join(workDir, '4_bdd', 'features', '测试模块.feature');
     const content = fs.readFileSync(featurePath, 'utf-8');
 
     assert.ok(content.includes('# SYSTEM:'));

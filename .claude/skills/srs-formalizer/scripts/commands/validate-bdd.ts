@@ -48,7 +48,7 @@ export async function main(args: string[]): Promise<CliResult> {
     return { status: 'error', message: (err as Error).message };
   }
 
-  const featuresDir = path.join(workDir, 'features');
+  const featuresDir = path.join(workDir, '4_bdd', 'features');
 
   // If features/ doesn't exist, return empty success
   if (!fs.existsSync(featuresDir)) {

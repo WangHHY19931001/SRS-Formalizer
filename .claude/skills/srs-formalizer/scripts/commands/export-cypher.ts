@@ -29,9 +29,9 @@ function parseArg(args: string[], name: string): string | null {
 
 /** Graph files to try, in priority order. */
 const GRAPH_PATHS = [
-  'graph/graph.merged.json',
-  'graph/graph.structure_fixed.json',
-  'graph/graph.json',
+  '3_graph/graph/graph.merged.json',
+  '3_graph/graph/graph.structure_fixed.json',
+  '3_graph/graph/graph.json',
 ];
 
 // ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ export async function main(args: string[]): Promise<CliResult> {
   const cypherScript = generateFullScript(graph);
 
   // Ensure output directory and write schema.cypher
-  const outputDir = path.join(workDir, 'outputs', 'knowledge_graph');
+  const outputDir = path.join(workDir, '6_outputs', 'knowledge_graph');
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }

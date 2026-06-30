@@ -13,7 +13,7 @@ const TMP = path.join(os.tmpdir(), `srs-formalizer-analyze-structure-test-${Date
  */
 function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
-  fs.mkdirSync(path.join(workDir, 'graph'), { recursive: true });
+  fs.mkdirSync(path.join(workDir, '3_graph', 'graph'), { recursive: true });
   return workDir;
 }
 
@@ -21,7 +21,7 @@ function createWorkDir(name: string): string {
  * Write graph/graph.json in the workdir.
  */
 function writeGraph(workDir: string, data: GraphData): void {
-  const graphPath = path.join(workDir, 'graph', 'graph.json');
+  const graphPath = path.join(workDir, '3_graph', 'graph', 'graph.json');
   fs.writeFileSync(graphPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
@@ -58,7 +58,7 @@ describe('analyze-structure command', () => {
     assert.equal(data.dangling_count, 0);
 
     // Verify orphan_nodes.jsonl contains R1-REQ-0002 (the isolated node)
-    const orphanPath = path.join(workDir, 'analysis', 'orphan_nodes.jsonl');
+    const orphanPath = path.join(workDir, '3_graph', 'analysis', 'orphan_nodes.jsonl');
     assert.ok(fs.existsSync(orphanPath));
     const orphanLines = fs.readFileSync(orphanPath, 'utf-8').trim().split('\n');
     assert.equal(orphanLines.length, 1);
@@ -90,7 +90,7 @@ describe('analyze-structure command', () => {
     assert.equal(data.dangling_count, 2);
 
     // Verify dangling_edges.jsonl
-    const dangPath = path.join(workDir, 'analysis', 'dangling_edges.jsonl');
+    const dangPath = path.join(workDir, '3_graph', 'analysis', 'dangling_edges.jsonl');
     assert.ok(fs.existsSync(dangPath));
     const dangLines = fs.readFileSync(dangPath, 'utf-8').trim().split('\n');
     assert.equal(dangLines.length, 2);
@@ -129,7 +129,7 @@ describe('analyze-structure command', () => {
     assert.equal(data.island_count, 2);
 
     // Verify concept_islands.jsonl
-    const islandPath = path.join(workDir, 'analysis', 'concept_islands.jsonl');
+    const islandPath = path.join(workDir, '3_graph', 'analysis', 'concept_islands.jsonl');
     assert.ok(fs.existsSync(islandPath));
     const islandLines = fs.readFileSync(islandPath, 'utf-8').trim().split('\n');
     assert.equal(islandLines.length, 2);
@@ -159,7 +159,7 @@ describe('analyze-structure command', () => {
     const result = await main(['--workdir', workDir]);
     assert.equal(result.status, 'ok');
 
-    const mdPath = path.join(workDir, 'analysis', 'subagent_prompts', 'structure_gap_analysis.md');
+    const mdPath = path.join(workDir, '3_graph', 'analysis', 'subagent_prompts', 'structure_gap_analysis.md');
     assert.ok(fs.existsSync(mdPath));
 
     const mdContent = fs.readFileSync(mdPath, 'utf-8');

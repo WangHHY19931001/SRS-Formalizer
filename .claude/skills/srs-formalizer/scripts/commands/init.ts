@@ -11,11 +11,25 @@ import type { CliResult } from '../types/index.js';
 import { validateWorkDir } from '../lib/security.js';
 
 const SUBDIRS = [
-  'shard', '_ctx',
-  'r1-explicit', 'r2-implicit', 'r3-relational',
-  'graph', 'analysis/subagent_prompts',
-  'features', 'specs', 'proofs',
-  'outputs/knowledge_graph', 'outputs/brainstorming',
+  // S1: 预处理
+  '1_shard',
+  '_ctx',
+  // S2: 需求提取
+  '2_extract/r1-explicit',
+  '2_extract/r2-implicit',
+  '2_extract/r3-relational',
+  // S3: 图谱构建
+  '3_graph/graph',
+  '3_graph/analysis/subagent_prompts',
+  // S4: BDD
+  '4_bdd/features',
+  // S5: 形式化
+  '5_formal/specs',
+  '5_formal/proofs',
+  // S6: 输出
+  '6_outputs/knowledge_graph',
+  '6_outputs/brainstorming',
+  // 备份
   'backups',
 ];
 

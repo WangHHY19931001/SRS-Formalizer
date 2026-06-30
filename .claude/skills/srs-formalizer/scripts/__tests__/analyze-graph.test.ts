@@ -12,7 +12,7 @@ const TMP = path.join(os.tmpdir(), `srs-formalizer-analyze-graph-test-${Date.now
  */
 function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
-  fs.mkdirSync(path.join(workDir, 'graph'), { recursive: true });
+  fs.mkdirSync(path.join(workDir, '3_graph', 'graph'), { recursive: true });
   return workDir;
 }
 
@@ -20,7 +20,7 @@ function createWorkDir(name: string): string {
  * Write graph/graph.json in the workdir.
  */
 function writeGraph(workDir: string, data: GraphData): void {
-  const graphPath = path.join(workDir, 'graph', 'graph.json');
+  const graphPath = path.join(workDir, '3_graph', 'graph', 'graph.json');
   fs.writeFileSync(graphPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
@@ -63,7 +63,7 @@ describe('analyze-graph command', () => {
     assert.ok((data.duplicate_pairs as number) >= 1);
 
     // Verify suspected_duplicates.jsonl
-    const dupPath = path.join(workDir, 'analysis', 'suspected_duplicates.jsonl');
+    const dupPath = path.join(workDir, '3_graph', 'analysis', 'suspected_duplicates.jsonl');
     assert.ok(fs.existsSync(dupPath));
     const dups = readJsonlRecords<{ pairId: string; nodeA: string; nodeB: string; similarity: number }>(dupPath);
     assert.ok(dups.length >= 1);
@@ -96,7 +96,7 @@ describe('analyze-graph command', () => {
     assert.ok((data.conflict_pairs as number) >= 1);
 
     // Verify suspected_conflicts.jsonl
-    const conPath = path.join(workDir, 'analysis', 'suspected_conflicts.jsonl');
+    const conPath = path.join(workDir, '3_graph', 'analysis', 'suspected_conflicts.jsonl');
     assert.ok(fs.existsSync(conPath));
     const conflicts = readJsonlRecords<{ pairId: string; nodeA: string; nodeB: string; negationInA: boolean; negationInB: boolean }>(conPath);
     assert.ok(conflicts.length >= 1);
@@ -129,7 +129,7 @@ describe('analyze-graph command', () => {
     assert.ok((data.aspect_clusters as number) >= 1);
 
     // Verify same_aspect_clusters.jsonl
-    const aspPath = path.join(workDir, 'analysis', 'same_aspect_clusters.jsonl');
+    const aspPath = path.join(workDir, '3_graph', 'analysis', 'same_aspect_clusters.jsonl');
     assert.ok(fs.existsSync(aspPath));
     const clusters = readJsonlRecords<{ clusterId: string; object: string; nodes: string[] }>(aspPath);
     const userCluster = clusters.find(c => c.nodes.includes('R1-REQ-0001'));
@@ -156,7 +156,7 @@ describe('analyze-graph command', () => {
     const result = await main(['--workdir', workDir]);
     assert.equal(result.status, 'ok');
 
-    const promptsDir = path.join(workDir, 'analysis', 'subagent_prompts');
+    const promptsDir = path.join(workDir, '3_graph', 'analysis', 'subagent_prompts');
     const dupPrompt = path.join(promptsDir, 'duplicate_analysis.md');
     const conPrompt = path.join(promptsDir, 'conflict_analysis.md');
     const aspPrompt = path.join(promptsDir, 'aspect_analysis.md');
@@ -192,7 +192,7 @@ describe('analyze-graph command', () => {
       edges: [],
     });
 
-    const fixedGraphPath = path.join(workDir, 'graph', 'graph.structure_fixed.json');
+    const fixedGraphPath = path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json');
     fs.writeFileSync(fixedGraphPath, JSON.stringify({
       nodes: [
         { id: 'R1-REQ-0001', labels: [':Requirement'], properties: { statement: '新版需求', source_file: 'srs.md', confidence: 'high', category: 'explicit' } },
@@ -207,7 +207,7 @@ describe('analyze-graph command', () => {
     assert.equal(result.status, 'ok');
 
     // The output should reflect the fixed graph (2 nodes, not 1)
-    const dupPath = path.join(workDir, 'analysis', 'suspected_duplicates.jsonl');
+    const dupPath = path.join(workDir, '3_graph', 'analysis', 'suspected_duplicates.jsonl');
     const dups = readJsonlRecords<{ pairId: string }>(dupPath);
     // The fixed graph has a new "用户登录系统" statement, should not be duplicate
     assert.ok(Array.isArray(dups));
@@ -259,7 +259,7 @@ describe('analyze-graph command', () => {
     assert.equal(data.aspect_clusters, 0);
 
     // Analysis files should still exist but be empty (or have header only)
-    const dupPath = path.join(workDir, 'analysis', 'suspected_duplicates.jsonl');
+    const dupPath = path.join(workDir, '3_graph', 'analysis', 'suspected_duplicates.jsonl');
     assert.ok(fs.existsSync(dupPath));
     const content = fs.readFileSync(dupPath, 'utf-8').trim();
     assert.equal(content, '');

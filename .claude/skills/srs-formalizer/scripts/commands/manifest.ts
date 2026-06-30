@@ -92,8 +92,8 @@ function shardContent(
   const moduleChapters = chapters.filter(ch => ch.level === 2 || ch.level === 3);
 
   if (moduleChapters.length === 0) {
-    const id = 'SRS-001';
-    const fileName = `full_S1.md`;
+    const id = 'S001';
+    const fileName = 'S001.md';
     shardEntries.push({
       id,
       file: fileName,
@@ -114,9 +114,8 @@ function shardContent(
 
     const shardLines = lines.slice(startLine, endLine);
     const shardText = shardLines.join('\n');
-    const safeModule = ch.title.replace(/[^a-zA-Z0-9一-鿿_-]/g, '_');
-    const id = `SRS-${String(i + 1).padStart(3, '0')}`;
-    const fileName = `${safeModule}_S1.md`;
+    const id = `S${String(i + 1).padStart(3, '0')}`;
+    const fileName = `S${String(i + 1).padStart(3, '0')}.md`;
 
     shardEntries.push({
       id,
@@ -273,7 +272,7 @@ export async function main(args: string[]): Promise<CliResult> {
   const { shards, shardContents } = shardContent(content, chapters, lang);
   const gaps = detectGaps(content, chapters);
 
-  const shardDir = path.join(workDir, 'shard');
+  const shardDir = path.join(workDir, '1_shard');
   if (!fs.existsSync(shardDir)) fs.mkdirSync(shardDir, { recursive: true });
   for (const shard of shards) {
     fs.writeFileSync(path.join(shardDir, shard.file), shardContents.get(shard.file) || '', 'utf-8');

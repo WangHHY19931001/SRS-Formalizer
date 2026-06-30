@@ -103,8 +103,8 @@ export async function main(args) {
     catch (err) {
         return { status: 'error', message: err.message };
     }
-    // Read graph/graph.json
-    const graphPath = path.join(workDir, 'graph', 'graph.json');
+    // Read 3_graph/graph/graph.json
+    const graphPath = path.join(workDir, '3_graph', 'graph', 'graph.json');
     if (!fs.existsSync(graphPath)) {
         return { status: 'error', message: `Graph file not found: ${graphPath}` };
     }
@@ -122,7 +122,7 @@ export async function main(args) {
     const danglingEdges = findDanglingEdges(graph);
     const islands = findConceptIslands(graph);
     // Ensure output directories
-    const analysisDir = path.join(workDir, 'analysis');
+    const analysisDir = path.join(workDir, '3_graph', 'analysis');
     const promptsDir = path.join(analysisDir, 'subagent_prompts');
     ensureDir(analysisDir);
     ensureDir(promptsDir);

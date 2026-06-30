@@ -49,7 +49,7 @@ function loadGraph(workDir) {
     ];
     let graphFile = null;
     for (const name of candidates) {
-        const filePath = path.join(workDir, 'graph', name);
+        const filePath = path.join(workDir, '3_graph', 'graph', name);
         if (fs.existsSync(filePath)) {
             graphFile = filePath;
             break;
@@ -57,7 +57,7 @@ function loadGraph(workDir) {
     }
     if (!graphFile) {
         throw new Error('No graph file found. Tried: ' +
-            candidates.map(f => `graph/${f}`).join(', '));
+            candidates.map(f => `3_graph/graph/${f}`).join(', '));
     }
     const raw = fs.readFileSync(graphFile, 'utf-8');
     const graphData = JSON.parse(raw);
@@ -173,7 +173,7 @@ function getContext(graph, id) {
  * Export the full graph to outputs/brainstorming/brainstorm_context.json.
  */
 function exportBrainstorm(graph, workDir) {
-    const outputDir = path.join(workDir, 'outputs', 'brainstorming');
+    const outputDir = path.join(workDir, '6_outputs', 'brainstorming');
     fs.mkdirSync(outputDir, { recursive: true });
     const data = graph.toJSON();
     const outputPath = path.join(outputDir, 'brainstorm_context.json');

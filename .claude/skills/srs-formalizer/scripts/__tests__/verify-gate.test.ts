@@ -13,7 +13,7 @@ const TMP = path.join(os.tmpdir(), `srs-formalizer-verify-gate-test-${Date.now()
  */
 function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
-  fs.mkdirSync(path.join(workDir, 'graph'), { recursive: true });
+  fs.mkdirSync(path.join(workDir, '3_graph', 'graph'), { recursive: true });
   return workDir;
 }
 
@@ -32,7 +32,7 @@ function writeJsonl(dir: string, filename: string, records: unknown[]): void {
  * Write a graph JSON file.
  */
 function writeGraphFile(workDir: string, filename: string, data: GraphData): void {
-  const filePath = path.join(workDir, 'graph', filename);
+  const filePath = path.join(workDir, '3_graph', 'graph', filename);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
@@ -54,8 +54,9 @@ describe('verify-gate command', () => {
 
     // Create S1 artifacts
     fs.writeFileSync(path.join(workDir, 'STATE.md'), '# State\n', 'utf-8');
-    fs.writeFileSync(path.join(workDir, 'index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
-    writeJsonl(path.join(workDir, 'r1-explicit'), 'a.jsonl', [
+    fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
       { id: 'R1-REQ-0001', category: 'explicit', statement: '用户登录', source_file: 'srs.md', confidence: 'high' },
     ]);
 
@@ -67,15 +68,16 @@ describe('verify-gate command', () => {
     assert.equal(data.pass, true);
     const checks = data.checks as Record<string, { passed: boolean }>;
     assert.ok(checks['STATE.md exists']!.passed);
-    assert.ok(checks['index.json exists']!.passed);
+    assert.ok(checks['_ctx/shard_index.json exists']!.passed);
     assert.ok(checks['r1-explicit has JSONL files']!.passed);
   });
 
   it('S1 stage: reports failure when STATE.md is missing', async () => {
     const workDir = createWorkDir('s1-no-state');
 
-    fs.writeFileSync(path.join(workDir, 'index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
-    writeJsonl(path.join(workDir, 'r1-explicit'), 'a.jsonl', [
+    fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
       { id: 'R1-REQ-0001', category: 'explicit', statement: '用户登录', source_file: 'srs.md', confidence: 'high' },
     ]);
 
@@ -98,17 +100,18 @@ describe('verify-gate command', () => {
 
     // S1 artifacts
     fs.writeFileSync(path.join(workDir, 'STATE.md'), '# State\n', 'utf-8');
-    fs.writeFileSync(path.join(workDir, 'index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
 
     // JSONL files in all subdirectories
-    writeJsonl(path.join(workDir, 'r1-explicit'), 'a.jsonl', [
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
       { id: 'R1-REQ-0001', category: 'explicit', statement: '用户登录', source_file: 'srs.md', confidence: 'high' },
       { id: 'R1-REQ-0002', category: 'explicit', statement: '用户注册', source_file: 'srs.md', confidence: 'high' },
     ]);
-    writeJsonl(path.join(workDir, 'r2-implicit'), 'b.jsonl', [
+    writeJsonl(path.join(workDir, '2_extract', 'r2-implicit'), 'b.jsonl', [
       { id: 'R2-IMPL-0001', category: 'implicit', statement: '会话过期', source_file: 'srs.md', confidence: 'medium' },
     ]);
-    writeJsonl(path.join(workDir, 'r3-relational'), 'c.jsonl', [
+    writeJsonl(path.join(workDir, '2_extract', 'r3-relational'), 'c.jsonl', [
       { id: 'R3-REL-0001', category: 'relational', statement: '登录依赖认证', source_file: 'srs.md', confidence: 'medium' },
     ]);
 
@@ -131,7 +134,7 @@ describe('verify-gate command', () => {
     assert.equal(data.pass, true);
     const checks = data.checks as Record<string, { passed: boolean }>;
     assert.ok(checks['STATE.md exists']!.passed);
-    assert.ok(checks['index.json exists']!.passed);
+    assert.ok(checks['_ctx/shard_index.json exists']!.passed);
     assert.ok(checks['r1-explicit has JSONL files']!.passed);
     assert.ok(checks['JSONL existence (all subdirectories)']!.passed);
     assert.ok(checks['ID uniqueness (no duplicates across files)']!.passed);
@@ -143,8 +146,9 @@ describe('verify-gate command', () => {
     const workDir = createWorkDir('r3-missing-dir');
 
     fs.writeFileSync(path.join(workDir, 'STATE.md'), '# State\n', 'utf-8');
-    fs.writeFileSync(path.join(workDir, 'index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
-    writeJsonl(path.join(workDir, 'r1-explicit'), 'a.jsonl', [
+    fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
       { id: 'R1-REQ-0001', category: 'explicit', statement: '用户登录', source_file: 'srs.md', confidence: 'high' },
     ]);
 
@@ -162,14 +166,15 @@ describe('verify-gate command', () => {
     const workDir = createWorkDir('r3-dupe-id');
 
     fs.writeFileSync(path.join(workDir, 'STATE.md'), '# State\n', 'utf-8');
-    fs.writeFileSync(path.join(workDir, 'index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
-    writeJsonl(path.join(workDir, 'r1-explicit'), 'a.jsonl', [
+    fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
       { id: 'R1-REQ-0001', category: 'explicit', statement: '用户登录', source_file: 'srs.md', confidence: 'high' },
     ]);
-    writeJsonl(path.join(workDir, 'r2-implicit'), 'b.jsonl', [
+    writeJsonl(path.join(workDir, '2_extract', 'r2-implicit'), 'b.jsonl', [
       { id: 'R2-IMPL-0001', category: 'implicit', statement: '会话过期', source_file: 'srs.md', confidence: 'medium' },
     ]);
-    writeJsonl(path.join(workDir, 'r3-relational'), 'c.jsonl', [
+    writeJsonl(path.join(workDir, '2_extract', 'r3-relational'), 'c.jsonl', [
       { id: 'R1-REQ-0001', category: 'relational', statement: '重复ID', source_file: 'srs.md', confidence: 'low' },
     ]);
 
@@ -190,14 +195,15 @@ describe('verify-gate command', () => {
     const workDir = createWorkDir('r3-no-graph');
 
     fs.writeFileSync(path.join(workDir, 'STATE.md'), '# State\n', 'utf-8');
-    fs.writeFileSync(path.join(workDir, 'index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
-    writeJsonl(path.join(workDir, 'r1-explicit'), 'a.jsonl', [
+    fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
       { id: 'R1-REQ-0001', category: 'explicit', statement: '用户登录', source_file: 'srs.md', confidence: 'high' },
     ]);
-    writeJsonl(path.join(workDir, 'r2-implicit'), 'b.jsonl', [
+    writeJsonl(path.join(workDir, '2_extract', 'r2-implicit'), 'b.jsonl', [
       { id: 'R2-IMPL-0001', category: 'implicit', statement: '会话过期', source_file: 'srs.md', confidence: 'medium' },
     ]);
-    writeJsonl(path.join(workDir, 'r3-relational'), 'c.jsonl', [
+    writeJsonl(path.join(workDir, '2_extract', 'r3-relational'), 'c.jsonl', [
       { id: 'R3-REL-0001', category: 'relational', statement: '登录依赖', source_file: 'srs.md', confidence: 'medium' },
     ]);
     // No graph files!
@@ -219,15 +225,15 @@ describe('verify-gate command', () => {
     fs.writeFileSync(path.join(workDir, 'index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
 
     // 3 R1 explicit requirements
-    writeJsonl(path.join(workDir, 'r1-explicit'), 'a.jsonl', [
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
       { id: 'R1-REQ-0001', category: 'explicit', statement: '登录', source_file: 'srs.md', confidence: 'high' },
       { id: 'R1-REQ-0002', category: 'explicit', statement: '注册', source_file: 'srs.md', confidence: 'high' },
       { id: 'R1-REQ-0003', category: 'explicit', statement: '支付', source_file: 'srs.md', confidence: 'high' },
     ]);
-    writeJsonl(path.join(workDir, 'r2-implicit'), 'b.jsonl', [
+    writeJsonl(path.join(workDir, '2_extract', 'r2-implicit'), 'b.jsonl', [
       { id: 'R2-IMPL-0001', category: 'implicit', statement: '会话', source_file: 'srs.md', confidence: 'medium' },
     ]);
-    writeJsonl(path.join(workDir, 'r3-relational'), 'c.jsonl', [
+    writeJsonl(path.join(workDir, '2_extract', 'r3-relational'), 'c.jsonl', [
       { id: 'R3-REL-0001', category: 'relational', statement: '关系', source_file: 'srs.md', confidence: 'medium' },
     ]);
 

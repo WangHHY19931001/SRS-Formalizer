@@ -101,7 +101,7 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   // Read graph/graph.json
-  const graphPath = path.join(workDir, 'graph', 'graph.json');
+  const graphPath = path.join(workDir, '3_graph', 'graph', 'graph.json');
   if (!fs.existsSync(graphPath)) {
     return { status: 'error', message: `Graph file not found: ${graphPath}` };
   }
@@ -118,7 +118,7 @@ export async function main(args: string[]): Promise<CliResult> {
   const logEntries: MergeLogEntry[] = [];
 
   // Collect suggestion JSONL files from analysis/
-  const analysisDir = path.join(workDir, 'analysis');
+  const analysisDir = path.join(workDir, '3_graph', 'analysis');
   const suggestionFiles: string[] = [];
 
   try {
@@ -361,7 +361,7 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   // Write updated graph
-  const graphDir = path.join(workDir, 'graph');
+  const graphDir = path.join(workDir, '3_graph', 'graph');
   if (!fs.existsSync(graphDir)) {
     fs.mkdirSync(graphDir, { recursive: true });
   }

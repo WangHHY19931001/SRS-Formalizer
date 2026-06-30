@@ -165,8 +165,8 @@ export async function main(args) {
         return { status: 'error', message: err.message };
     }
     // Read the input graph — prefer graph.structure_fixed.json, fallback to graph.json
-    const fixedGraphPath = path.join(workDir, 'graph', 'graph.structure_fixed.json');
-    const fallbackGraphPath = path.join(workDir, 'graph', 'graph.json');
+    const fixedGraphPath = path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json');
+    const fallbackGraphPath = path.join(workDir, '3_graph', 'graph', 'graph.json');
     let graphPath;
     if (fs.existsSync(fixedGraphPath)) {
         graphPath = fixedGraphPath;
@@ -191,7 +191,7 @@ export async function main(args) {
     // -----------------------------------------------------------------------
     // Load analysis records for pair_id resolution
     // -----------------------------------------------------------------------
-    const analysisDir = path.join(workDir, 'analysis');
+    const analysisDir = path.join(workDir, '3_graph', 'analysis');
     // Build pair_id -> record lookup tables
     const duplicateLookup = new Map();
     const conflictLookup = new Map();
@@ -332,7 +332,7 @@ export async function main(args) {
     // -----------------------------------------------------------------------
     // Write outputs
     // -----------------------------------------------------------------------
-    const graphDir = path.join(workDir, 'graph');
+    const graphDir = path.join(workDir, '3_graph', 'graph');
     ensureDir(graphDir);
     const outputGraphPath = path.join(graphDir, 'graph.merged.json');
     fs.writeFileSync(outputGraphPath, JSON.stringify(graph.toJSON(), null, 2), 'utf-8');

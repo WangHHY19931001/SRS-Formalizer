@@ -24,9 +24,9 @@ function parseArg(args, name) {
 }
 /** Graph files to try, in priority order. */
 const GRAPH_PATHS = [
-    'graph/graph.merged.json',
-    'graph/graph.structure_fixed.json',
-    'graph/graph.json',
+    '3_graph/graph/graph.merged.json',
+    '3_graph/graph/graph.structure_fixed.json',
+    '3_graph/graph/graph.json',
 ];
 /**
  * Determine the module name for a graph node.
@@ -121,7 +121,7 @@ export async function main(args) {
         }
     }
     // Ensure output directory
-    const featuresDir = path.join(workDir, 'features');
+    const featuresDir = path.join(workDir, '4_bdd', 'features');
     if (!fs.existsSync(featuresDir)) {
         fs.mkdirSync(featuresDir, { recursive: true });
     }
