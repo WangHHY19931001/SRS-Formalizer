@@ -64,13 +64,13 @@ function checkStateMd(workDir: string): CheckResult {
   };
 }
 
-function checkIndexJson(workDir: string): CheckResult {
-  const indexPath = path.join(workDir, 'index.json');
+function checkShardIndex(workDir: string): CheckResult {
+  const indexPath = path.join(workDir, '_ctx', 'shard_index.json');
   const exists = fs.existsSync(indexPath);
   return {
-    name: 'index.json exists',
+    name: '_ctx/shard_index.json exists',
     passed: exists,
-    detail: exists ? 'Found' : `index.json not found at ${indexPath}`,
+    detail: exists ? 'Found' : `shard_index.json not found at ${indexPath}`,
   };
 }
 
@@ -405,7 +405,7 @@ export async function main(args: string[]): Promise<CliResult> {
 
   // === S1 checks (always run) ===
   allChecks.push(checkStateMd(workDir));
-  allChecks.push(checkIndexJson(workDir));
+  allChecks.push(checkShardIndex(workDir));
   allChecks.push(checkR1HasJsonlFiles(workDir));
 
   // === R3 / FINAL additional checks ===

@@ -13,9 +13,14 @@
 {{SHARD_CONTENT}}
 ```
 
+## ⚠️ 硬性约束
+- **id 格式严格遵守 `R[123]-[A-Za-z0-9_.]+-\d{4}`**：只能包含 ASCII 字母数字下划线点，禁止中文/日文/韩文/空格/特殊符号
+- **category 必须是 `implicit`**，不得使用其他任何值
+- **derived_from 必须引用真实存在的 R1 id**
+
 ## 输出格式
 ```jsonl
-{"id":"R2-<source>-NNNN","category":"implicit","statement":"<推导的需求>","source_file":"<分片>","confidence":"high|medium|low","metadata":{"derived_from":"R1-xxx-0001"}}
+{"id":"R2-<SAFE_ID>-NNNN","category":"implicit","statement":"<推导的需求>","source_file":"<分片>","confidence":"high|medium|low","metadata":{"derived_from":"R1-xxx-0001"}}
 ```
 
 ## 推导规则
