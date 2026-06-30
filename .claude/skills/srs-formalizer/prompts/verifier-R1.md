@@ -7,33 +7,37 @@
 - R1 输出：`.srs_formalizer/2_extract/r1-explicit/{{SHARD_ID}}.jsonl`
 - 原始分片：`{{SHARD_CONTENT}}`
 
-## 可执行检查清单（逐项打勾，全部通过才 APPROVED）
+## 核心原则：逐条全量验证，禁止抽样
 
-对每条 R1 记录逐条检查：
+**每条记录都必须检查。** 不允许"抽样 3 条通过则全部通过"。
 
-- [ ] **id 格式**：匹配 `^R1-[A-Za-z0-9_.]+-\d{4}$`？____/____ 通过
-- [ ] **category**：每条都是 `explicit`？有出现 deployment/reference/functional 吗？
-- [ ] **metadata 存在**：每条都有 `"metadata":{}`（即使是空对象）？有字段被误放到顶层吗？
-- [ ] **statement 可追溯**：抽样 3 条，原文在分片中能找到对应段落吗？
-- [ ] **无编造**：有 SRS 中不存在的内容吗？逐条对照分片
-- [ ] **无遗漏**：分片中有需求未被提取吗？列出遗漏的原文行号
-- [ ] **无重复 id**：所有 id 唯一吗？
-- [ ] **source_file 正确**：每条 source_file 指向正确的分片文件吗？
+## 可执行检查清单（逐条打勾，全部通过才 APPROVED）
+
+- [ ] **id 格式（逐条）**：____/____ 条匹配 `^R1-[A-Za-z0-9_.]+-\d{4}$`？列出每条不匹配的 id。
+- [ ] **category（逐条）**：____/____ 条的 category == `explicit`？列出任何非 explicit 值（如 deployment/reference）。
+- [ ] **metadata 存在（逐条）**：____/____ 条含 `"metadata":{}`？列出字段被误放到顶层的记录。
+- [ ] **statement 可追溯（逐条）**：____/____ 条的 statement 在分片原文中能找到对应段落？列出无法追溯的记录。
+- [ ] **无编造（逐条）**：____/____ 条可在分片中找到原文依据？列出 SRS 中不存在的内容及其 id。
+- [ ] **无遗漏（逐章节对照）**：分片中每个功能需求都被提取了吗？列出遗漏的原文行号和内容。
+- [ ] **无重复 id（全量）**：所有 id 唯一吗？列出重复 id。
+- [ ] **source_file 正确（逐条）**：____/____ 条的 source_file 指向正确的分片文件？
 - [ ] **空分片处理**：无显式需求的分片是否输出空文件（0 字节）？
-- [ ] **JSONL 格式**：每行是合法 JSON 吗？有逗号结尾或数组包裹吗？
+- [ ] **JSONL 格式（逐行）**：____/____ 行是合法 JSON？有逗号结尾或数组包裹吗？
 
 ## 输出格式
 ```
 VERDICT: APPROVED | REJECTED
 Passed: <N>/10 checks
+Records checked: <总数>
+Records passed: <通过数>
+Records failed: <失败数>
 
-Failed checks:
-- [检查项名称] <具体记录 id 和问题描述>
-- ...
-
-Instructions for executor: <具体修正指令>
+Failed checks（附具体 id 和修正指令）:
+- [检查项] R1-S001-0003: id 含中文，改为 R1-S001-0003
+- [检查项] R1-S001-0007: metadata 缺失，添加 "metadata":{}
 ```
 
 ## 约束
-- REJECTED 时给具体修正指令（不是"请修正"而是"R1-S001-0003 的 id 含中文，改为 R1-S001-0003"）
+- **禁止抽样**：10 项检查中标注"逐条"的必须覆盖每一条记录
+- REJECTED 时给具体修正指令（精确到记录 id）
 - ≥3 次 REJECTED → BLOCKED
