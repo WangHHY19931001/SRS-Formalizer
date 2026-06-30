@@ -14,6 +14,12 @@ Commands:
   build-graph        Build requirement knowledge graph from JSONL files
   analyze-structure  Analyze graph for structural defects
   merge-structure    Merge sub-agent completion suggestions into graph
+  analyze-graph      Analyze graph for semantic issues (duplicates, conflicts, aspects)
+  merge-analysis     Merge sub-agent analysis verdicts into graph
+  export-cypher      Export knowledge graph as Cypher script
+  verify-gate        Run verification gate checks (--stage S1|R3|FINAL)
+  generate-bdd       Generate Gherkin BDD skeleton from requirement graph
+  validate-bdd       Validate .feature files in the workdir
 
 Options:
   --help    Show this help message
@@ -73,6 +79,42 @@ async function main(): Promise<void> {
     case 'merge-structure': {
       const { main: mergeMain } = await import('./commands/merge-structure.js');
       const result = await mergeMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'analyze-graph': {
+      const { main: analyzeGraphMain } = await import('./commands/analyze-graph.js');
+      const result = await analyzeGraphMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'merge-analysis': {
+      const { main: mergeAnalysisMain } = await import('./commands/merge-analysis.js');
+      const result = await mergeAnalysisMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'export-cypher': {
+      const { main: exportCypherMain } = await import('./commands/export-cypher.js');
+      const result = await exportCypherMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'verify-gate': {
+      const { main: verifyGateMain } = await import('./commands/verify-gate.js');
+      const result = await verifyGateMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'generate-bdd': {
+      const { main: generateBddMain } = await import('./commands/generate-bdd.js');
+      const result = await generateBddMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'validate-bdd': {
+      const { main: validateBddMain } = await import('./commands/validate-bdd.js');
+      const result = await validateBddMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }
