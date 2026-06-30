@@ -35,3 +35,17 @@
 **输入：** 用户模块分片
 **任务：** "从以下文本中提取所有显式功能需求，以 JSONL 格式输出"
 **观察：** [待收集]
+
+### executor-R1 无提示词基线（已收集）
+**日期：** 2026-06-30
+**输入：** 用户模块分片（注册 + 登录）
+**观察：**
+- id 格式：REQ-XXX（非 R1-<module>-NNNN 格式）
+- 无 category 字段（使用 type 替代）
+- 无 source_file 字段
+- 无 confidence 字段
+- 使用了 section/title/description（非 statement）
+- 将复合需求拆分（支持手机号+邮箱 → 2 条记录）
+- JSONL 格式正确（每行合法 JSON）
+
+**结论：** 提示词必须强制约束字段名、id 格式、category 枚举值。无提示词时 LLM 产出不可被 validate-jsonl 接受。
