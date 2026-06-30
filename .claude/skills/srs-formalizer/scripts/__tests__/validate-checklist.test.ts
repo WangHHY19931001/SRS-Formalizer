@@ -251,4 +251,48 @@ describe('validate-checklist command', () => {
     assert.equal(data.valid, false);
     assert.ok((data.integrity_errors as string[]).length > 0);
   });
+
+  // --- Repair tests ---
+
+  it('--repair regenerates tampered checklist from template', async () => {
+    const tampered = `# S1 预处理 — 验收清单
+
+- [x] only 2 items left, rest deleted
+- [x] done
+`;
+    const fp = path.join(TMP, '1_shard', 'CHECKLIST.md');
+    fs.mkdirSync(path.dirname(fp), { recursive: true });
+    fs.writeFileSync(fp, tampered, 'utf-8');
+
+    const { main } = await import('../commands/validate-checklist.js');
+    const result = await main(['--file', fp, '--repair']);
+    assert.equal(result.status, 'ok');
+    const data = result.data as Record<string, unknown>;
+    assert.equal(data.repaired, true);
+    assert.equal(data.total, 8); // restored to full 8 items
+    assert.equal(data.checked, 0); // all reset to [ ]
+  });
+
+  it('--repair on valid checklist does nothing', async () => {
+    const valid = `# S1 预处理 — 验收清单
+
+- [x] init 成功创建目录结构
+- [x] manifest 成功生成分片文件
+- [x] _ctx/shard_index.json 存在且 total_shards ≥ 1
+- [x] 1_shard/ 下分片文件数 == total_shards
+- [x] 每个分片头部含 # shard_id: # source: # total_shards:
+- [x] GAPS.md 已生成，缺口已标注优先级
+- [x] CONTEXT.md 含术语表和切片索引
+- [x] STATE.md 当前阶段标记为 S1 完成
+`;
+    const fp = path.join(TMP, '1_shard', 'CHECKLIST.md');
+    fs.writeFileSync(fp, valid, 'utf-8');
+    const { main } = await import('../commands/validate-checklist.js');
+    const result = await main(['--file', fp, '--repair']);
+    const data = result.data as Record<string, unknown>;
+    assert.equal(data.valid, true);
+    assert.equal(data.total, 8);
+    assert.equal(data.checked, 8);
+    assert.notEqual(data.repaired, true); // no repair needed
+  });
 });

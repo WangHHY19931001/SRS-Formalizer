@@ -1,46 +1,13 @@
 /**
- * validate-checklist.ts — CHECKLIST.md 校验命令
+ * validate-checklist.ts — CHECKLIST.md 校验 + 修复
  *
- * CLI: npx tsx index.ts validate-checklist --file <path>
+ * CLI: npx tsx index.ts validate-checklist --file <path> [--repair]
  *
- * 两项检查：
- *   1. 完成度：统计 - [x] vs - [ ]，全部打勾才 valid
- *   2. 结构完整性：对比阶段模板，防止 LLM 删条目/改结构来作弊
+ * --repair: 结构完整性违规时，删除旧文件并从模板重建
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-const CANONICAL = {
-    '1_shard': {
-        expected_count: 8,
-        required_headers: ['S1', '预处理', '验收清单'],
-        required_phrases: ['init 成功', 'manifest 成功', 'shard_index.json', 'total_shards', '# shard_id:', 'GAPS.md', 'CONTEXT.md', 'STATE.md'],
-    },
-    '2_extract': {
-        expected_count: 23,
-        required_headers: ['S2', '需求提取', 'R1', 'Arch-1', 'R2', 'Arch-2', 'R3-1', 'Arch-3', 'R3-2'],
-        required_phrases: ['validate-jsonl', 'validate-architecture', 'category ==', 'metadata', 'derived_from', 'DEPENDS_ON', 'REFINES', 'CONFLICTS_WITH'],
-    },
-    '3_graph': {
-        expected_count: 7,
-        required_headers: ['S3', '图谱构建', '验收清单'],
-        required_phrases: ['build-graph', 'build-architecture', 'analyze-structure', 'export-cypher', 'validate-cypher', 'verify-gate', '边完整性'],
-    },
-    '4_bdd': {
-        expected_count: 6,
-        required_headers: ['S4', 'BDD', '验收清单'],
-        required_phrases: ['generate-bdd', '# SYSTEM:', 'Given', 'When', 'Then', 'THEN_PLACEHOLDER', 'verification_method', 'validate-bdd'],
-    },
-    '5_formal': {
-        expected_count: 8,
-        required_headers: ['S5', '形式化', 'TLA+', 'Lean'],
-        required_phrases: ['触发条件', '工具链', 'TLC', 'SPECS.md', 'lake build', 'sorry', 'PROOFS.md'],
-    },
-    '6_outputs': {
-        expected_count: 6,
-        required_headers: ['S6', '验收闸门', '最终清单'],
-        required_phrases: ['verify-gate', 'STATE.md', 'MINDMAP.md', 'schema.cypher', 'brainstorm_context.json', '全链路'],
-    },
-};
+import { CANONICAL, repairChecklist, inferStage } from '../lib/checklists.js';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -50,72 +17,53 @@ function parseArg(args, name) {
         return null;
     return args[idx + 1];
 }
+function hasFlag(args, name) {
+    return args.includes(name);
+}
 function extractFirstCheckbox(line) {
     const match = line.match(/^\s*-\s*\[([ xX])\]\s*(.*)$/);
     if (!match)
         return null;
     return { checked: match[1].toLowerCase() === 'x', text: match[2].trim() };
 }
-/**
- * 根据文件名推断属于哪个阶段目录。
- * 示例: "CHECKLIST" → 从路径推断; "1_shard_CHECKLIST" → "1_shard"
- */
-function inferStage(filePath) {
-    const base = path.basename(filePath, path.extname(filePath)); // e.g. "CHECKLIST"
-    // 也检查父目录名
-    const parentDir = path.basename(path.dirname(filePath)); // e.g. "1_shard"
-    if (CANONICAL[parentDir])
-        return parentDir;
-    // 从文件名推断
-    for (const stage of Object.keys(CANONICAL)) {
-        if (base.includes(stage))
-            return stage;
-    }
-    return null;
-}
-/**
- * 检查结构完整性：条目数、标题、关键短语。
- * 返回违规列表。空列表 = 结构完整。
- */
 function checkIntegrity(content, stage) {
     const canonical = CANONICAL[stage];
     if (!canonical)
-        return []; // 未知阶段，跳过结构检查
+        return [];
     const errors = [];
     const lines = content.split('\n');
-    // 1. 条目数检查（防止删除）
     let itemCount = 0;
     for (const line of lines) {
         if (extractFirstCheckbox(line))
             itemCount++;
     }
     if (itemCount < canonical.expected_count) {
-        errors.push(`Item count mismatch: expected ${canonical.expected_count}, got ${itemCount} (${canonical.expected_count - itemCount} items deleted or missing)`);
+        errors.push(`Item count mismatch: expected ${canonical.expected_count}, got ${itemCount} (${canonical.expected_count - itemCount} items deleted)`);
     }
-    // 2. 标题检查（防止结构被删）
     for (const header of canonical.required_headers) {
-        if (!content.includes(header)) {
-            errors.push(`Missing required header/section: "${header}"`);
-        }
+        if (!content.includes(header))
+            errors.push(`Missing required header: "${header}"`);
     }
-    // 3. 关键短语检查（每项至少匹配一个，防止条目内容被替换为空话）
-    const matchedPhrases = new Set();
-    for (const phrase of canonical.required_phrases) {
-        if (content.includes(phrase)) {
-            matchedPhrases.add(phrase);
-        }
-    }
-    const missingPhrases = canonical.required_phrases.filter(p => !matchedPhrases.has(p));
-    if (missingPhrases.length > 0) {
-        errors.push(`Missing ${missingPhrases.length} required key phrases: ${missingPhrases.slice(0, 5).join(', ')}${missingPhrases.length > 5 ? '...' : ''}`);
+    const missing = canonical.required_phrases.filter(p => !content.includes(p));
+    if (missing.length > 0) {
+        errors.push(`Missing ${missing.length} key phrases: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? '...' : ''}`);
     }
     return errors;
 }
+function getWorkDir(filePath) {
+    // filePath is like <workdir>/1_shard/CHECKLIST.md → workdir is the parent of 1_shard
+    const stage = inferStage(filePath);
+    if (!stage)
+        return null;
+    const stageDir = path.dirname(filePath); // .../1_shard
+    return path.dirname(stageDir); // <workdir>
+}
 // ---------------------------------------------------------------------------
-// Main entry point
+// Main
 // ---------------------------------------------------------------------------
 export async function main(args) {
     const filePath = parseArg(args, '--file');
+    const doRepair = hasFlag(args, '--repair');
     if (!filePath) {
         return { status: 'error', message: 'Missing required argument: --file' };
     }
@@ -130,31 +78,62 @@ export async function main(args) {
         return { status: 'error', message: `Failed to read file: ${err.message}` };
     }
     const lines = content.split('\n');
-    let checked = 0;
-    let unchecked = 0;
+    let checked = 0, unchecked = 0;
     const uncheckedItems = [];
     for (const line of lines) {
-        const result = extractFirstCheckbox(line);
-        if (result === null)
+        const r = extractFirstCheckbox(line);
+        if (!r)
             continue;
-        if (result.checked) {
+        if (r.checked) {
             checked++;
         }
         else {
             unchecked++;
-            uncheckedItems.push(result.text);
+            uncheckedItems.push(r.text);
         }
     }
     const stage = inferStage(filePath);
     const integrityErrors = stage ? checkIntegrity(content, stage) : [];
+    let repaired = false;
+    // --repair: if integrity violated, rebuild from template
+    if (doRepair && integrityErrors.length > 0 && stage) {
+        const workDir = getWorkDir(filePath);
+        if (workDir) {
+            const result = repairChecklist(workDir, stage);
+            repaired = result.repaired;
+            if (repaired) {
+                // Re-read the repaired file for the response
+                content = fs.readFileSync(filePath, 'utf-8');
+                const newLines = content.split('\n');
+                checked = 0;
+                unchecked = 0;
+                uncheckedItems.length = 0;
+                for (const line of newLines) {
+                    const r = extractFirstCheckbox(line);
+                    if (!r)
+                        continue;
+                    if (r.checked) {
+                        checked++;
+                    }
+                    else {
+                        unchecked++;
+                        uncheckedItems.push(r.text);
+                    }
+                }
+                integrityErrors.length = 0;
+                integrityErrors.push(`Repaired: ${result.message}`);
+            }
+        }
+    }
     const data = {
-        valid: unchecked === 0 && integrityErrors.length === 0,
+        valid: unchecked === 0 && integrityErrors.filter(e => !e.startsWith('Repaired:')).length === 0,
         total: checked + unchecked,
         checked,
         unchecked,
         unchecked_items: uncheckedItems,
         checklist_name: path.basename(filePath, path.extname(filePath)),
         integrity_errors: integrityErrors,
+        ...(repaired ? { repaired: true } : {}),
     };
     return { status: 'ok', data };
 }
