@@ -43,5 +43,5 @@
 4. **空文件处理**：若分片中无显式需求，输出空 JSONL（0 字节文件）
 
 ## 文件操作约束
-输出必须写入 `.srs_formalizer/r1-explicit/{{SHARD_ID}}.jsonl`。
+输出必须写入 `.srs_formalizer/2_extract/r1-explicit/{{SHARD_ID}}.jsonl`。
 不得访问工作目录外的任何路径。

@@ -30,4 +30,4 @@
 4. **禁止编造**：推导必须有明确逻辑链条，标注 `derived_from`
 
 ## 文件操作约束
-输出写入 `.srs_formalizer/r2-implicit/{{SOURCE_ID}}.jsonl`。
+输出写入 `.srs_formalizer/2_extract/r2-implicit/{{SOURCE_ID}}.jsonl`。

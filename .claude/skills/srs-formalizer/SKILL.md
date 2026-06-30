@@ -11,37 +11,91 @@ description: 当用户提供 SRS（软件需求规格说明）文档并要求生
 
 ## 工作流（六阶段）
 
-1. **S1 预处理** — 初始化工作目录 + SRS 分片 + 章节识别 + 信息缺口检测
-2. **S2 需求提取** — R1 显式 / R2 隐式 / R3 关系提取 + 校验者审核
-3. **S3 图谱构建** — 结构补全 → 语义去重 → Cypher 导出
-4. **S4 BDD 生成** — 骨架生成 → 子代理充实 Then 步骤 → 格式校验
-5. **S5 形式化** — TLA+ 层次建模与 TLC 验证 + Lean 4 拆分证明（条件触发）
-6. **S6 验收闸门** — 硬门禁检查 + 头脑风暴上下文导出
+```
+S1 预处理 → S2 需求提取 → S3 图谱构建 → S4 BDD 生成 → S5 形式化 → S6 验收闸门
+```
+
+## 工作目录结构（阶段前缀）
+
+```
+.srs_formalizer/
+├── 1_shard/              # S1: 分片文件（含源位置头部）
+├── 2_extract/
+│   ├── r1-explicit/      # S2: R1 显式需求 JSONL
+│   ├── r2-implicit/      # S2: R2 隐式需求 JSONL
+│   └── r3-relational/    # S2: R3 关系需求 JSONL
+├── 3_graph/
+│   ├── graph/            # S3: 图谱文件 + 合并日志
+│   └── analysis/         # S3: 结构/语义分析 + 子代理提示词
+├── 4_bdd/
+│   └── features/         # S4: .feature 文件
+├── 5_formal/
+│   ├── specs/            # S5: TLA+ 规约
+│   └── proofs/           # S5: Lean 4 证明
+└── 6_outputs/            # S6: 知识图谱 Cypher + 头脑风暴上下文
+```
+
+阶段号前缀方便快速排查——`ls` 一眼看出每个阶段是否存在。
+
+## 分片 ID 规则
+
+- manifest 生成安全顺序 ID：`S001`~`S999`（纯 ASCII）
+- 每个分片头部标注：`# source: <绝对路径>:<起始行>-<结束行>`
+- `shard_index.json` 报告 `total_shards`，子代理可据此检测遗漏
+- 子代理 R1 提取时 ID 格式：`R1-<shard_id>-NNNN`（如 `R1-S001-0001`）
+- ID 严格匹配正则 `^R[123]-[A-Za-z0-9_.]+-\d{4}$`，禁止中文
 
 ## S1 阶段：预处理
 
-### 脚本
-
 | 命令 | 功能 |
 |------|------|
-| `npx tsx index.ts init --output .srs_formalizer` | 初始化工作目录结构 |
-| `npx tsx index.ts manifest --src <path> --lang zh\|en --workdir .srs_formalizer` | SRS 分片 + 章节识别 + 缺口检测 |
-
-### 执行流程
-
-1. `init` 创建 `.srs_formalizer/` 及全部子目录，写入初始 `STATE.md`
-2. `manifest` 读取 SRS 源 → 合并 → 章节识别 → Token 切分 → 写入分片
-3. 编排者根据 `GAPS.md` 执行联网检索（WebSearch / WebFetch）
-4. 更新 `STATE.md` 标记 S1 完成
+| `init --output .srs_formalizer` | 初始化阶段前缀目录结构 |
+| `manifest --src <path> --lang zh\|en --workdir .srs_formalizer` | SRS 分片 + 章节识别 + 缺口检测 + 源位置标注 |
 
 ## 核心原则
 
 - **TS 脚本只做确定性转换**，不调用 LLM、不产生随机性、不依赖外部 API
 - **所有文件操作限定在 `.srs_formalizer/` 工作目录内**
-- **子代理输出必须通过 JSONL 格式校验**
+- **子代理输出必须通过 JSONL 格式校验**（硬门禁）
+- **子代理 ID 必须 ASCII-only**（`validate-jsonl` 拒绝中文 ID）
 - **SRS 回写必须经用户确认**，禁止自动修改原始 SRS
 - **仅依赖 `typescript` + `@types/node`**，无外部 npm 包
 
 ## 依赖技能
 
 **必需背景：** superpowers:test-driven-development、superpowers:verification-before-completion
+**调用链：** S2~S4 调用 superpowers:writing-plans、superpowers:executing-plans；S5 调用 superpowers:systematic-debugging
+
+## 快速参考
+
+| 命令 | 功能 | 阶段 |
+|------|------|------|
+| `init --output .srs_formalizer` | 初始化工作目录 | S1 |
+| `manifest --src <path> --lang zh\|en --workdir .srs_formalizer` | SRS 分片 + 章节识别 + 源位置标注 | S1 |
+| `inject-prompt --template <path> --params '<json>'` | 填充子代理提示词模板 | S2 |
+| `validate-jsonl --file <path> --workdir .srs_formalizer` | JSONL 格式校验（6 项） | S2 |
+| `build-graph --workdir .srs_formalizer` | JSONL → 需求图谱 | S3 |
+| `analyze-structure --workdir .srs_formalizer` | 孤立/悬挂/孤岛检测 | S3 |
+| `merge-structure --workdir .srs_formalizer` | 结构补全合并 | S3 |
+| `analyze-graph --workdir .srs_formalizer` | Jaccard 去重 + 反义检测 | S3 |
+| `merge-analysis --workdir .srs_formalizer` | 语义判定合并 | S3 |
+| `export-cypher --workdir .srs_formalizer` | 图谱 → Cypher 脚本 | S3 |
+| `generate-bdd --workdir .srs_formalizer` | 图谱 → BDD 骨架 | S4 |
+| `validate-bdd --workdir .srs_formalizer` | Gherkin 格式校验 | S4 |
+| `query-graph --workdir .srs_formalizer --query <type> --params '<json>'` | 图谱只读查询 | S6 |
+| `verify-gate --workdir .srs_formalizer --stage S1\|R3\|FINAL` | 硬门禁检查 | S1/S3/S6 |
+
+## 文件体系
+
+| 文件 | 用途 |
+|------|------|
+| `prompts/orchestrator_stage_S*.md` | 各阶段编排者指令（L3 按需加载） |
+| `prompts/executor-R*.md` | 执行者子代理提示词 |
+| `prompts/verifier-R*.md` | 校验者子代理提示词 |
+| `prompts/debug-*.md` | TLC/Lean 错误诊断提示词 |
+| `references/srs-chapter-guide.md` | SRS 章节识别规范参考 |
+| `references/cypher-syntax.md` | Cypher 语法参考 |
+| `references/gherkin-syntax.md` | Gherkin 语法参考 |
+| `references/tlaplus-guide.md` | TLA+ 编写指南 |
+| `references/lean4-guide.md` | Lean 4 编写指南 |
+| `templates/*.md.template` | 产出文件模板 |

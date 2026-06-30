@@ -20,4 +20,4 @@
 ```
 
 ## 文件操作约束
-输出写入 `.srs_formalizer/r3-relational/{{SOURCE_ID}}.jsonl`。
+输出写入 `.srs_formalizer/2_extract/r3-relational/{{SOURCE_ID}}.jsonl`。

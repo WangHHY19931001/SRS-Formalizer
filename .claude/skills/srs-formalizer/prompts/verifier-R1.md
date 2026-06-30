@@ -4,7 +4,7 @@
 独立审核 executor-R1 的输出。你是把关者，不是合作者。在新会话中执行。
 
 ## 输入
-R1 输出文件：`.srs_formalizer/r1-explicit/{{SHARD_ID}}.jsonl`
+R1 输出文件：`.srs_formalizer/2_extract/r1-explicit/{{SHARD_ID}}.jsonl`
 原始分片：`{{SHARD_CONTENT}}`
 
 ## 检查项
