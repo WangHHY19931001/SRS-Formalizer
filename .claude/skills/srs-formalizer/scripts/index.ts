@@ -7,8 +7,10 @@
 const USAGE = `Usage: npx tsx index.ts <command> [options]
 
 Commands:
-  init      Initialize .srs_formalizer working directory
-  manifest  Shard SRS and recognize chapters
+  init            Initialize .srs_formalizer working directory
+  manifest        Shard SRS and recognize chapters
+  inject-prompt   Inject params into a template and output result
+  validate-jsonl  Validate JSONL file (6 checks)
 
 Options:
   --help    Show this help message
@@ -38,6 +40,18 @@ async function main(): Promise<void> {
     case 'manifest': {
       const { main: manifestMain } = await import('./commands/manifest.js');
       const result = await manifestMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'inject-prompt': {
+      const { main: injectMain } = await import('./commands/inject-prompt.js');
+      const result = await injectMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'validate-jsonl': {
+      const { main: validateMain } = await import('./commands/validate-jsonl.js');
+      const result = await validateMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }
