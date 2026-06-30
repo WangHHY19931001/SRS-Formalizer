@@ -112,4 +112,5 @@ S2 子阶段:
 | `references/lean4-guide.md` | Lean 4 编写指南 |
 | `references/agent-integration-guide.md` | **Agent 集成指南**：15 平台技能目录、规则注入、AGENTS.md 配置 |
 | `references/hooks-integration.md` | **多平台激活参考**：15 平台 Hook/Rules/Commands 配置 + 抽象兜底 |
+| `references/auto-setup.md` | **自动适配自配置**：编码智能体 /init 时检测平台并自动配置激活机制 |
 | `templates/*.md.template` | 产出文件模板 |
