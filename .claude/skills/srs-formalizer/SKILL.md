@@ -97,20 +97,41 @@ S2 子阶段:
 | `query-graph --workdir .srs_formalizer --query <type> --params '<json>'` | 图谱只读查询 | S6 |
 | `verify-gate --workdir .srs_formalizer --stage S1\|R3\|FINAL` | 硬门禁检查 | S1/S3/S6 |
 
-## 文件体系
+## 文件体系与加载策略
 
-| 文件 | 用途 |
-|------|------|
-| `prompts/orchestrator_stage_S*.md` | 各阶段编排者指令（L3 按需加载） |
-| `prompts/executor-R*.md` | 执行者子代理提示词 |
-| `prompts/verifier-R*.md` | 校验者子代理提示词 |
-| `prompts/debug-*.md` | TLC/Lean 错误诊断提示词 |
-| `references/srs-chapter-guide.md` | SRS 章节识别规范参考 |
-| `references/cypher-syntax.md` | Cypher 语法参考 |
-| `references/gherkin-syntax.md` | Gherkin 语法参考 |
-| `references/tlaplus-guide.md` | TLA+ 编写指南 |
-| `references/lean4-guide.md` | Lean 4 编写指南 |
-| `references/agent-integration-guide.md` | **Agent 集成指南**：15 平台技能目录、规则注入、AGENTS.md 配置 |
-| `references/hooks-integration.md` | **多平台激活参考**：15 平台 Hook/Rules/Commands 配置 + 抽象兜底 |
-| `references/auto-setup.md` | **自动适配自配置**：编码智能体 /init 时检测平台并自动配置激活机制 |
-| `templates/*.md.template` | 产出文件模板 |
+### L2：编排者行为规则（当前阶段自动加载）
+| 文件 | 加载时机 |
+|------|---------|
+| `prompts/orchestrator_stage_S0.md` | SRS 输入后、任何处理前 |
+| `prompts/orchestrator_stage_S1~S6.md` | 对应阶段开始时 |
+
+### L3-Exec：子代理提示词（编排者通过 inject-prompt 按需注入）
+| 文件 | 注入时机 |
+|------|---------|
+| `prompts/executor-R*.md` | S2 需求提取各子阶段 |
+| `prompts/verifier-R*.md` | 校验循环（新会话执行） |
+| `prompts/executor-arch-*.md` | S2 架构分解三阶段 |
+| `prompts/verifier-arch.md` | 架构审核 |
+| `prompts/debug-*.md` | S5 TLC/Lean 错误诊断 |
+
+### L3-Ref：参考资料（仅在需要时加载）
+| 文件 | 加载时机 | 读者 |
+|------|---------|------|
+| `references/srs-chapter-guide.md` | manifest 章节识别失败时 | 编排者 |
+| `references/cypher-syntax.md` | export-cypher 输出异常时 | 编排者 |
+| `references/gherkin-syntax.md` | validate-bdd 失败时 | 编排者 |
+| `references/tlaplus-guide.md` | S5 TLA+ 触发时 | 子代理 |
+| `references/lean4-guide.md` | S5 Lean 4 触发时 | 子代理 |
+
+### L3-Setup：集成参考（非运行时，仅初始化/配置时加载）
+| 文件 | 加载时机 | 读者 |
+|------|---------|------|
+| `references/auto-setup.md` | `/init` 或首次部署时 | **编码智能体自身** |
+| `references/agent-integration-guide.md` | 需要了解多平台差异时 | 人类操作者 |
+| `references/hooks-integration.md` | 需要手动配置激活机制时 | 人类操作者 |
+
+### 产出模板
+| 文件 | 加载时机 |
+|------|---------|
+| `templates/*.md.template` | init 时复制到 .srs_formalizer 各阶段目录 |
+| `templates/checklists/` | init 时生成 CHECKLIST.md 到各阶段目录 |
