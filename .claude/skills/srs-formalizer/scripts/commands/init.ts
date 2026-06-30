@@ -14,10 +14,11 @@ const SUBDIRS = [
   // S1: 预处理
   '1_shard',
   '_ctx',
-  // S2: 需求提取
+  // S2: 需求提取 + 架构分解
   '2_extract/r1-explicit',
   '2_extract/r2-implicit',
   '2_extract/r3-relational',
+  '2_extract/architecture',
   // S3: 图谱构建
   '3_graph/graph',
   '3_graph/analysis/subagent_prompts',

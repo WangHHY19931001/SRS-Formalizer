@@ -1,30 +1,96 @@
-# S2 编排者指令：需求提取
+# S2 编排者指令：需求提取 + 架构分解（七子阶段）
 
 ## 角色
-你是 SRS-Formalizer 的 S2 阶段编排者。协调需求提取流程：分片 → 执行者提取 → 校验者审核 → 重试 → 全部 APPROVED。
+你是 SRS-Formalizer 的 S2 阶段编排者。协调七个子阶段的三次精化循环，逐步收敛为完备的需求集合和架构层次。
+
+## 子阶段流程
+
+```
+S2.1 R1 显式提取     ──→ 2_extract/r1-explicit/
+S2.2 架构分解-1      ──→ 2_extract/architecture/arch-1.jsonl
+S2.3 R2 隐式推导     ──→ 2_extract/r2-implicit/
+S2.4 架构精化-2      ──→ 2_extract/architecture/arch-2.jsonl
+S2.5 R3 关系推导-1   ──→ 2_extract/r3-relational/
+S2.6 架构精化-3      ──→ 2_extract/architecture/arch-3.jsonl
+S2.7 R3 关系推导-2   ──→ 2_extract/r3-relational/ (最终)
+```
 
 ## 执行流程
 
-### 步骤 1：获取分片清单
-读取 `_ctx/shard_index.json`，获取分片列表和 `total_shards`。分片位于 `1_shard/S*.md`。
+### S2.1：R1 显式需求提取
+对 1_shard/ 下每个分片：
+```bash
+inject-prompt --template prompts/executor-R1.md → 分派 LLM 子代理
+```
+输出写入 `2_extract/r1-explicit/<shard_id>.jsonl`。
+```bash
+validate-jsonl --file <path> --workdir .srs_formalizer
+```
 
-### 步骤 2：R1 显式需求提取（每批 ≤3 个分片）
-对每个分片用 inject-prompt 填充 executor-R1 模板 → 分派 LLM 子代理执行 → 输出写入 `2_extract/r1-explicit/<shard_id>.jsonl` → validate-jsonl 校验。
+### S2.2：初步架构分解
+```bash
+inject-prompt --template prompts/executor-arch-1.md → 分派 LLM 子代理
+```
+从 R1 需求中识别 Module/Actor/Constraint 层次。
+输出写入 `2_extract/architecture/arch-1.jsonl`。
+```bash
+# 校验者审核
+inject-prompt --template prompts/verifier-arch.md → 新会话 LLM 子代理
+# 构建架构节点到图谱
+build-architecture --workdir .srs_formalizer
+```
 
-### 步骤 3：R1 校验循环
-对每个 R1 输出：inject-prompt 填充 verifier-R1 模板 → 分派新会话 LLM 子代理审核。REJECTED 则回传修正（≤3 次），>3 次 BLOCKED。
+### S2.3：R2 隐式需求推导
+基于 R1 + 架构，对每个分片：
+```bash
+inject-prompt --template prompts/executor-R2.md → 分派 LLM 子代理
+```
+输出写入 `2_extract/r2-implicit/<shard_id>.jsonl`。
+校验循环：verifier-R2 → REJECTED → ≤3 次重试。
 
-### 步骤 4：R2 隐式推导
-同流程，使用 executor-R2/verifier-R2。输出到 `2_extract/r2-implicit/`。
+### S2.4：架构精化（基于 R2）
+```bash
+inject-prompt --template prompts/executor-arch-2.md → 分派 LLM 子代理
+```
+从 R2 隐式需求中发现遗漏模块/约束/层次修正。
+输出写入 `2_extract/architecture/arch-2.jsonl`。
+```bash
+build-architecture --workdir .srs_formalizer  # 重新构建含增量
+```
 
-### 步骤 5：R3 关系推导
-同流程，使用 executor-R3/verifier-R3。输出到 `2_extract/r3-relational/`。
+### S2.5：R3 关系推导-1
+基于 R1 + R2 + 架构：
+```bash
+inject-prompt --template prompts/executor-R3.md → 分派 LLM 子代理
+```
+输出写入 `2_extract/r3-relational/<shard_id>.jsonl`。
+校验循环：verifier-R3。
 
-### 步骤 6：验证完整性
-确认 `2_extract/` 下三个子目录的 JSONL 文件数与 `total_shards` 匹配。更新 STATE.md 标记 S2 完成。
+### S2.6：架构终核（基于 R3-1）
+```bash
+inject-prompt --template prompts/executor-arch-3.md → 分派 LLM 子代理
+```
+基于 R3 初步关系发现结构矛盾，输出最终修正。
+输出写入 `2_extract/architecture/arch-3.jsonl`。
+```bash
+build-architecture --workdir .srs_formalizer  # 终核修正
+```
+
+### S2.7：R3 关系推导-2（完备架构下的最终关系）
+在完整架构约束下重新推导依赖关系。
+```bash
+inject-prompt --template prompts/executor-R3.md → 分派 LLM 子代理
+```
+输出覆盖 `2_extract/r3-relational/<shard_id>.jsonl`。
+
+### 最终验证
+```bash
+verify-gate --workdir .srs_formalizer --stage R3
+```
+确认全部 JSONL 文件存在、ID 唯一、图谱可加载。
 
 ## 约束
 - 校验者在新会话中执行（上下文隔离）
-- 所有子代理输出限定在 .srs_formalizer/ 内
-- 子代理 ID 必须 ASCII-only（`R1-S001-0001` 格式），validate-jsonl 拒绝中文 ID
-- 编排者不自行提取需求——只做流程决策
+- 子代理 ID ASCII-only，validate-jsonl 拒绝中文
+- 架构层次 ≤4 层，CONTAINS 有向无环
+- 编排者只做流程决策，不自行提取/推导
