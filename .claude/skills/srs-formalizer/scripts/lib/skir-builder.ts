@@ -70,10 +70,31 @@ function parseSimpleYaml(yaml: string): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   const lines = yaml.split('\n');
   let currentKey: string | null = null;
+  let currentNestedKey: string | null = null;
   let currentArray: unknown[] = [];
   let currentObj: Record<string, unknown> = {};
   let inArray = false;
   let inObj = false;
+
+  // Write a collected array to the appropriate path
+  function flushArray() {
+    if (!inArray || !currentKey) return;
+    // Flush any pending object-in-array before finalizing the array
+    if (inObj && Object.keys(currentObj).length > 0) {
+      currentArray.push({...currentObj});
+      currentObj = {};
+      inObj = false;
+    }
+    const arr = [...currentArray];
+    currentArray = [];
+    inArray = false;
+    if (currentNestedKey) {
+      const parent = result[currentKey] as Record<string, unknown>;
+      parent[currentNestedKey] = arr;
+    } else {
+      result[currentKey] = arr;
+    }
+  }
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -88,12 +109,9 @@ function parseSimpleYaml(yaml: string): Record<string, unknown> {
         currentObj = {};
         inObj = false;
       }
-      // Flush previous flat array before starting new key
-      if (inArray && currentKey && !inObj) {
-        result[currentKey] = [...currentArray];
-        currentArray = [];
-        inArray = false;
-      }
+      // Flush previous flat array (if any) before starting new key
+      flushArray();
+      currentNestedKey = null;
 
       const key = kvMatch[1]!;
       const val = kvMatch[2]!.trim();
@@ -101,12 +119,14 @@ function parseSimpleYaml(yaml: string): Record<string, unknown> {
       if (val === '') {
         currentKey = key;
         result[key] = {};
+        currentNestedKey = null;
         inArray = false;
         inObj = false;
         currentArray = [];
         currentObj = {};
       } else {
         currentKey = null;
+        currentNestedKey = null;
         result[key] = parseYamlValue(val);
       }
       continue;
@@ -130,6 +150,7 @@ function parseSimpleYaml(yaml: string): Record<string, unknown> {
         currentObj[inlineKv[1]!] = parseYamlValue(inlineKv[2]!.trim());
       } else {
         currentArray.push(parseYamlValue(itemVal));
+        inObj = false;  // flat array item — no longer inside an object
       }
       continue;
     }
@@ -141,13 +162,25 @@ function parseSimpleYaml(yaml: string): Record<string, unknown> {
       const nVal = nestedKv[2]!.trim();
 
       if (nVal === '') {
-        // deeper nested object key — start tracking sub-key for array of objects
+        // deeper nested object key — starting a new sub-section
+        // flush any prior array into its nested key before switching
+        flushArray();
+        currentNestedKey = nKey;
         inObj = true;
       } else if (inObj && inArray) {
         // Inside an object in an array — add to current object
         currentObj[nKey] = parseYamlValue(nVal);
       } else {
-        // Direct nested key under a top-level key
+        // If we're inside a previous nested key context, flush and reset before
+        // writing a sibling key (e.g. pipeline_stages after file_globs)
+        if (currentNestedKey && inArray) {
+          flushArray();
+          currentNestedKey = null;
+        }
+        // Direct nested key under a top-level key (or under nested key)
+        const effective = currentNestedKey
+          ? ((result[currentKey] as Record<string,unknown>)[currentNestedKey] ??= {} as Record<string,unknown>) as Record<string,unknown>
+          : (result[currentKey] as Record<string,unknown>);
         // Check for inline object {}
         const objMatch = nVal.match(/^\{(.*)\}$/);
         if (objMatch) {
@@ -157,9 +190,9 @@ function parseSimpleYaml(yaml: string): Record<string, unknown> {
             const [ik, iv] = pair.split(':').map(s => s.trim().replace(/"/g, ''));
             if (ik && iv) innerObj[ik] = parseYamlValue(iv);
           }
-          (result[currentKey] as Record<string,unknown>)[nKey] = innerObj;
+          effective[nKey] = innerObj;
         } else {
-          (result[currentKey] as Record<string,unknown>)[nKey] = parseYamlValue(nVal);
+          effective[nKey] = parseYamlValue(nVal);
         }
       }
     }
@@ -168,10 +201,10 @@ function parseSimpleYaml(yaml: string): Record<string, unknown> {
   // Final flush
   if (inObj && inArray && currentKey && Object.keys(currentObj).length > 0) {
     currentArray.push({...currentObj});
+    currentObj = {};
+    inObj = false;
   }
-  if (inArray && currentKey) {
-    result[currentKey] = [...currentArray];
-  }
+  flushArray();
 
   return result;
 }
@@ -250,14 +283,22 @@ export function buildSkIR(raw: RawSkillMd): SkillIR {
     throw new Error(`description too long: ${fm.description.length} characters (max 1024)`);
   }
 
+  // Resolve field from top-level with metadata fallback helper
+  function metaField<T>(key: string): T | undefined {
+    return (fm as Record<string, unknown>)[key] as T | undefined
+      ?? (fm.metadata?.[key] as T | undefined);
+  }
+
   // Security level
+  const rawSecurityLevel = metaField<string>('security_level');
   const securityLevel: SecurityLevel =
-    fm.security_level && VALID_SECURITY_LEVELS.has(fm.security_level)
-      ? (fm.security_level as SecurityLevel)
+    rawSecurityLevel && VALID_SECURITY_LEVELS.has(rawSecurityLevel)
+      ? (rawSecurityLevel as SecurityLevel)
       : 'medium';
 
   // Permissions
-  const permissions: Permission[] = (fm.permissions || []).map(p => {
+  const rawPermissions = metaField<Array<{ kind: string; scope: string; description?: string; read_only?: boolean }>>('permissions');
+  const permissions: Permission[] = (rawPermissions || []).map(p => {
     const perm: Permission = {
       kind: normalizePermissionKind(p.kind) as Permission['kind'],
       scope: p.scope,
@@ -283,8 +324,9 @@ export function buildSkIR(raw: RawSkillMd): SkillIR {
 
   // Capability tiers
   const capabilityTiers: CapabilityTier[] = [];
-  if (fm.capability_tiers) {
-    for (const [tier, cfg] of Object.entries(fm.capability_tiers)) {
+  const rawCapTiers = metaField<Record<string, { min_capability_score: number; adaptation: string }>>('capability_tiers');
+  if (rawCapTiers) {
+    for (const [tier, cfg] of Object.entries(rawCapTiers)) {
       capabilityTiers.push({
         tier: tier as CapabilityTier['tier'],
         min_score: cfg.min_capability_score,
@@ -295,8 +337,9 @@ export function buildSkIR(raw: RawSkillMd): SkillIR {
 
   // Platform activation
   const platformActivation: Record<string, PlatformActivation> = {};
-  if (fm.platform_activation) {
-    for (const [plat, cfg] of Object.entries(fm.platform_activation)) {
+  const rawPlatAct = metaField<Record<string, Record<string, unknown>>>('platform_activation');
+  if (rawPlatAct) {
+    for (const [plat, cfg] of Object.entries(rawPlatAct)) {
       const pa: PlatformActivation = {};
       if (cfg.hook !== undefined) pa.hook = cfg.hook as string;
       if (cfg.forced_eval !== undefined) pa.forced_eval = cfg.forced_eval as boolean;
@@ -337,11 +380,11 @@ export function buildSkIR(raw: RawSkillMd): SkillIR {
   // Build return object with conditional optional fields for exactOptionalPropertyTypes
   const ir: SkillIR = {
     name: fm.name as string,
-    version: fm.version || '0.1.0',
+    version: metaField<string>('version') || '0.1.0',
     description: fm.description as string,
-    mcp_servers: fm.mcp_servers || [],
+    mcp_servers: metaField<string[]>('mcp_servers') || [],
     security_level: securityLevel,
-    hitl_required: fm.hitl_required ?? false,
+    hitl_required: metaField<boolean>('hitl_required') ?? false,
     pre_conditions: [],
     post_conditions: [],
     fallbacks: [],
