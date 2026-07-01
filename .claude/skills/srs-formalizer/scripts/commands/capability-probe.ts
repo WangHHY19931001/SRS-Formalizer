@@ -17,6 +17,8 @@
  */
 
 import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { execSync } from 'node:child_process';
 import type { CliResult } from '../types/index.js';
 
 // ===================== Type Definitions =====================
@@ -27,7 +29,9 @@ type Dimension =
   | 'precision'
   | 'hierarchical_reasoning'
   | 'logical_reasoning'
-  | 'creative_reasoning';
+  | 'creative_reasoning'
+  | 'formal_tlaplus'
+  | 'formal_lean4';
 
 export interface ProbeItem {
   probe_id: string;
@@ -62,6 +66,8 @@ interface CapabilityProfile {
   hierarchical_reasoning: number;
   logical_reasoning: number;
   creative_reasoning: number;
+  formal_tlaplus: number;
+  formal_lean4: number;
 }
 
 type Tier = 'low' | 'medium' | 'high';
@@ -84,6 +90,8 @@ function generateProbes(): ProbeItem[] {
     ...generateHierarchicalReasoningProbes(),
     ...generateLogicalReasoningProbes(),
     ...generateCreativeReasoningProbes(),
+    ...generateTlaPlusProbes(),
+    ...generateLean4Probes(),
   ];
 }
 
@@ -1197,6 +1205,209 @@ R6: 系统记录每次选课操作的时间戳和操作人。
   ];
 }
 
+function generateTlaPlusProbes(): ProbeItem[] {
+  return [
+    // ---- probe-1 (easy) ----
+    {
+      probe_id: 'formal_tlaplus-1',
+      dimension: 'formal_tlaplus',
+      prompt: `Write a TLA+ spec for a simple counter. The counter has two operations:
+- Increment: increases the counter value by 1, but the value must not exceed 100.
+- Reset: sets the counter to 0.
+
+Include a type invariant to ensure the counter is always a non-negative integer ≤ 100.
+Name your module "Counter".`,
+      expected: {
+        checks: ['sany_pass', 'tlc_pass', 'mutation_test'],
+      },
+    },
+    // ---- probe-2 (easy) ----
+    {
+      probe_id: 'formal_tlaplus-2',
+      dimension: 'formal_tlaplus',
+      prompt: `Write a TLA+ spec for a toggle switch. The switch has two states: "on" and "off".
+The only operation is Toggle, which changes the state from on to off or from off to on.
+Include an invariant that the switch is always either "on" or "off".
+Name your module "Toggle".`,
+      expected: {
+        checks: ['sany_pass', 'tlc_pass', 'mutation_test'],
+      },
+    },
+    // ---- probe-3 (medium) ----
+    {
+      probe_id: 'formal_tlaplus-3',
+      dimension: 'formal_tlaplus',
+      prompt: `Write a TLA+ spec for a bounded FIFO queue with maximum capacity MaxLen = 5.
+The queue supports two operations:
+- Enqueue(item): adds an item to the back of the queue (only if not full).
+- Dequeue: removes and returns the item at the front of the queue (only if not empty).
+
+Define items as natural numbers. Include a type invariant and a capacity invariant.
+Name your module "Queue".`,
+      expected: {
+        checks: ['sany_pass', 'tlc_pass', 'mutation_test'],
+      },
+    },
+    // ---- probe-4 (medium) ----
+    {
+      probe_id: 'formal_tlaplus-4',
+      dimension: 'formal_tlaplus',
+      prompt: `Write a TLA+ spec for a mutual exclusion lock shared by 2 concurrent processes (p1, p2).
+Each process alternates between states: "idle", "trying", and "critical".
+Safety property: at most one process may be in the "critical" state at any time.
+
+Define two process actions per process (Try, Exit). Use a global lock variable.
+Name your module "Mutex".`,
+      expected: {
+        checks: ['sany_pass', 'tlc_pass', 'mutation_test'],
+      },
+    },
+    // ---- probe-5 (medium) ----
+    {
+      probe_id: 'formal_tlaplus-5',
+      dimension: 'formal_tlaplus',
+      prompt: `Write a TLA+ spec for a producer-consumer system with a shared bounded buffer of capacity 3.
+- The producer puts items (natural numbers) into the buffer when the buffer is not full.
+- The consumer takes items from the buffer when the buffer is not empty.
+
+Use a FIFO queue for the buffer. Include type and safety invariants (buffer size never exceeds 3).
+Name your module "ProdCons".`,
+      expected: {
+        checks: ['sany_pass', 'tlc_pass', 'mutation_test'],
+      },
+    },
+    // ---- probe-6 (hard) ----
+    {
+      probe_id: 'formal_tlaplus-6',
+      dimension: 'formal_tlaplus',
+      prompt: `Write a TLA+ spec for a leader election protocol among 3 nodes (n1, n2, n3).
+Each node can be in states: "candidate" or "leader".
+Safety property: at most 1 node may be in the "leader" state at any time.
+Liveness property: eventually at least one node becomes leader.
+
+Model nodes with a set {n1, n2, n3}. Each node has state variable. Use a single shared
+leader variable. Include both safety and liveness (temporal) properties.
+Name your module "LeaderElection".`,
+      expected: {
+        checks: ['sany_pass', 'tlc_pass', 'mutation_test'],
+      },
+    },
+    // ---- probe-7 (hard) ----
+    {
+      probe_id: 'formal_tlaplus-7',
+      dimension: 'formal_tlaplus',
+      prompt: `Write a TLA+ spec for a distributed lock system with deadlock detection.
+Two concurrent processes (p1, p2) compete for two shared resources (r1, r2).
+Each process needs to acquire both resources to do work, but they can only acquire one at a time.
+
+Process p1 acquires r1 then r2. Process p2 acquires r2 then r1 — this creates risk of deadlock.
+Model each resource with states: "free" or "held_by_pX".
+Include a deadlock detection invariant that flags when both processes are waiting.
+
+Name your module "DistributedLock".`,
+      expected: {
+        checks: ['sany_pass', 'tlc_pass', 'mutation_test'],
+      },
+    },
+  ];
+}
+
+function generateLean4Probes(): ProbeItem[] {
+  return [
+    // ---- probe-1 (easy) ----
+    {
+      probe_id: 'formal_lean4-1',
+      dimension: 'formal_lean4',
+      prompt: `Prove in Lean 4: For all natural numbers n, if n is even then n^2 is even.
+
+Define "even" as: ∃ k, n = 2*k.
+Do NOT use mathlib. Define everything from scratch.`,
+      expected: {
+        checks: ['lake_build', 'no_sorry', 'no_axiom'],
+      },
+    },
+    // ---- probe-2 (easy) ----
+    {
+      probe_id: 'formal_lean4-2',
+      dimension: 'formal_lean4',
+      prompt: `Prove in Lean 4: The sum of natural numbers from 1 to n equals n*(n+1)/2.
+
+Define your own sum function recursively.
+Do NOT use mathlib. Define everything from scratch.`,
+      expected: {
+        checks: ['lake_build', 'no_sorry', 'no_axiom'],
+      },
+    },
+    // ---- probe-3 (medium) ----
+    {
+      probe_id: 'formal_lean4-3',
+      dimension: 'formal_lean4',
+      prompt: `Prove in Lean 4: Reversing a list twice yields the original list (rev (rev l) = l).
+
+Define your own List type (as an inductive type) and reverse function recursively.
+Do NOT use mathlib or the built-in List. Define everything from scratch.`,
+      expected: {
+        checks: ['lake_build', 'no_sorry', 'no_axiom'],
+      },
+    },
+    // ---- probe-4 (medium) ----
+    {
+      probe_id: 'formal_lean4-4',
+      dimension: 'formal_lean4',
+      prompt: `Prove in Lean 4 the Pigeonhole principle: Given a function f: ℕ → ℕ and n+1 distinct natural numbers as inputs, at least one output value occurs at least 2 times.
+
+Formally: For any n:ℕ, any list xs of length n+1 of distinct ℕ's, there exist i≠j<length xs such that f(xs[i]) = f(xs[j]).
+Do NOT use mathlib. Define everything from scratch.`,
+      expected: {
+        checks: ['lake_build', 'no_sorry', 'no_axiom'],
+      },
+    },
+    // ---- probe-5 (medium) ----
+    {
+      probe_id: 'formal_lean4-5',
+      dimension: 'formal_lean4',
+      prompt: `Prove in Lean 4: The square root of 2 is irrational.
+
+That is, there are no natural numbers p, q (q ≠ 0) such that (p/q)^2 = 2.
+Proceed by contradiction: show that if (p/q)^2 = 2 in lowest terms, then both p and q are even.
+Do NOT use mathlib. Define everything from scratch.`,
+      expected: {
+        checks: ['lake_build', 'no_sorry', 'no_axiom'],
+      },
+    },
+    // ---- probe-6 (hard) ----
+    {
+      probe_id: 'formal_lean4-6',
+      dimension: 'formal_lean4',
+      prompt: `Prove in Lean 4: There is no surjection from ℕ to the set of all infinite sequences of bits (Cantor's diagonal argument).
+
+Define infinite bit sequences as ℕ → Bool. Show that for any function f: ℕ → (ℕ → Bool), there exists a sequence s that is not in the image of f.
+Do NOT use mathlib. Define everything from scratch.`,
+      expected: {
+        checks: ['lake_build', 'no_sorry', 'no_axiom'],
+      },
+    },
+    // ---- probe-7 (hard) ----
+    {
+      probe_id: 'formal_lean4-7',
+      dimension: 'formal_lean4',
+      prompt: `Prove in Lean 4: The kernel of a group homomorphism is a normal subgroup.
+
+Define from scratch:
+- A Group structure (carrier set, multiplication, identity, inverse, associativity, identity, inverse axioms)
+- A GroupHomomorphism (map preserving multiplication)
+- The kernel of a homomorphism
+- A NormalSubgroup (subgroup closed under conjugation)
+
+Then prove: The kernel of any group homomorphism is a normal subgroup.
+Do NOT use mathlib. Define everything from scratch.`,
+      expected: {
+        checks: ['lake_build', 'no_sorry', 'no_axiom'],
+      },
+    },
+  ];
+}
+
 // ===================== JSON Parsing Helpers =====================
 
 /** 从可能包含额外文字的字符串中提取 JSON 子串并解析 */
@@ -1547,6 +1758,176 @@ function scoreCreativeReasoning(probe: ProbeItem, answer: string): ProbeResult {
   };
 }
 
+// ===================== Formal Methods Scoring =====================
+
+/**
+ * Detect TLA+ toolchain: need java + (tla2tools.jar or tlc command)
+ */
+function detectTlaPlusToolchain(): boolean {
+  try {
+    execSync("java -version 2>&1", { stdio: "pipe" });
+  } catch {
+    return false;
+  }
+  try {
+    execSync("which tlc 2>/dev/null || tlc -version 2>/dev/null", { stdio: "pipe" });
+    return true;
+  } catch {
+    // fall through -- check for tla2tools.jar
+  }
+  try {
+    execSync("java -cp tla2tools.jar tla2.SANY 2>&1", { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function scoreTlaPlus(probe: ProbeItem, answer: string, tempDir?: string): ProbeResult {
+  const details: string[] = [];
+  let score = 0;
+  const workDir = tempDir ?? fs.mkdtempSync('tlaplus-');
+
+  // 1. Write answer to probe.tla
+  const tlaPath = path.join(workDir, 'probe.tla');
+  fs.writeFileSync(tlaPath, answer, "utf-8");
+
+  // 2. Detect toolchain
+  if (!detectTlaPlusToolchain()) {
+    details.push("TLA+ toolchain unavailable (java + tla2tools.jar required)");
+    return { probe_id: probe.probe_id, dimension: probe.dimension, score: 0, details, passed: false };
+  }
+
+  // 3. Run SANY
+  try {
+    execSync("java -cp tla2tools.jar tla2.SANY probe.tla", { cwd: workDir, stdio: "pipe" });
+    details.push("SANY: syntax check passed");
+    score += 30;
+  } catch {
+    details.push("SANY: syntax error");
+    return { probe_id: probe.probe_id, dimension: probe.dimension, score, details, passed: false };
+  }
+
+  // 4. Run TLC
+  try {
+    execSync("java -cp tla2tools.jar tla2.TLC probe.tla", { cwd: workDir, stdio: "pipe", timeout: 30000 });
+    details.push("TLC: model check passed");
+    score += 40;
+  } catch {
+    details.push("TLC: model check failed or timeout");
+    return { probe_id: probe.probe_id, dimension: probe.dimension, score, details, passed: false };
+  }
+
+  // 5. Mutation test: inject a known bug into the invariant and verify TLC catches it
+  let mutationScore = 0;
+  if (answer.includes("INVARIANT")) {
+    try {
+      const mutated = answer.replace(/INVARIANT\s+\w+/g, "INVARIANT FALSE");
+      fs.writeFileSync(tlaPath, mutated, "utf-8");
+      try {
+        execSync("java -cp tla2tools.jar tla2.TLC probe.tla", { cwd: workDir, stdio: "pipe", timeout: 15000 });
+        details.push("Mutation test: TLC passed with FALSE invariant (no effect)");
+        mutationScore = 0;
+      } catch {
+        details.push("Mutation test: invariant caught injected bug");
+        mutationScore = 30;
+      }
+    } catch {
+      details.push("Mutation test: could not mutate spec");
+      mutationScore = 0;
+    }
+    // Restore original spec
+    fs.writeFileSync(tlaPath, answer, "utf-8");
+  } else {
+    details.push("Mutation test: no INVARIANT found to mutate");
+    mutationScore = 0;
+  }
+  score += mutationScore;
+
+  return {
+    probe_id: probe.probe_id,
+    dimension: probe.dimension,
+    score: Math.min(100, score),
+    details,
+    passed: score >= 70,
+  };
+}
+
+/**
+ * Detect Lean 4 toolchain: check for lake command
+ */
+function detectLean4Toolchain(): boolean {
+  try {
+    execSync("which lake 2>/dev/null", { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function scoreLean4(probe: ProbeItem, answer: string, tempDir?: string): ProbeResult {
+  const details: string[] = [];
+  let score = 0;
+  const workDir = tempDir ?? fs.mkdtempSync('lean4-');
+
+  // 1. Write answer to Probe.lean
+  const leanPath = path.join(workDir, 'Probe.lean');
+  fs.writeFileSync(leanPath, answer, 'utf-8');
+
+  // 2. Write minimal lakefile.lean
+  const lakefile = 'import Lake\nopen Lake\n\npackage Probe\n\n@[default_target]\nlean_lib Probe\n';
+  fs.writeFileSync(path.join(workDir, 'lakefile.lean'), lakefile, 'utf-8');
+
+  // 3. Detect toolchain
+  if (!detectLean4Toolchain()) {
+    details.push("Lean 4 toolchain unavailable (lake command required)");
+    return { probe_id: probe.probe_id, dimension: probe.dimension, score: 0, details, passed: false };
+  }
+
+  // 4. lake build
+  let buildOutput = "";
+  try {
+    buildOutput = execSync("lake build", { cwd: workDir, stdio: "pipe", timeout: 60000 }).toString();
+    details.push("lake build: passed");
+    score += 40;
+  } catch (e) {
+    details.push("lake build: failed -- " + ((e as Error).message || "build error"));
+    return { probe_id: probe.probe_id, dimension: probe.dimension, score, details, passed: false };
+  }
+
+  // 5. Check for "sorry" in answer
+  if (answer.includes("sorry")) {
+    details.push("Contains sorry: answer has incomplete proofs");
+  } else {
+    details.push("No sorry: all proofs complete");
+    score += 30;
+  }
+
+  // 6. Check for "axiom" in answer
+  if (answer.includes("axiom ")) {
+    details.push("Contains axiom: answer uses unproven assumptions");
+  } else {
+    details.push("No axiom: no unproven assumptions");
+    score += 15;
+  }
+
+  // 7. Check for warnings in lake build output
+  if (buildOutput.toLowerCase().includes("warning")) {
+    details.push("Has warnings: build output contains warnings");
+  } else {
+    details.push("No warnings: clean build output");
+    score += 15;
+  }
+
+  return {
+    probe_id: probe.probe_id,
+    dimension: probe.dimension,
+    score: Math.min(100, score),
+    details,
+    passed: score >= 70,
+  };
+}
+
 // ===================== Profile Calculation =====================
 
 function calculateProfile(results: ProbeResult[]): {
@@ -1561,6 +1942,8 @@ function calculateProfile(results: ProbeResult[]): {
     hierarchical_reasoning: 0,
     logical_reasoning: 0,
     creative_reasoning: 0,
+    formal_tlaplus: 0,
+    formal_lean4: 0,
   };
 
   const dimScoreMap: Record<string, number[]> = {};
@@ -1610,26 +1993,33 @@ function calculateProfile(results: ProbeResult[]): {
 
 // ===================== Main Scoring =====================
 
-function buildScorers(): Record<string, (probe: ProbeItem, answer: string) => ProbeResult> {
-  const scorers: Record<string, (probe: ProbeItem, answer: string) => ProbeResult> = {};
-  const dimToScorer: Record<Dimension, (probe: ProbeItem, answer: string) => ProbeResult> = {
+type ProbeScorer = (probe: ProbeItem, answer: string, tempDir?: string) => ProbeResult;
+
+function buildScorers(): Record<string, ProbeScorer> {
+  const scorers: Record<string, ProbeScorer> = {};
+  const dimToScorer: Record<Dimension, ProbeScorer> = {
     instruction_following: scoreInstructionFollowing,
     structured_output: scoreStructuredOutput,
     precision: scorePrecision,
     hierarchical_reasoning: scoreHierarchicalReasoning,
     logical_reasoning: scoreLogicalReasoning,
     creative_reasoning: scoreCreativeReasoning,
+    formal_tlaplus: scoreTlaPlus,
+    formal_lean4: scoreLean4,
   };
-  const dimCounts: Record<Dimension, number> = {
+  const dimCounts: Record<string, number> = {
     instruction_following: 8,
     structured_output: 7,
     precision: 6,
     hierarchical_reasoning: 5,
     logical_reasoning: 5,
     creative_reasoning: 5,
+    formal_tlaplus: 7,
+    formal_lean4: 7,
   };
   for (const [dim, count] of Object.entries(dimCounts)) {
     const scorer = dimToScorer[dim as Dimension];
+    if (!scorer) continue;
     for (let i = 1; i <= count; i++) {
       scorers[`${dim}-${i}`] = scorer;
     }
@@ -1637,9 +2027,9 @@ function buildScorers(): Record<string, (probe: ProbeItem, answer: string) => Pr
   return scorers;
 }
 
-const SCORERS: Record<string, (probe: ProbeItem, answer: string) => ProbeResult> = buildScorers();
+const SCORERS: Record<string, ProbeScorer> = buildScorers();
 
-function scoreAllProbes(probes: ProbeItem[], answers: Record<string, string>): ProbeResult[] {
+function scoreAllProbes(probes: ProbeItem[], answers: Record<string, string>, tempDir?: string): ProbeResult[] {
   const results: ProbeResult[] = [];
   for (const probe of probes) {
     const llmAnswer = answers[probe.probe_id];
@@ -1655,7 +2045,7 @@ function scoreAllProbes(probes: ProbeItem[], answers: Record<string, string>): P
     }
     const scorer = SCORERS[probe.probe_id];
     if (scorer) {
-      results.push(scorer(probe, llmAnswer));
+      results.push(scorer(probe, llmAnswer, tempDir));
     } else {
       results.push({
         probe_id: probe.probe_id,
@@ -1689,6 +2079,8 @@ export async function main(args: string[]): Promise<CliResult> {
       return { status: 'error', message: 'Missing required argument: --file <path> (required for score mode)' };
     }
 
+    const tempDir = parseArg(args, '--temp-dir') ?? fs.mkdtempSync('capability-probe-');
+
     // Read answer file
     let raw: string;
     try {
@@ -1706,7 +2098,7 @@ export async function main(args: string[]): Promise<CliResult> {
 
     const answers = answerData.answers ?? {};
     const probes = generateProbes();
-    const probeResults = scoreAllProbes(probes, answers);
+    const probeResults = scoreAllProbes(probes, answers, tempDir);
     const { profile, tier, recommendations } = calculateProfile(probeResults);
 
     return {
