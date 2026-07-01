@@ -15,6 +15,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
+import { validateWorkDir } from '../lib/security.js';
 
 function parseArg(args: string[], name: string): string | null {
   const idx = args.indexOf(name);
@@ -43,6 +44,58 @@ export async function main(args: string[]): Promise<CliResult> {
 
   if (typeof params !== 'object' || params === null || Array.isArray(params)) {
     return { status: 'error', message: '--params must be a JSON object' };
+  }
+
+  // Parse optional --shard-id
+  const shardId = parseArg(args, '--shard-id');
+  const workDirArg = parseArg(args, '--workdir');
+
+  // Auto-resolve SHARD_CONTENT from shard_index.json when --shard-id is provided
+  if (shardId) {
+    if (!workDirArg) {
+      return { status: 'error', message: '--workdir is required when --shard-id is used' };
+    }
+
+    let workDir: string;
+    try {
+      workDir = validateWorkDir(workDirArg);
+    } catch (err) {
+      return { status: 'error', message: (err as Error).message };
+    }
+
+    const indexPath = path.join(workDir, '_ctx', 'shard_index.json');
+    if (!fs.existsSync(indexPath)) {
+      return { status: 'error', message: `shard_index.json not found at ${indexPath}` };
+    }
+
+    let index: import('../types/index.js').ShardIndex;
+    try {
+      index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+    } catch {
+      return { status: 'error', message: 'Failed to parse shard_index.json' };
+    }
+
+    const shard = index.shards.find(s => s.id === shardId);
+    if (!shard) {
+      return { status: 'error', message: `Shard not found: ${shardId}` };
+    }
+
+    // Read content from original source file by line range
+    if (!fs.existsSync(shard.source_path)) {
+      return { status: 'error', message: `Source file not found: ${shard.source_path}` };
+    }
+
+    const srcContent = fs.readFileSync(shard.source_path, 'utf-8');
+    const lines = srcContent.split('\n');
+    const shardContent = lines.slice(shard.source_start_line - 1, shard.source_end_line).join('\n');
+
+    // Inject (don't override if already in --params)
+    if (!params['SHARD_CONTENT']) {
+      params['SHARD_CONTENT'] = shardContent;
+    }
+    if (!params['SHARD_ID']) {
+      params['SHARD_ID'] = shard.id;
+    }
   }
 
   // Validate template path: resolved dirname must end with "prompts"
