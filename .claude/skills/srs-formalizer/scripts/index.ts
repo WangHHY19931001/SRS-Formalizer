@@ -26,6 +26,8 @@ Commands:
   validate-cypher   Validate .cypher script file (4 checks)
   validate-checklist Validate CHECKLIST.md file
   capability-probe  LLM capability probe evaluation (--mode generate|score)
+  pack-skill        Pack skill directory into hash manifest + tar.gz backup
+  verify-skill-integrity Verify skill file integrity (--repair to auto-restore)
 
 Options:
   --help    Show this help message
@@ -157,6 +159,18 @@ async function main(): Promise<void> {
     case 'capability-probe': {
       const { main: probeMain } = await import('./commands/capability-probe.js');
       const result = await probeMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'pack-skill': {
+      const { main: packMain } = await import('./commands/pack-skill.js');
+      const result = await packMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'verify-skill-integrity': {
+      const { main: verifyIntegrityMain } = await import('./commands/verify-skill-integrity.js');
+      const result = await verifyIntegrityMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }

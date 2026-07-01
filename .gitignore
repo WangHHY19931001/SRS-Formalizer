@@ -40,6 +40,9 @@ __pycache__/
 # srs-formalizer working directory
 .srs_formalizer/
 
+# Skill integrity backup (encrypted, binary)
+*.enc
+
 # Claude Code (local)
 .claude/settings.local.json
 .claude/plans/
