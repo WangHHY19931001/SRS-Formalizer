@@ -285,7 +285,7 @@ export function buildSkIR(raw: RawSkillMd): SkillIR {
 
   // Resolve field from top-level with metadata fallback helper
   function metaField<T>(key: string): T | undefined {
-    return (fm as Record<string, unknown>)[key] as T | undefined
+    return (fm as unknown as Record<string, unknown>)[key] as T | undefined
       ?? (fm.metadata?.[key] as T | undefined);
   }
 
