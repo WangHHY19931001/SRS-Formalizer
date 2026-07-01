@@ -107,8 +107,22 @@ unzip srs-formalizer-v0.5.0.zip -d /your-project/
 └── tests/                # 验收用例 + Golden 文件
 ```
 
+## 致谢
+
+| 项目 | 说明 |
+|------|------|
+| **Trae CN + GLM 5.2** | 本技能需求文档使用 Trae CN + GLM 5.2 辅助编写 |
+| **Claude Code + DeepSeek V4** | 本技能实际开发使用 Claude Code + DeepSeek V4 进行开发 |
+| **grill-me / grill-with-docs** | 本技能部分方法论参考了 grill-me 和 grill-with-docs |
+| **SkCC 论文与实现** | 本技能参考了中山大学团队 SkCC 论文 (arXiv:2605.03353) 及 Nexa-Language/Skill-Compiler 开源实现 |
+
+## 许可
+
+本项目采用 [MIT 协议](LICENSE) 开源。
+
 ## 参考
 
 - **SkCC 论文**: [arXiv:2605.03353](https://arxiv.org/abs/2605.03353) — 编译方法论基础
+- **SkCC 源码**: [github.com/Nexa-Language/Skill-Compiler](https://github.com/Nexa-Language/Skill-Compiler)
 - **SkillsBench**: [arXiv:2602.12670](https://arxiv.org/abs/2602.12670) — Agent 技能基准
 - **Agent Skills 规范**: [agentskills.io](https://agentskills.io/)
