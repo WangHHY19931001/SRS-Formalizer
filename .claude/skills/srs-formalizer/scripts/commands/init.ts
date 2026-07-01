@@ -11,8 +11,7 @@ import type { CliResult } from '../types/index.js';
 import { validateWorkDir } from '../lib/security.js';
 
 const SUBDIRS = [
-  // S1: 预处理
-  '1_shard',
+  // S1: 预处理 — shards tracked via shard_index.json
   '_ctx',
   // S2: 需求提取 + 架构分解
   '2_extract/r1-explicit',

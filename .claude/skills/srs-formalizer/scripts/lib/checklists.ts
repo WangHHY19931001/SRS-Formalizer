@@ -152,7 +152,7 @@ export const CANONICAL: Record<string, CanonicalDef> = {
 
 /** 将 CHECKLISTS 写入工作目录的各阶段子目录 */
 export function writeChecklists(workDir: string): void {
-  const stageDirs = ['1_shard', '2_extract', '3_graph', '4_bdd', '5_formal', '6_outputs'];
+  const stageDirs = ['2_extract', '3_graph', '4_bdd', '5_formal', '6_outputs'];
   for (const dir of stageDirs) {
     const content = CHECKLISTS[dir];
     if (content) {

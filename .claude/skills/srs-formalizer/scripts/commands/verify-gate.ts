@@ -407,7 +407,7 @@ function checkChecklistComplete(stageDir: string, workDir: string): CheckResult 
   }
 }
 
-/** S1: 验证 shard_index.json 中每个分片文件实际存在 */
+/** S1: 验证 shard_index.json 中每个分片的 source_path 实际存在 */
 function checkShardCompleteness(workDir: string): CheckResult {
   try {
     const indexPath = path.join(workDir, '_ctx', 'shard_index.json');
@@ -416,19 +416,24 @@ function checkShardCompleteness(workDir: string): CheckResult {
     }
     const index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
     const shards = index.shards || [];
-    const shardDir = path.join(workDir, '1_shard');
-    const missing: string[] = [];
+    const missingSources: string[] = [];
+    const seenSources = new Set<string>();
+
     for (const shard of shards) {
-      if (!fs.existsSync(path.join(shardDir, shard.file))) {
-        missing.push(shard.file);
+      const key = shard.source_path;
+      if (seenSources.has(key)) continue;
+      seenSources.add(key);
+      if (!fs.existsSync(shard.source_path)) {
+        missingSources.push(shard.source_path);
       }
     }
+
     return {
       name: 'Shard completeness',
-      passed: missing.length === 0,
-      detail: missing.length === 0
-        ? `All ${shards.length} shard files exist`
-        : `Missing ${missing.length}/${shards.length}: ${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '...' : ''}`,
+      passed: missingSources.length === 0,
+      detail: missingSources.length === 0
+        ? `All ${shards.length} shards reference existing source files`
+        : `Missing source files: ${missingSources.slice(0, 3).join(', ')}`,
     };
   } catch {
     return { name: 'Shard completeness', passed: false, detail: 'Could not verify shards' };

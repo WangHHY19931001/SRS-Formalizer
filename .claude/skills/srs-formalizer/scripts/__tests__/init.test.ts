@@ -22,7 +22,6 @@ describe('init command', () => {
 
     assert.equal(result.status, 'ok');
     const expectedDirs = [
-      '1_shard',
       '_ctx',
       '2_extract/r1-explicit', '2_extract/r2-implicit', '2_extract/r3-relational',
       '3_graph/graph',
