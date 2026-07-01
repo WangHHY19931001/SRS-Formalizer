@@ -1,10 +1,25 @@
 ---
 name: srs-formalizer
 description: 将 SRS 文档转化为需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约和 Lean 4 证明。当用户提供或引用 SRS 文档（HTML/Markdown/多目录包），要求"形式化"、"生成知识图谱"、"生成 BDD"、"TLA+ 建模"、"Lean 证明"时使用。
-compatibility: requires Node.js≥20, typescript≥5.5
+compatibility: requires Node.js>=20, typescript>=5.5, Claude Code>=1.0
 tags: [srs, requirements, knowledge-graph, bdd, tla+, lean, formal-methods, cypher, gherkin, verification]
 metadata:
-  version: "0.3.0"
+  version: "0.4.0"
+  compatibility: requires Node.js>=20, typescript>=5.5, Claude Code>=1.0
+  security_level: high
+  permissions:
+    - kind: filesystem
+      scope: ".srs_formalizer/*"
+      description: All pipeline outputs limited to working directory
+      read_only: false
+    - kind: network
+      scope: "https://api.search.brave.com/*"
+      description: S1 deep research retrieval only
+      read_only: true
+    - kind: execute
+      scope: "npx tsx .claude/skills/srs-formalizer/scripts/*"
+      description: Only srs-formalizer CLI commands
+      read_only: false
   trigger_keywords:
     - SRS
     - 需求规格
@@ -184,6 +199,7 @@ S2 子阶段:
 | `query-graph --workdir .srs_formalizer --query <type> --params '<json>'` | 图谱只读查询 | S6 |
 | `verify-gate --workdir .srs_formalizer --stage S1\|R3\|FINAL` | 硬门禁检查 | S1/S3/S6 |
 | `capability-probe --mode generate\|score [--file <path>]` | LLM 能力探测（出题+判分） | S0 |
+| `compile --skill-dir <path> --workdir .srs_formalizer` | 编译 SKILL.md → SkIR + 安全注入 + 平台发射 | 技能加载时 |
 
 ## 文件体系与加载策略
 
