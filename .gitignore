@@ -33,6 +33,13 @@ npm-debug.log*
 __pycache__/
 *.pyc
 
+# Compiled artifacts
+*.js.map
+*.d.ts
+
+# srs-formalizer working directory
+.srs_formalizer/
+
 # Claude Code (local)
 .claude/settings.local.json
 .claude/plans/

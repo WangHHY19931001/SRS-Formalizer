@@ -13,7 +13,23 @@ const TMP = path.join(os.tmpdir(), `srs-formalizer-verify-gate-test-${Date.now()
  */
 function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
-  fs.mkdirSync(path.join(workDir, '3_graph', 'graph'), { recursive: true });
+  // Create all stage directories and required files
+  const dirs = [
+    '1_shard', '_ctx',
+    '2_extract/r1-explicit', '2_extract/r2-implicit', '2_extract/r3-relational', '2_extract/architecture',
+    '3_graph/graph', '3_graph/analysis/subagent_prompts',
+    '4_bdd/features', '5_formal/specs', '5_formal/proofs',
+    '6_outputs/knowledge_graph', '6_outputs/brainstorming',
+  ];
+  for (const d of dirs) fs.mkdirSync(path.join(workDir, d), { recursive: true });
+  fs.writeFileSync(path.join(workDir, 'STATE.md'), '# SRS Formalizer — 状态追踪\n| 当前阶段 | S1 |\n', 'utf-8');
+  fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), '{"total_shards":0,"shards":[]}', 'utf-8');
+  fs.writeFileSync(path.join(workDir, 'MINDMAP.md'), '# MINDMAP\n- [x] Module1 ✅\n- [x] Module2 ✅', 'utf-8');
+  // Write CHECKLIST.md files for each stage
+  const checklistDirs = ['1_shard', '2_extract', '3_graph', '4_bdd', '5_formal', '6_outputs'];
+  for (const d of checklistDirs) {
+    fs.writeFileSync(path.join(workDir, d, 'CHECKLIST.md'), `# ${d} checklist\n\n- [x] All checks passed\n`, 'utf-8');
+  }
   return workDir;
 }
 
@@ -74,6 +90,7 @@ describe('verify-gate command', () => {
 
   it('S1 stage: reports failure when STATE.md is missing', async () => {
     const workDir = createWorkDir('s1-no-state');
+    fs.rmSync(path.join(workDir, 'STATE.md')); // Remove STATE.md created by createWorkDir
 
     fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
     fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
@@ -113,6 +130,10 @@ describe('verify-gate command', () => {
     ]);
     writeJsonl(path.join(workDir, '2_extract', 'r3-relational'), 'c.jsonl', [
       { id: 'R3-REL-0001', category: 'relational', statement: '登录依赖认证', source_file: 'srs.md', confidence: 'medium' },
+    ]);
+    // Architecture JSONL (required by Architecture JSONL exists check)
+    writeJsonl(path.join(workDir, '2_extract', 'architecture'), 'arch-1.jsonl', [
+      { id: 'ARCH-SYS-0001', type: 'module', name: 'Test', parent: null, contains: [], reasoning: 'test architecture record for gate check' },
     ]);
 
     // Valid graph (4 nodes >= 2 R1 nodes)
