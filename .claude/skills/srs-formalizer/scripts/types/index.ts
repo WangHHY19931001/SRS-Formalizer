@@ -41,6 +41,8 @@ export interface ShardIndex {
 export interface ShardEntry {
   id: string;
   file: string;
+  /** 分片定位符: {file_absolute_path}-{start_line}-{end_line}-{chunk_id} */
+  locator: string;
   module: string;
   chapter_ref: string;
   /** 源文件绝对路径 */

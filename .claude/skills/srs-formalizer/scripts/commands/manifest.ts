@@ -110,6 +110,7 @@ function shardContent(
     shardEntries.push({
       id, file: fileName, module: '全文', chapter_ref: '全文',
       source_path: absPath, source_start_line: 1, source_end_line: lines.length,
+      locator: `${absPath}-1-${lines.length}-${id}`,
       char_count: fullContent.length, estimated_tokens: estimateTokens(fullContent, lang),
     });
     shardContents.set(fileName, header.replace('<TOTAL>', '1') + fullContent);
@@ -134,6 +135,7 @@ function shardContent(
       source_path: absPath,
       source_start_line: startLine + 1,  // 1-based for human reading
       source_end_line: endLine,          // endLine 已经在前面指向下一个章节起始行（1-based from lines array）
+      locator: `${absPath}-${startLine + 1}-${endLine}-${id}`,
       char_count: shardText.length,
       estimated_tokens: estimateTokens(shardText, lang),
     });
