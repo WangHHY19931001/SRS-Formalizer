@@ -125,6 +125,140 @@ function estimateTokens(text: string, lang: 'zh' | 'en'): number {
   return Math.ceil(text.length / 4);
 }
 
+/** Maximum lines per shard. Shards exceeding this are recursively subdivided. */
+const MAX_SHARD_LINES = 200;
+
+/** Create a single ShardEntry (helper deduplicates the repeated locator/chunk logic). */
+function createShardEntry(
+  absPath: string,
+  startLine: number,
+  endLine: number,
+  module: string,
+  chapterRef: string,
+  lines: string[],
+  lang: 'zh' | 'en',
+  chunkId: string,
+): ShardEntry {
+  const shardLines = lines.slice(startLine - 1, endLine);
+  const shardText = shardLines.join('\n');
+  return {
+    id: '', file: '',
+    locator: `${absPath}-${startLine}-${endLine}-${chunkId}`,
+    module,
+    chapter_ref: chapterRef,
+    source_path: absPath,
+    source_start_line: startLine,
+    source_end_line: endLine,
+    char_count: shardText.length,
+    estimated_tokens: estimateTokens(shardText, lang),
+  };
+}
+
+/**
+ * Recursively subdivide a line range until every resulting shard is ≤ MAX_SHARD_LINES.
+ * Uses the `allChapters` array to find sub-headings within the range.
+ * Falls back to force-splitting by paragraph boundaries when no sub-headings exist.
+ */
+function subdivideShard(
+  lines: string[],
+  startLine: number,
+  endLine: number,
+  absPath: string,
+  allChapters: ChapterInfo[],
+  minLevel: number,
+  lang: 'zh' | 'en',
+  parentChunkPrefix: string,
+): ShardEntry[] {
+  const lineCount = endLine - startLine + 1;
+
+  // Base case: small enough
+  if (lineCount <= MAX_SHARD_LINES) {
+    return [createShardEntry(absPath, startLine, endLine, '（小分片）', '—', lines, lang, parentChunkPrefix)];
+  }
+
+  // Find sub-chapters within this range at the requested level or deeper
+  const subChapters = allChapters.filter(
+    ch => ch.level >= minLevel && ch.line >= startLine - 1 && ch.line < endLine,
+  );
+
+  if (subChapters.length === 0) {
+    // No sub-headings available → force-split by double-newline paragraph boundaries
+    return forceSplitByParagraphs(lines, startLine, endLine, absPath, lang, parentChunkPrefix);
+  }
+
+  const entries: ShardEntry[] = [];
+  let chunkCounter = 0;
+
+  for (let i = 0; i < subChapters.length; i++) {
+    const ch = subChapters[i]!;
+    const nextCh = subChapters[i + 1];
+    const segStart = ch.line + 1; // 1-based
+    const segEnd = nextCh ? nextCh.line : endLine;
+    const segLines = segEnd - segStart + 1;
+    const chunkId = `${parentChunkPrefix}-${String(chunkCounter).padStart(2, '0')}`;
+
+    if (segLines <= MAX_SHARD_LINES) {
+      entries.push(createShardEntry(absPath, segStart, segEnd, ch.title, ch.raw, lines, lang, chunkId));
+    } else {
+      // Still too large → recurse with the NEXT heading level
+      const deeper = subdivideShard(lines, segStart, segEnd, absPath, allChapters, ch.level + 1, lang, chunkId);
+      entries.push(...deeper);
+    }
+    chunkCounter++;
+  }
+
+  return entries;
+}
+
+/**
+ * Fallback: split a line range by double-newline (paragraph) boundaries
+ * until each piece is ≤ MAX_SHARD_LINES. If a single paragraph still exceeds
+ * the limit, hard-split it at exactly MAX_SHARD_LINES.
+ */
+function forceSplitByParagraphs(
+  lines: string[],
+  startLine: number,
+  endLine: number,
+  absPath: string,
+  lang: 'zh' | 'en',
+  parentChunkPrefix: string,
+): ShardEntry[] {
+  const entries: ShardEntry[] = [];
+  let segStart = startLine;
+  let chunkCounter = 0;
+
+  for (let i = startLine; i <= endLine; i++) {
+    // Detect paragraph boundary: empty line or end of range
+    const isBoundary = i === endLine || (lines[i - 1]?.trim() === '' && i > startLine);
+
+    if (!isBoundary) continue;
+
+    const segEnd = i;
+    const segLines = segEnd - segStart + 1;
+
+    if (segLines <= MAX_SHARD_LINES) {
+      if (segLines > 0) {
+        const chunkId = `${parentChunkPrefix}-P${String(chunkCounter).padStart(2, '0')}`;
+        entries.push(createShardEntry(absPath, segStart, segEnd, '（段落分片）', '—', lines, lang, chunkId));
+        chunkCounter++;
+      }
+      segStart = i + 1;
+    } else {
+      // Single paragraph too large → hard-split into MAX_SHARD_LINES chunks
+      while (segStart <= segEnd) {
+        const hardEnd = Math.min(segStart + MAX_SHARD_LINES - 1, segEnd);
+        const chunkId = `${parentChunkPrefix}-H${String(chunkCounter).padStart(2, '0')}`;
+        entries.push(createShardEntry(absPath, segStart, hardEnd, '（硬分片）', '—', lines, lang, chunkId));
+        chunkCounter++;
+        segStart = hardEnd + 1;
+      }
+      segStart = i + 1;
+    }
+  }
+
+  return entries;
+}
+
 function buildShardIndex(
   content: string,
   chapters: ChapterInfo[],
@@ -133,48 +267,35 @@ function buildShardIndex(
 ): ShardEntry[] {
   const lines = content.split('\n');
   const absPath = path.resolve(sourcePath);
-  const entries: ShardEntry[] = [];
 
-  const moduleChapters = chapters.filter(ch => ch.level === 2 || ch.level === 3);
+  // Initial split: use level-2 and level-3 headings as top-level boundaries
+  const topChapters = chapters.filter(ch => ch.level === 2 || ch.level === 3);
 
-  if (moduleChapters.length === 0) {
-    // Full file as single shard
-    const charCount = content.length;
-    entries.push({
-      id: '', file: '',  // filled in by main() during renumbering
-      locator: `${absPath}-1-${lines.length}-001`,
-      module: '全文',
-      chapter_ref: '全文',
-      source_path: absPath,
-      source_start_line: 1,
-      source_end_line: lines.length,
-      char_count: charCount,
-      estimated_tokens: estimateTokens(content, lang),
-    });
-    return entries;
+  // No chapters found → whole file, but still subdivide if > MAX_SHARD_LINES
+  if (topChapters.length === 0) {
+    const lineCount = lines.length;
+    if (lineCount <= MAX_SHARD_LINES) {
+      return [createShardEntry(absPath, 1, lines.length, '全文', '全文', lines, lang, '001')];
+    }
+    return subdivideShard(lines, 1, lines.length, absPath, chapters, 1, lang, '000');
   }
 
-  for (let i = 0; i < moduleChapters.length; i++) {
-    const ch = moduleChapters[i]!;
-    const nextCh = moduleChapters[i + 1];
-    const startLine = ch.line + 1;   // 1-based
+  const entries: ShardEntry[] = [];
+
+  for (let i = 0; i < topChapters.length; i++) {
+    const ch = topChapters[i]!;
+    const nextCh = topChapters[i + 1];
+    const startLine = ch.line + 1;   // 1-based, line after the heading
     const endLine = nextCh ? nextCh.line : lines.length;
+    const lineCount = endLine - startLine + 1;
 
-    const shardLines = lines.slice(startLine - 1, endLine);
-    const shardText = shardLines.join('\n');
-    const chunkId = '001';
-
-    entries.push({
-      id: '', file: '',
-      locator: `${absPath}-${startLine}-${endLine}-${chunkId}`,
-      module: ch.title,
-      chapter_ref: ch.raw,
-      source_path: absPath,
-      source_start_line: startLine,
-      source_end_line: endLine,
-      char_count: shardText.length,
-      estimated_tokens: estimateTokens(shardText, lang),
-    });
+    if (lineCount <= MAX_SHARD_LINES) {
+      entries.push(createShardEntry(absPath, startLine, endLine, ch.title, ch.raw, lines, lang, '001'));
+    } else {
+      // Too large → recursively subdivide using deeper headings
+      const subEntries = subdivideShard(lines, startLine, endLine, absPath, chapters, ch.level + 1, lang, '001');
+      entries.push(...subEntries);
+    }
   }
 
   return entries;
