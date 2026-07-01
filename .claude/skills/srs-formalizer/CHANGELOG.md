@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.1] - 2026-07-01
+
+### Added
+- TLA+ 编码指南 (`references/tlaplus-coding-guide.md`)
+- Lean 4 编码指南 (`references/lean4-coding-guide.md`)
+- 端到端使用示例 (`examples/end-to-end-walkthrough.md`)
+- capability-probe 50 题扩展（8 维度 × 5~10 题，TLA+/Lean 4 工具链验证）
+
+### Changed
+- README 新增 Golden 标准参考、端到端示例引导、目录参考
+- 5_formal_CHECKLIST 新增 SANY/TLC/lake build 工具链检查项
+
 ## [0.5.0] - 2026-07-01
 
 ### Changed
