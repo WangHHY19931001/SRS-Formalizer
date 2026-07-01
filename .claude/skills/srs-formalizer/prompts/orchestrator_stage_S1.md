@@ -44,10 +44,30 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts manifest \
 - 每个 shard 含 `locator`（`{file_abspath}-{start}-{end}-{chunk_id}`），可快速定位源文件
 - 确认每分片 `estimated_tokens ≤ 20000`
 
-### 步骤 4：信息缺口深度检索
+### 步骤 4：并行子代理提取术语表
+
+术语表构建是语义分析任务，必须使用 LLM 子代理并行处理。
+
+**4.1 分批**：将 `_ctx/shard_index.json` 中的 shards 按每批 20-30 个分组。批次ID 格式 `B01`、`B02`...
+
+**4.2 并行分派**：对每批，使用 `dispatching-parallel-agents` 技能并行分派子代理。每个子代理：
+- 读取其批次的所有 shard 内容（通过 locator 从源文件定位）
+- 加载 `prompts/executor-glossary.md` 作为任务指令
+- 输出 JSON 格式的术语报告，写入 `_ctx/glossary-B01.json`、`glossary-B02.json`...
+
+**4.3 合并去重**：收集所有批次的 JSON 报告，执行合并：
+- 同义术语按置信度高的合并（high > medium > low）
+- 同义术语的定义取最完整的版本
+- 按字母序排列
+
+**4.4 写入产出**：合并后的术语表写入 `GLOSSARY.md`（三级分类：高/中/低置信度）。
+- 高置信度 ≥ 5 条 ✓；否则在步骤 6 标记为 P1 缺口
+- 低置信度术语保留在表中，标注"需人工审核"
+
+### 步骤 5：信息缺口深度检索
 对 P0 和 P1 缺口：WebSearch → WebFetch → 结果写入 RESEARCH_LOG.md → 更新 GAPS.md。
 
-### 步骤 5：更新状态
+### 步骤 6：更新状态
 将 STATE.md 中 S1 更新为 ✅，记录 `total_shards` 和缺口数。
 
 ## 约束
@@ -57,4 +77,5 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts manifest \
 
 ## 产出物
 - `_ctx/shard_index.json` — 分片索引（含 locator/source_path/line_range/total_shards）
+- `GLOSSARY.md` — 自动提取的术语表（build-glossary 产出）
 - CONTEXT.md / GAPS.md / MINDMAP.md / STATE.md
