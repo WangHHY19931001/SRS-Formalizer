@@ -3,7 +3,7 @@
  *
  * CLI: npx tsx index.ts manifest --src <path> --lang zh|en --workdir .srs_formalizer
  *
- * 五步：合并 → 章节识别 → 缺口检测 → Token 切分 → 写入产出
+ * 分片流程：收集源文件 → 逐文件章节识别 → 构建索引（不生成物理分片文件）
  */
 
 import * as fs from 'node:fs';
@@ -16,6 +16,25 @@ function parseArg(args: string[], name: string): string | null {
   const idx = args.indexOf(name);
   if (idx === -1 || idx + 1 >= args.length) return null;
   return args[idx + 1]!;
+}
+
+function collectSourceFiles(absSrc: string): string[] {
+  const stat = fs.statSync(absSrc);
+
+  if (!stat.isDirectory()) {
+    return [absSrc];
+  }
+
+  // Directory: collect all .md and .html files (do NOT merge)
+  const files = fs.readdirSync(absSrc)
+    .filter(f => /\.(md|html|htm)$/i.test(f))
+    .sort()
+    .map(f => path.join(absSrc, f));
+
+  if (files.length === 0) {
+    return [absSrc];
+  }
+  return files;
 }
 
 interface ChapterInfo {
@@ -33,7 +52,39 @@ const KEYWORD_PATTERNS: { pattern: RegExp; name: string }[] = [
   { pattern: /技术[选型方案]|Technology Stack|Architecture/i, name: '技术选型' },
 ];
 
-function identifyChapters(content: string): ChapterInfo[] {
+function identifyChaptersHtml(content: string): ChapterInfo[] {
+  const chapters: ChapterInfo[] = [];
+  const lines = content.split('\n');
+
+  const headingRe = /<h([1-6])(?:\s+[^>]*?\bid\s*=\s*["']([^"']+)["'])?[^>]*>(.*?)<\/h\1>/gi;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    headingRe.lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = headingRe.exec(line)) !== null) {
+      const level = parseInt(match[1]!, 10);
+      const idAttr = match[2] || undefined;
+      const title = match[3]!.replace(/<[^>]+>/g, '').trim();
+
+      chapters.push({
+        title: title || (idAttr || `h${level}`),
+        level,
+        line: i,
+        raw: line.trim(),
+      });
+    }
+  }
+
+  return chapters;
+}
+
+function identifyChapters(content: string, sourcePath: string): ChapterInfo[] {
+  if (sourcePath.endsWith('.html') || sourcePath.endsWith('.htm')) {
+    return identifyChaptersHtml(content);
+  }
+  // Markdown logic
   const chapters: ChapterInfo[] = [];
   const lines = content.split('\n');
 
@@ -80,69 +131,59 @@ function estimateTokens(text: string, lang: 'zh' | 'en'): number {
   return Math.ceil(text.length / 4);
 }
 
-function shardContent(
+function buildShardIndex(
   content: string,
   chapters: ChapterInfo[],
+  sourcePath: string,
   lang: 'zh' | 'en',
-  sourcePath: string
-): { shards: ShardEntry[]; shardContents: Map<string, string> } {
-  const shardEntries: ShardEntry[] = [];
-  const shardContents = new Map<string, string>();
+): ShardEntry[] {
   const lines = content.split('\n');
   const absPath = path.resolve(sourcePath);
-
-  function makeHeader(id: string, startLine: number, endLine: number): string {
-    return [
-      `# shard_id: ${id}`,
-      `# source: ${absPath}:${startLine + 1}-${endLine}`,
-      `# total_shards: <TOTAL>`,
-      '',
-    ].join('\n');
-  }
+  const entries: ShardEntry[] = [];
 
   const moduleChapters = chapters.filter(ch => ch.level === 2 || ch.level === 3);
 
   if (moduleChapters.length === 0) {
-    const id = 'S001';
-    const fileName = 'S001.md';
-    const header = makeHeader(id, 0, lines.length);
-    const fullContent = content;
-    shardEntries.push({
-      id, file: fileName, module: '全文', chapter_ref: '全文',
-      source_path: absPath, source_start_line: 1, source_end_line: lines.length,
-      locator: `${absPath}-1-${lines.length}-${id}`,
-      char_count: fullContent.length, estimated_tokens: estimateTokens(fullContent, lang),
+    // Full file as single shard
+    const charCount = content.length;
+    entries.push({
+      id: '', file: '',  // filled in by main() during renumbering
+      locator: `${absPath}-1-${lines.length}-001`,
+      module: '全文',
+      chapter_ref: '全文',
+      source_path: absPath,
+      source_start_line: 1,
+      source_end_line: lines.length,
+      char_count: charCount,
+      estimated_tokens: estimateTokens(content, lang),
     });
-    shardContents.set(fileName, header.replace('<TOTAL>', '1') + fullContent);
-    return { shards: shardEntries, shardContents };
+    return entries;
   }
 
-  const total = moduleChapters.length;
   for (let i = 0; i < moduleChapters.length; i++) {
     const ch = moduleChapters[i]!;
     const nextCh = moduleChapters[i + 1];
-    const startLine = ch.line;              // 0-based line index
+    const startLine = ch.line + 1;   // 1-based
     const endLine = nextCh ? nextCh.line : lines.length;
 
-    const shardLines = lines.slice(startLine, endLine);
+    const shardLines = lines.slice(startLine - 1, endLine);
     const shardText = shardLines.join('\n');
-    const id = `S${String(i + 1).padStart(3, '0')}`;
-    const fileName = `S${String(i + 1).padStart(3, '0')}.md`;
-    const header = makeHeader(id, startLine, endLine).replace('<TOTAL>', String(total));
+    const chunkId = '001';
 
-    shardEntries.push({
-      id, file: fileName, module: ch.title, chapter_ref: ch.raw,
+    entries.push({
+      id: '', file: '',
+      locator: `${absPath}-${startLine}-${endLine}-${chunkId}`,
+      module: ch.title,
+      chapter_ref: ch.raw,
       source_path: absPath,
-      source_start_line: startLine + 1,  // 1-based for human reading
-      source_end_line: endLine,          // endLine 已经在前面指向下一个章节起始行（1-based from lines array）
-      locator: `${absPath}-${startLine + 1}-${endLine}-${id}`,
+      source_start_line: startLine,
+      source_end_line: endLine,
       char_count: shardText.length,
       estimated_tokens: estimateTokens(shardText, lang),
     });
-    shardContents.set(fileName, header + shardText);
   }
 
-  return { shards: shardEntries, shardContents };
+  return entries;
 }
 
 function detectGaps(content: string, chapters: ChapterInfo[]): GapEntry[] {
@@ -244,64 +285,55 @@ export async function main(args: string[]): Promise<CliResult> {
     return { status: 'error', message: `Source file not found: ${absSrc}` };
   }
 
-  let content: string;
-  const stat = fs.statSync(absSrc);
-
-  if (stat.isDirectory()) {
-    const readmePath = path.join(absSrc, 'README.md');
-    const indexPath = path.join(absSrc, 'index.md');
-    const entryPath = fs.existsSync(readmePath) ? readmePath
-      : fs.existsSync(indexPath) ? indexPath : null;
-
-    if (entryPath) {
-      content = fs.readFileSync(entryPath, 'utf-8');
-    } else {
-      const mdFiles = fs.readdirSync(absSrc).filter(f => f.endsWith('.md')).sort();
-      content = mdFiles.map(f => fs.readFileSync(path.join(absSrc, f), 'utf-8')).join('\n\n');
-    }
-  } else {
-    content = fs.readFileSync(absSrc, 'utf-8');
-  }
-
-  if (absSrc.endsWith('.html') || absSrc.endsWith('.htm')) {
-    content = content
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-  }
-
-  const chapters = identifyChapters(content);
+  // Collect source files
+  const sourceFiles = collectSourceFiles(absSrc);
+  const allShards: ShardEntry[] = [];
   const warnings: string[] = [];
-  if (chapters.length === 0) {
-    warnings.push('未识别到任何 SRS 章节，将全文作为单分片处理');
+  let totalGaps: GapEntry[] = [];
+
+  for (const sourcePath of sourceFiles) {
+    let content: string;
+    try {
+      content = fs.readFileSync(sourcePath, 'utf-8');
+    } catch (err) {
+      return { status: 'error', message: `Failed to read ${sourcePath}: ${(err as Error).message}` };
+    }
+
+    // HTML files: keep raw content, do NOT strip tags
+    const chapters = identifyChapters(content, sourcePath);
+    if (chapters.length === 0) {
+      warnings.push(`${sourcePath}: 未识别到章节，全文作为单分片`);
+    }
+
+    const shards = buildShardIndex(content, chapters, sourcePath, lang);
+    allShards.push(...shards);
+
+    const fileGaps = detectGaps(content, chapters);
+    totalGaps = totalGaps.concat(fileGaps);
   }
 
-  const { shards, shardContents } = shardContent(content, chapters, lang, absSrc);
-  const gaps = detectGaps(content, chapters);
-
-  const shardDir = path.join(workDir, '1_shard');
-  if (!fs.existsSync(shardDir)) fs.mkdirSync(shardDir, { recursive: true });
-  for (const shard of shards) {
-    fs.writeFileSync(path.join(shardDir, shard.file), shardContents.get(shard.file) || '', 'utf-8');
+  // Renumber shards with sequential IDs
+  const total = allShards.length;
+  for (let i = 0; i < allShards.length; i++) {
+    const s = allShards[i]!;
+    s.id = `S${String(i + 1).padStart(3, '0')}`;
+    s.file = s.id;
   }
 
-  const sourceHash = crypto.createHash('sha256').update(content).digest('hex');
+  // Write shard_index.json (no 1_shard/ directory)
+  const sourceHash = crypto.createHash('sha256').update(
+    sourceFiles.map(f => fs.readFileSync(f, 'utf-8')).join('')
+  ).digest('hex');
+
   const index: ShardIndex = {
-    version: '1.0',
+    version: '1.1',
     source_path: absSrc,
     source_hash: sourceHash,
     language: lang,
-    total_chars: content.length,
-    total_shards: shards.length,
-    shards,
-    gaps,
+    total_chars: allShards.reduce((sum, s) => sum + s.char_count, 0),
+    total_shards: allShards.length,
+    shards: allShards,
+    gaps: totalGaps,
     warnings,
   };
 
@@ -309,21 +341,21 @@ export async function main(args: string[]): Promise<CliResult> {
   if (!fs.existsSync(ctxDir)) fs.mkdirSync(ctxDir, { recursive: true });
   fs.writeFileSync(path.join(ctxDir, 'shard_index.json'), JSON.stringify(index, null, 2), 'utf-8');
 
-  fs.writeFileSync(path.join(workDir, 'CONTEXT.md'), generateContext(shards, gaps, content), 'utf-8');
+  fs.writeFileSync(path.join(workDir, 'CONTEXT.md'), generateContext(allShards, totalGaps, sourceFiles.map(f => fs.readFileSync(f, 'utf-8')).join('\n\n')), 'utf-8');
 
   const gapsContent = `# GAPS — 信息缺口追踪
 
 ## 缺口清单
 
-${gaps.map((g, i) =>
+${totalGaps.map((g, i) =>
   `| GAP-${String(i + 1).padStart(3, '0')} | ${g.priority} | ${g.type} | ${g.description} | ${g.source_chapter} | — | — | 待处理 |`
 ).join('\n')}
-${gaps.length === 0 ? '（无已检测到的缺口）' : ''}
+${totalGaps.length === 0 ? '（无已检测到的缺口）' : ''}
 `;
   fs.writeFileSync(path.join(workDir, 'GAPS.md'), gapsContent, 'utf-8');
 
   return {
     status: 'ok',
-    data: { shard_count: shards.length, gap_count: gaps.length, source_hash: sourceHash },
+    data: { shard_count: allShards.length, gap_count: totalGaps.length, source_hash: sourceHash },
   };
 }

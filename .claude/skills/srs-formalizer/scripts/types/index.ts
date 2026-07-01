@@ -27,7 +27,7 @@ export interface SecurityLogEntry {
 
 // === 分片索引（manifest.ts 产出） ===
 export interface ShardIndex {
-  version: '1.0';
+  version: '1.0' | '1.1';
   source_path: string;
   source_hash: string;
   language: 'zh' | 'en';
