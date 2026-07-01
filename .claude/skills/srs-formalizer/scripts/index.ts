@@ -26,6 +26,7 @@ Commands:
   validate-cypher   Validate .cypher script file (4 checks)
   validate-checklist Validate CHECKLIST.md file
   capability-probe  LLM capability probe evaluation (--mode generate|score)
+  compile           Compile SKILL.md into SkIR, inject safety constraints, emit artifacts
   pack-skill        Pack skill directory into hash manifest + tar.gz backup
   verify-skill-integrity Verify skill file integrity (--repair to auto-restore)
 
@@ -171,6 +172,12 @@ async function main(): Promise<void> {
     case 'verify-skill-integrity': {
       const { main: verifyIntegrityMain } = await import('./commands/verify-skill-integrity.js');
       const result = await verifyIntegrityMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'compile': {
+      const { main: compileMain } = await import('./commands/compile.js');
+      const result = await compileMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }
