@@ -1,9 +1,9 @@
 // .claude/skills/srs-formalizer/scripts/__tests__/emitter.test.ts
 import { describe, it } from 'node:test';
-import { ok, strictEqual } from 'node:assert';
+import { ok } from 'node:assert';
 import { ClaudeXmlEmitter } from '../lib/emitter-claude-xml.js';
 import { GenericMarkdownEmitter } from '../lib/emitter-generic-md.js';
-import type { SkillIR, ProcedureStep, Permission, Example } from '../types/skir.js';
+import type { SkillIR } from '../types/skir.js';
 
 function makeIR(overrides: Partial<SkillIR> = {}): SkillIR {
   return {
