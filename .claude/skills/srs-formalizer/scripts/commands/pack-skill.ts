@@ -112,6 +112,26 @@ export async function main(args: string[]): Promise<CliResult> {
     return { status: 'error', message: `Not a directory: ${skillDir}` };
   }
 
+  // --force 检查：备份不可变，除非人类显式授权
+  const backupFilename = 'srs-formalizer-backup.enc';
+  const backupPath = path.join(skillDir, backupFilename);
+  const manifestPath = path.join(skillDir, 'MANIFEST.json');
+  const hasForce = args.includes('--force');
+
+  if (fs.existsSync(backupPath) && !hasForce) {
+    return {
+      status: 'error',
+      message: `Encrypted backup already exists at ${backupFilename}. The backup is IMMUTABLE — it must not be overwritten by automated processes. To regenerate, a human must explicitly run: npx tsx index.ts pack-skill --skill-dir <path> --force`,
+    };
+  }
+
+  if (!hasForce && fs.existsSync(manifestPath)) {
+    return {
+      status: 'error',
+      message: `MANIFEST.json already exists. The manifest should only be regenerated together with the backup. To regenerate both, a human must explicitly add --force.`,
+    };
+  }
+
   // 提取技能名称（目录名）
   const skillName = path.basename(skillDir);
 
@@ -135,7 +155,6 @@ export async function main(args: string[]): Promise<CliResult> {
     files: fileHashes,
   };
 
-  const manifestPath = path.join(skillDir, 'MANIFEST.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
 
   // === 构建加密压缩备份 ===
@@ -155,8 +174,6 @@ export async function main(args: string[]): Promise<CliResult> {
   const encrypted = encryptAesGcm(compressed);
 
   // 5. 写入备份文件
-  const backupFilename = 'srs-formalizer-backup.enc';
-  const backupPath = path.join(skillDir, backupFilename);
   fs.writeFileSync(backupPath, encrypted, 'utf-8');
 
   return {
