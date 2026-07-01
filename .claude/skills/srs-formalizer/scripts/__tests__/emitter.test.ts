@@ -1,10 +1,9 @@
 // .claude/skills/srs-formalizer/scripts/__tests__/emitter.test.ts
-// Generic Markdown Emitter — test suite
-// Claude XML emitter tests are in emitter-claude-xml.test.ts (Task 5, 22 tests)
 import { describe, it } from 'node:test';
-import { ok } from 'node:assert';
+import { ok, strictEqual } from 'node:assert';
+import { ClaudeXmlEmitter } from '../lib/emitter-claude-xml.js';
 import { GenericMarkdownEmitter } from '../lib/emitter-generic-md.js';
-import type { SkillIR } from '../types/skir.js';
+import type { SkillIR, ProcedureStep, Permission, Example } from '../types/skir.js';
 
 function makeIR(overrides: Partial<SkillIR> = {}): SkillIR {
   return {
@@ -34,6 +33,70 @@ function makeIR(overrides: Partial<SkillIR> = {}): SkillIR {
     ...overrides,
   };
 }
+
+describe('ClaudeXmlEmitter', () => {
+  const emitter = new ClaudeXmlEmitter();
+
+  it('produces valid XML with YAML frontmatter', () => {
+    const result = emitter.emit(makeIR());
+    ok(result.startsWith('---'), 'Must start with YAML frontmatter');
+    ok(result.includes('name: test-skill'));
+    ok(result.includes('<agent_skill>'));
+    ok(result.includes('</agent_skill>'));
+  });
+
+  it('contains execution_steps with critical attribute', () => {
+    const result = emitter.emit(makeIR());
+    ok(result.includes('<execution_steps>'));
+    ok(result.includes('critical="true"'));
+    ok(result.includes('order="1"'));
+  });
+
+  it('contains strict_constraints with anti_pattern', () => {
+    const result = emitter.emit(makeIR());
+    ok(result.includes('<strict_constraints>'));
+    ok(result.includes('<anti_pattern'));
+    ok(result.includes('No destructive ops'));
+    ok(result.includes('level="critical"'));
+  });
+
+  it('contains permissions block', () => {
+    const result = emitter.emit(makeIR());
+    ok(result.includes('<permissions>'));
+    ok(result.includes('kind="filesystem"'));
+    ok(result.includes('read_only="true"'));
+  });
+
+  it('contains examples block', () => {
+    const result = emitter.emit(makeIR());
+    ok(result.includes('<examples>'));
+    ok(result.includes('title="Example 1"'));
+    ok(result.includes('<input>'));
+    ok(result.includes('<output>'));
+  });
+
+  it('escapes XML special characters', () => {
+    const ir = makeIR({ description: 'Use <tags> & "quotes"' });
+    const result = emitter.emit(ir);
+    ok(!result.includes('<tags>'));
+    ok(result.includes('&lt;tags&gt;'));
+    ok(result.includes('&amp;'));
+    ok(result.includes('&quot;'));
+  });
+
+  it('omits optional blocks when empty', () => {
+    const ir = makeIR({
+      mcp_servers: [], pre_conditions: [], permissions: [],
+      approaches: [], few_shot_examples: [], anti_skill_constraints: [],
+      hitl_required: false,
+    });
+    const result = emitter.emit(ir);
+    ok(!result.includes('<mcp_servers>'));
+    ok(!result.includes('<strict_constraints>'));
+    ok(!result.includes('<permissions>'));
+    ok(!result.includes('<system_constraint>'));
+  });
+});
 
 describe('GenericMarkdownEmitter', () => {
   const emitter = new GenericMarkdownEmitter();
