@@ -15,7 +15,7 @@ npx tsx index.ts init --output .srs_formalizer
 # 索引化分片（支持 .md / .html / 多目录包）
 npx tsx index.ts manifest --src <srs-file-or-dir> --lang zh --workdir .srs_formalizer
 
-# 编译技能（v0.5.1+，安全注入 + 平台发射）
+# 编译技能（v0.4.0+，安全注入 + 平台发射）
 npx tsx index.ts compile --skill-dir .claude/skills/srs-formalizer --workdir .srs_formalizer
 
 # 运行测试
@@ -83,7 +83,6 @@ unzip srs-formalizer-v0.5.1.zip -d /your-project/
 
 | 版本 | 日期 | 关键变更 |
 |------|------|---------|
-| **0.5.1** | 2026-07-01 | 文档质量加固——TLA+/Lean 4 编码指南、capability-probe 50 题扩展（8 维度含工具链验证）、端到端示例、Golden 标准参考 |
 | **0.5.0** | 2026-07-01 | 分片索引化重构——`ShardEntry.locator` 格式 `{file_abspath}-{start}-{end}-{chunk_id}`，移除 `1_shard/` 目录，HTML 格式保留，`inject-prompt --shard-id` 自动解析 |
 | **0.4.0** | 2026-07-01 | SkCC 方法论集成——`compile` 命令、SkIR 中间表示、Anti-Skill 安全注入（7 条规则）、Claude XML + Generic MD 双发射器 |
 | **0.3.0** | 2026-06-30 | 分片源位置标注、安全 ID（ASCII-only）、目录结构重构（阶段前缀） |
