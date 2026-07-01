@@ -89,6 +89,65 @@ unzip srs-formalizer-v0.5.0.zip -d /your-project/
 | **0.2.0** | 2026-06-30 | S2 阶段：inject-prompt、validate-jsonl、executor/verifier 提示词 |
 | **0.1.0** | 2026-06-30 | S1 基础设施：init、manifest、类型定义、安全库 |
 
+## 端到端使用示例引导
+
+完整演示请参考 [examples/end-to-end-walkthrough.md](examples/end-to-end-walkthrough.md)。
+
+该引导通过一个真实的中文 SRS 文档（电商订单系统），完整走通 **S0 发现确认 → S1 预处理 → S2 需求提取 → S3 图谱构建 → S4 BDD 生成 → S5 形式化 → S6 验收闸门** 全流程，展示每个阶段的输入、执行命令和产出物格式。
+
+## Golden 标准参考
+
+`tests/golden/` 目录存放各阶段的 **L4 验收用例**（Golden 标准），作为人工验收的断言基线。每个文件定义一组场景（输入 → 执行 → 验收断言），用于验证阶段产物的完整性和正确性。
+
+| 文件 | 阶段 | 描述 |
+|------|:----:|------|
+| `s1-preprocess.md` | S1 | **预处理验收**：中文 SRS 单文件分片 + 缺口报告、确定性与幂等性、路径安全拒绝、参数缺失拒绝 |
+| `s2-extraction.md` | S2 | **需求提取验收**：R1 显式 / R2 隐式 / R3 关系需求提取、校验者编造数据拒绝、模板注入防护 |
+| `s4-bdd.md` | S4 | **BDD 验收**：从图谱生成 Gherkin 骨架、`<THEN_PLACEHOLDER>` 检测、确定性校验、空图谱处理 |
+
+## 目录参考
+
+### `references/`（参考文档）
+
+技能运行时的子代理参考指南，按阶段按需加载。
+
+| 文件 | 阶段 | 用途 |
+|------|:----:|------|
+| `srs-chapter-guide.md` | S1 | SRS 章节识别规范——标准章节编号模式 |
+| `hooks-integration.md` | 安装 | 多平台激活适配参考（Claude Code / Cursor / 手动） |
+| `auto-setup.md` | 安装 | 编码智能体自动适配自配置指南 |
+| `agent-integration-guide.md` | 安装 | Agent 多平台集成差异参考（Cline / Roo Code / GenAI / ...） |
+| `capability-adaptation.md` | S0 | LLM 能力分级适配方案——根据能力探测结果调整行为 |
+| `tlaplus-coding-guide.md` | S5 | TLA+ 编码指南（S5 TLA+ 触发时加载给子代理） |
+| `lean4-coding-guide.md` | S5 | Lean 4 编码指南（S5 Lean 证明触发时加载给子代理） |
+
+### `templates/`（产出模板）
+
+| 文件 / 目录 | 用途 |
+|-------------|------|
+| `STATE.md.template` | SRS Formalizer 状态追踪模板 |
+| `CONTEXT.md.template` | SRS 术语表与切片索引模板 |
+| `GAPS.md.template` | 信息缺口追踪模板 |
+| `MINDMAP.md.template` | SRS 结构总览模板 |
+| `BEHAVIORS.md.template` | BDD 分层建模索引模板 |
+| `SPECS.md.template` | TLA+ 规约索引模板 |
+| `PROOFS.md.template` | Lean 4 证明索引模板 |
+| `RESEARCH_LOG.md.template` | 深度研究日志模板 |
+| `checklists/` | 7 份阶段验收 CHECKLIST（S0 发现 → S6 验收闸门），`init` 时按阶段复制到 `.srs_formalizer/` |
+
+## S5 形式化质量保障
+
+S5（形式化）阶段在触发条件满足时自动启用，依赖 **确定性工具链** 对生成的 TLA+ 规约和 Lean 4 证明进行机械性检查，而非依赖 LLM 评审。
+
+| 机制 | 工具 | 作用 |
+|------|------|------|
+| **TLA+ 模型检测** | SANY 解析器 + TLC 模型检测器 | 解析 TLA+ 规约语法，运行模型检测验证不变量和活性 |
+| **Lean 4 证明验证** | `lake build`（Lean 构建系统） | 编译 Lean 证明文件，验证定理证明的正确性 |
+| **能力探测** | `capability-probe` CLI 命令 | S0 阶段出题判分（6 维度），判断当前 LLM 是否具备 TLA+/Lean 所需的推理能力，避免因能力不足导致无效形式化 |
+| **错误诊断** | `prompts/debug-tlc.md`、`prompts/debug-lean.md` | 子代理读取工具错误输出进行诊断修复 |
+
+**工作流**：S0 阶段通过 `capability-probe` 探测 LLM 在 `logical_reasoning`、`state_machine_modeling`、`theorem_proving` 等维度的能力分数；S5 阶段由子代理生成 `.tla` / `.lean` 文件后，编排者调用 SANY/TLC 或 `lake build` 进行编译验证，不通过则进入 `systematic-debugging` 循环修复。
+
 ## 目录结构
 
 ```

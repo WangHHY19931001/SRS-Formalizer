@@ -67,8 +67,8 @@ metadata:
     S2_2_arch_decomposition: { hierarchical_reasoning: 3, induction: 2 }
     S2_3_R2_derivation: { creative_reasoning: 3, safety_awareness: 2 }
     S2_5_R3_relations: { logical_reasoning: 3, contradiction_detection: 3 }
-    S5_tlaplus: { formal_reasoning: 3, state_machine_modeling: 3 }
-    S5_lean4: { theorem_proving: 3, dependent_type_understanding: 3 }
+    S5_tlaplus: { formal_tlaplus: 3, state_machine_modeling: 3 }
+    S5_lean4: { formal_lean4: 3, theorem_proving: 3, dependent_type_understanding: 3 }
   capability_tiers:
     # 根据模型能力画像自动选择适配层级
     strong:  { min_capability_score: 80, adaptation: "full_auto" }
