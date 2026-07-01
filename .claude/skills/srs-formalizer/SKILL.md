@@ -214,6 +214,7 @@ S2 子阶段:
 ### L3-Exec：子代理提示词（编排者通过 inject-prompt 按需注入）
 | 文件 | 注入时机 |
 |------|---------|
+| `prompts/executor-glossary.md` | S1 术语提取（并行子代理分批复用） |
 | `prompts/executor-R*.md` | S2 需求提取各子阶段 |
 | `prompts/verifier-R*.md` | 校验循环（新会话执行） |
 | `prompts/executor-arch-*.md` | S2 架构分解三阶段 |
