@@ -2,11 +2,11 @@
  * capability-probe.test.ts — 能力探测评估系统测试
  *
  * 测试覆盖：
- *   T1: generate 模式输出 36 个 probe (6维度 × 5-8题)，结构正确
- *   T2: score 模式完美答案 → 全 100 分 + high tier
+ *   T1: generate 模式输出 50 个 probe (8维度 × 5-8题)，结构正确
+ *   T2: score 模式完美答案 → 原 6 维度 100 分
  *   T3: score 模式全错答案 → 全 0 分 + low tier
  *   T4: score 模式部分正确 → 中间分数
- *   T5: tier 推断逻辑（全低→low, 全高→high）
+ *   T5: tier 推断逻辑（全低→low, 全高→medium 因工具链维度 0 分）
  *   T6: 非法答案文件处理（文件不存在 / 无效 JSON / 空 answers）
  *   T7: 缺少 --mode 参数报错
  */
@@ -104,6 +104,12 @@ function buildPerfectAnswers(probes: TestProbeItem[]): Record<string, string> {
           reasoning: 'Multiple requirements imply the need for an implicit prerequisite check mechanism.',
         });
         break;
+      case 'formal_tlaplus':
+        answers[probe.probe_id] = '==== Perfect TLA+ spec';
+        break;
+      case 'formal_lean4':
+        answers[probe.probe_id] = 'theorem perfect : True := by trivial';
+        break;
     }
   }
   return answers;
@@ -141,6 +147,12 @@ function buildZeroAnswers(probes: TestProbeItem[]): Record<string, string> {
           derived_from: [],
           reasoning: '',
         });
+        break;
+      case 'formal_tlaplus':
+        answers[probe.probe_id] = 'INVALID TLA+ ###';
+        break;
+      case 'formal_lean4':
+        answers[probe.probe_id] = 'invalid lean';
         break;
     }
   }
@@ -199,6 +211,12 @@ function buildPartialAnswers(probes: TestProbeItem[]): Record<string, string> {
           reasoning: 'This reasoning string is long enough to pass the length check.',
         });
         break;
+      case 'formal_tlaplus':
+        answers[probe.probe_id] = '==== Partial TLA+ spec';
+        break;
+      case 'formal_lean4':
+        answers[probe.probe_id] = 'theorem partial : True := by';
+        break;
     }
   }
   return answers;
@@ -216,7 +234,7 @@ describe('capability-probe command', () => {
   });
 
   // ========== T1: generate mode ==========
-  it('T1: generate mode outputs 36 probes with correct structure and dimension counts', async () => {
+  it('T1: generate mode outputs 50 probes with correct structure and dimension counts', async () => {
     const { main } = await import('../commands/capability-probe.js');
     const result = await main(['--mode', 'generate']);
 
@@ -225,8 +243,8 @@ describe('capability-probe command', () => {
 
     const probes = result.data as TestProbeItem[];
 
-    // 8 + 7 + 6 + 5 + 5 + 5 = 36
-    assert.equal(probes.length, 36);
+    // 8 + 7 + 6 + 5 + 5 + 5 + 7 + 7 = 50
+    assert.equal(probes.length, 50);
 
     // Verify per-dimension distribution
     const dimCounts: Record<string, number> = {};
@@ -241,6 +259,8 @@ describe('capability-probe command', () => {
       hierarchical_reasoning: 5,
       logical_reasoning: 5,
       creative_reasoning: 5,
+      formal_tlaplus: 7,
+      formal_lean4: 7,
     };
 
     for (const [dim, count] of Object.entries(expectedCounts)) {
@@ -258,10 +278,10 @@ describe('capability-probe command', () => {
   });
 
   // ========== T2: score mode — perfect answers ==========
-  it('T2: score mode with perfect answer returns 100 across all dimensions (high tier)', async () => {
+  it('T2: score mode with perfect answer returns 100 across all 6 original dimensions (tier: medium due to toolchain dims)', async () => {
     const { main } = await import('../commands/capability-probe.js');
 
-    // Generate probes and build perfect answers for all 36
+    // Generate probes and build perfect answers for all 50
     const genResult = await main(['--mode', 'generate']);
     const probes = genResult.data as TestProbeItem[];
     const perfectAnswers = buildPerfectAnswers(probes);
@@ -275,11 +295,17 @@ describe('capability-probe command', () => {
     const data = result.data as Record<string, unknown>;
     const profile = data.capability_profile as Record<string, number>;
 
+    // Original 6 dimensions score 100 with perfect answers
     for (const dim of ['instruction_following', 'structured_output', 'precision', 'hierarchical_reasoning', 'logical_reasoning', 'creative_reasoning']) {
       assert.equal(profile[dim], 100, `${dim} should be 100, got ${profile[dim]}`);
     }
 
-    assert.equal(data.estimated_tier, 'high');
+    // TLA+/Lean 4 toolchain dims score 0 (no real toolchain in test env)
+    assert.equal(profile['formal_tlaplus'], 0, 'formal_tlaplus should be 0 (no toolchain)');
+    assert.equal(profile['formal_lean4'], 0, 'formal_lean4 should be 0 (no toolchain)');
+
+    // Average = (6*100 + 0 + 0) / 8 = 75 → medium
+    assert.equal(data.estimated_tier, 'medium');
     assert.ok(Array.isArray(data.recommendations));
   });
 
@@ -329,17 +355,21 @@ describe('capability-probe command', () => {
     const data = result.data as Record<string, unknown>;
     const profile = data.capability_profile as Record<string, number>;
 
-    // All dimensions should have intermediate scores (between 0 and 100 exclusive)
+    // All 6 original dimensions should have intermediate scores (between 0 and 100 exclusive)
     for (const dim of ['instruction_following', 'structured_output', 'precision', 'hierarchical_reasoning', 'logical_reasoning', 'creative_reasoning']) {
       const s = profile[dim] ?? 0;
       assert.ok(s > 0 && s < 100, `${dim} should be between 0 and 100, got ${s}`);
     }
 
+    // Toolchain dimensions score 0 (no toolchain in test env)
+    assert.equal(profile['formal_tlaplus'], 0);
+    assert.equal(profile['formal_lean4'], 0);
+
     assert.ok(Array.isArray(data.recommendations));
   });
 
   // ========== T5: tier inference ==========
-  it('T5: tier inference logic — all zero → low, all perfect → high', async () => {
+  it('T5: tier inference logic — all zero → low, all perfect → medium (toolchain dims score 0)', async () => {
     const { main } = await import('../commands/capability-probe.js');
 
     const genResult = await main(['--mode', 'generate']);
@@ -353,13 +383,13 @@ describe('capability-probe command', () => {
     const lowData = lowResult.data as Record<string, unknown>;
     assert.equal(lowData.estimated_tier, 'low');
 
-    // Perfect answers → high tier
+    // Perfect answers → medium tier (6 dims at 100 + 2 toolchain dims at 0 = avg 75)
     const highPath = path.join(TMP, 'tier-high.json');
     fs.writeFileSync(highPath, JSON.stringify({ answers: buildPerfectAnswers(probes) }), 'utf-8');
     const highResult = await main(['--mode', 'score', '--file', highPath]);
     assert.equal(highResult.status, 'ok');
     const highData = highResult.data as Record<string, unknown>;
-    assert.equal(highData.estimated_tier, 'high');
+    assert.equal(highData.estimated_tier, 'medium');
   });
 
   // ========== T6: invalid answer file ==========
