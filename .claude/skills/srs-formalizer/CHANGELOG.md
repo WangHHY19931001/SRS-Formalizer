@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.4.0] - 2026-07-01
+
+### Added
+- `compile` command: 四阶段编译流水线（Parse→IR Build→Inject→Emit）
+- SkIR (Skill Intermediate Representation): 30+ 强类型字段，对标 SkCC (arXiv:2605.03353)
+- Anti-Skill 注入器: 7 条安全规则（4 条 SkCC 通用 + 3 条 srs-formalizer 特有），三级 severity (warning/error/critical)
+- Claude XML 语义分层发射器: `<execution_steps>`, `<strict_constraints>`, `<permissions>`, `<examples>` 标签
+- Generic Markdown 发射器: 跨平台兜底（OpenCode, Cursor, Windsurf, Qoder 等 7+ 平台）
+- 编译时 schema 校验: name(kebab-case), description(≤1024), security_level 枚举
+- SKILL.md 新增 `security_level`, `permissions`, `compatibility` 字段（向后兼容）
+
+### Changed
+- 版本号: 0.3.0 → 0.4.0
+- orchestrator_stage_S1.md: 新增步骤 0（compile）
+
+### Security
+- 编译时行为安全约束注入（94.8% 安全触发率基准，对标 SkCC）
+- 安全三层级联：文件完整性 → IR 编译+Anti-Skill → 数据门禁
+
 ## [0.3.0] - 2026-06-30
 
 ### Added

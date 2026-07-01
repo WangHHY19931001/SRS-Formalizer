@@ -5,6 +5,25 @@
 
 ## 执行流程
 
+### 步骤 0：编译技能（技能加载时执行一次）
+
+```bash
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts compile \
+  --skill-dir .claude/skills/srs-formalizer \
+  --workdir .srs_formalizer
+```
+
+验证输出为 `{"status":"ok"}`。编译产物写入 `_ctx/skir.json`、`_ctx/skill.claude.xml`、`_ctx/skill.generic.md`。
+
+若 `status: error`（Anti-Skill 检测到 error/critical 违规）：
+- 列出 violations → 要求人类修正技能文件
+- 标记 STATE.md 为 BLOCKED
+- 等待人类确认后重新编译
+
+若 `status: ok` 但有 warnings（如 http-safety 警告）：
+- 记录到 STATE.md 决策记录
+- 流水线继续（warning 不阻断）
+
 ### 步骤 1：初始化工作目录（阶段前缀结构）
 ```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts init --output .srs_formalizer
