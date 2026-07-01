@@ -1,11 +1,11 @@
 {
   "skill_name": "srs-formalizer",
-  "packed_at": "2026-07-01T01:11:59.510Z",
+  "packed_at": "2026-07-01T01:14:40.881Z",
   "total_files": 120,
   "files": {
     "BASELINE.md": "1f018d8132545154850fc6fc68c017f7ade8f41e99b23073b4867c5d59871888",
     "CHANGELOG.md": "451d3702e982ac6d5ac5687cac1d50f32d5e5fde735d8b2a7b1f9652a9cb2c61",
-    "SKILL.md": "9d9c83f76a651d3a3479c72d54905e6b456c96809bbd59af6c7eb29fb976d4b7",
+    "SKILL.md": "88dd04b138ab872c631ccf42bed0371410f58148b9c2c02ec609422c4a001fe7",
     "prompts/debug-lean.md": "86b7d95025ef96ac74b2d5b1e852636fe8cf6338d966b50113bd7714f8dc78bf",
     "prompts/debug-tlc.md": "f535f3dcb0d296381e0b80608f88e93e8db7a3be0b3c0225008cc5f590e00a8f",
     "prompts/executor-R1.md": "ae52fe551322f929a5db43910c6058683113a38920aff9fcda5111d75d5b9568",
