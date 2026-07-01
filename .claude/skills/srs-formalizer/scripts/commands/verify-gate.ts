@@ -440,6 +440,26 @@ function checkShardCompleteness(workDir: string): CheckResult {
   }
 }
 
+function checkGlossaryExists(workDir: string): CheckResult {
+  const glossaryMd = path.join(workDir, 'GLOSSARY.md');
+  const ctxDir = path.join(workDir, '_ctx');
+  const batchFiles = fs.existsSync(ctxDir)
+    ? fs.readdirSync(ctxDir).filter(f => /^glossary-B\d{2}\.json$/.test(f))
+    : [];
+
+  if (fs.existsSync(glossaryMd)) {
+    return { name: 'GLOSSARY.md exists', passed: true, detail: 'Found (merged output)' };
+  }
+  if (batchFiles.length > 0) {
+    return {
+      name: 'GLOSSARY.md exists',
+      passed: false,
+      detail: `Not merged — ${batchFiles.length} batch file(s) in _ctx/ awaiting merge`,
+    };
+  }
+  return { name: 'GLOSSARY.md exists', passed: false, detail: 'Not found — run S1 step 4 glossary extraction' };
+}
+
 /** R3: 验证架构 JSONL 文件存在且非空 */
 function checkArchitectureExists(workDir: string): CheckResult {
   try {
@@ -539,6 +559,7 @@ export async function main(args: string[]): Promise<CliResult> {
   allChecks.push(checkShardIndex(workDir));
   allChecks.push(checkR1HasJsonlFiles(workDir));
   allChecks.push(checkShardCompleteness(workDir));
+  allChecks.push(checkGlossaryExists(workDir));
 
   // === Stage checklist gates (S1/R3/FINAL) ===
   if (stageArg === 'S1' || stageArg === 'R3' || stageArg === 'FINAL') {

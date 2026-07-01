@@ -24,6 +24,7 @@ Commands:
   build-architecture Build architecture graph from architecture JSONL files
   validate-architecture Validate architecture JSONL records (6 checks)
   validate-cypher   Validate .cypher script file (4 checks)
+  validate-glossary Validate glossary JSON file (8 checks + gate)
   validate-checklist Validate CHECKLIST.md file
   capability-probe  LLM capability probe evaluation (--mode generate|score)
   compile           Compile SKILL.md into SkIR, inject safety constraints, emit artifacts
@@ -148,6 +149,12 @@ async function main(): Promise<void> {
     case 'validate-cypher': {
       const { main: validateCypherMain } = await import('./commands/validate-cypher.js');
       const result = await validateCypherMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'validate-glossary': {
+      const { main: validateGlossaryMain } = await import('./commands/validate-glossary.js');
+      const result = await validateGlossaryMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }

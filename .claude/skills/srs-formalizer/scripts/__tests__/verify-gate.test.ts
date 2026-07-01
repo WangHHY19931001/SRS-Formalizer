@@ -25,6 +25,7 @@ function createWorkDir(name: string): string {
   fs.writeFileSync(path.join(workDir, 'STATE.md'), '# SRS Formalizer — 状态追踪\n| 当前阶段 | S1 |\n', 'utf-8');
   fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), '{"total_shards":0,"shards":[]}', 'utf-8');
   fs.writeFileSync(path.join(workDir, 'MINDMAP.md'), '# MINDMAP\n- [x] Module1 ✅\n- [x] Module2 ✅', 'utf-8');
+  fs.writeFileSync(path.join(workDir, 'GLOSSARY.md'), '# GLOSSARY — SRS 术语表\n\n## 高置信度术语\n| 术语 | 定义 | 来源 |\n|------|------|------|\n| RBAC | Role-Based Access Control | srs.md:1 |\n', 'utf-8');
   // Write CHECKLIST.md files for each stage
   const checklistDirs = ['1_shard', '2_extract', '3_graph', '4_bdd', '5_formal', '6_outputs'];
   for (const d of checklistDirs) {

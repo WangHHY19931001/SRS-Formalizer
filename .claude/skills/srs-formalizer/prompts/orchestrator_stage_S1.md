@@ -60,8 +60,16 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts manifest \
 - 同义术语的定义取最完整的版本
 - 按字母序排列
 
-**4.4 写入产出**：合并后的术语表写入 `GLOSSARY.md`（三级分类：高/中/低置信度）。
-- 高置信度 ≥ 5 条 ✓；否则在步骤 6 标记为 P1 缺口
+**4.4 逐批校验**：对每个批次 JSON 运行校验闸门：
+```bash
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-glossary \
+  --file .srs_formalizer/_ctx/glossary-B01.json \
+  --min-high 5
+```
+不通过（status: error）→ 该批次需重新分派子代理修复，最多重试 2 次。
+
+**4.5 写入产出**：合并后的术语表写入 `GLOSSARY.md`（三级分类：高/中/低置信度）。
+- 高置信度 ≥ 5 条 ✓
 - 低置信度术语保留在表中，标注"需人工审核"
 
 ### 步骤 5：信息缺口深度检索

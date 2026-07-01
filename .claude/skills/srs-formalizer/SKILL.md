@@ -198,6 +198,7 @@ S2 子阶段:
 | `export-cypher --workdir .srs_formalizer` | 图谱 → Cypher 脚本 | S3 |
 | `generate-bdd --workdir .srs_formalizer` | 图谱 → BDD 骨架 | S4 |
 | `validate-bdd --workdir .srs_formalizer` | Gherkin 格式校验 | S4 |
+| `validate-glossary --file <path> [--min-high N]` | 术语表批次 JSON 校验（8 项 + 门禁） | S1 |
 | `query-graph --workdir .srs_formalizer --query <type> --params '<json>'` | 图谱只读查询 | S6 |
 | `verify-gate --workdir .srs_formalizer --stage S1\|R3\|FINAL` | 硬门禁检查 | S1/S3/S6 |
 | `capability-probe --mode generate\|score [--file <path>]` | LLM 能力探测（出题+判分） | S0 |

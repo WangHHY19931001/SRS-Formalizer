@@ -61,3 +61,19 @@ export interface GapEntry {
   description: string;
   source_chapter: string;
 }
+
+export interface GlossaryEntry {
+  term: string;
+  acronym?: string;
+  definition: string;
+  source_shard: string;
+  confidence: 'high' | 'medium' | 'low';
+  category: 'domain_concept' | 'acronym' | 'technical_entity' | 'business_entity' | 'defined_term';
+}
+
+export interface GlossaryBatch {
+  batch_id: string;
+  shards_covered: string[];
+  terms: GlossaryEntry[];
+  notes?: string;
+}
