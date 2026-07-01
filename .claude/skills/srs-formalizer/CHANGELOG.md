@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0] - 2026-07-01
+
+### Changed
+- **分片方案重构**: 从物理切文件改为索引化方案——`ShardEntry.locator` 格式 `{file_abspath}-{start}-{end}-{chunk_id}`，从原始 SRS 按行号范围定位分片内容
+- **移除 `1_shard/` 目录**: 分片不再存储为物理文件，全部信息在 `_ctx/shard_index.json`
+- **HTML 格式保留**: manifest 不再对 HTML 去标签，原始内容零修改，章节通过 `<h1>`~`<h6>` 识别
+- **多文件独立索引**: 目录类型的 SRS 源不再合并文件，每个文件独立索引
+- `inject-prompt` 新增 `--shard-id` 参数，自动从 shard_index.json 解析分片内容
+
+### Fixed
+- HTML 文档处理: 修复了 HTML 格式 SRS 无法正确处理的问题（去标签导致信息丢失）
+
+### Removed
+- `1_shard/` 目录及其物理分片文件
+
 ## [0.4.0] - 2026-07-01
 
 ### Added

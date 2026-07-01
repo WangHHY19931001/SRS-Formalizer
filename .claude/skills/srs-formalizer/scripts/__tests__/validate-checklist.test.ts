@@ -154,10 +154,10 @@ describe('validate-checklist command', () => {
     const content = `# S1 预处理 — 验收清单
 
 - [x] init 成功创建目录结构
-- [x] manifest 成功生成分片文件
-- [x] _ctx/shard_index.json 存在且 total_shards ≥ 1
-- [x] 1_shard/ 下分片文件数 == total_shards
-- [x] 每个分片头部含 # shard_id: # source: # total_shards:
+- [x] manifest 成功生成索引化分片
+- [x] _ctx/shard_index.json 存在且 total_shards >= 1
+- [x] 每个 shard 含 locator（{file_abspath}-{start}-{end}-{chunk_id}）
+- [x] 每个 shard 的 source_path 指向的源文件存在
 - [x] GAPS.md 已生成，缺口已标注优先级
 - [x] CONTEXT.md 含术语表和切片索引
 - [x] STATE.md 当前阶段标记为 S1 完成
@@ -277,10 +277,10 @@ describe('validate-checklist command', () => {
     const valid = `# S1 预处理 — 验收清单
 
 - [x] init 成功创建目录结构
-- [x] manifest 成功生成分片文件
-- [x] _ctx/shard_index.json 存在且 total_shards ≥ 1
-- [x] 1_shard/ 下分片文件数 == total_shards
-- [x] 每个分片头部含 # shard_id: # source: # total_shards:
+- [x] manifest 成功生成索引化分片
+- [x] _ctx/shard_index.json 存在且 total_shards >= 1
+- [x] 每个 shard 含 locator（{file_abspath}-{start}-{end}-{chunk_id}）
+- [x] 每个 shard 的 source_path 指向的源文件存在
 - [x] GAPS.md 已生成，缺口已标注优先级
 - [x] CONTEXT.md 含术语表和切片索引
 - [x] STATE.md 当前阶段标记为 S1 完成

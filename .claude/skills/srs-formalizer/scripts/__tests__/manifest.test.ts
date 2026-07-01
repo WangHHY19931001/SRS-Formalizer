@@ -19,15 +19,20 @@ describe('manifest command', () => {
     fs.rmSync(TMP, { recursive: true, force: true });
   });
 
-  it('processes single markdown SRS and creates shards', async () => {
+  it('processes single markdown SRS and creates shard index', async () => {
     const { main } = await import('../commands/manifest.js');
     const result = await main([
       '--src', FIXTURE, '--lang', 'zh', '--workdir', WORKDIR,
     ]);
     assert.equal(result.status, 'ok');
-    const shardDir = path.join(WORKDIR, '1_shard');
-    const shards = fs.readdirSync(shardDir).filter(f => f.endsWith('.md'));
-    assert.ok(shards.length >= 2, `Expected >=2 shards, got ${shards.length}`);
+    const indexPath = path.join(WORKDIR, '_ctx', 'shard_index.json');
+    assert.ok(fs.existsSync(indexPath), 'shard_index.json must exist');
+    const index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+    assert.ok(index.shards.length >= 2, `Expected >=2 shards, got ${index.shards.length}`);
+    assert.ok(index.shards[0].locator, 'each shard must have locator');
+    assert.ok(index.shards[0].locator.includes(FIXTURE), 'locator must contain source path');
+    // Manifest no longer writes physical shard files; only the index is produced
+    assert.ok(!fs.existsSync(path.join(WORKDIR, '1_shard', 'S001.md')), 'manifest must not create S001.md in 1_shard/');
   });
 
   it('produces valid shard_index.json', async () => {
@@ -36,7 +41,7 @@ describe('manifest command', () => {
     const indexPath = path.join(WORKDIR, '_ctx', 'shard_index.json');
     const index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
     assert.equal(index.language, 'zh');
-    assert.equal(index.version, '1.0');
+    assert.equal(index.version, '1.1');
     assert.equal(typeof index.source_hash, 'string');
     assert.equal(index.source_hash.length, 64);
     assert.ok(index.shards.length >= 2);
@@ -63,7 +68,6 @@ describe('manifest command', () => {
     const { main } = await import('../commands/manifest.js');
     await main(['--src', FIXTURE, '--lang', 'zh', '--workdir', WORKDIR]);
     const idx1 = JSON.parse(fs.readFileSync(path.join(WORKDIR, '_ctx', 'shard_index.json'), 'utf-8'));
-    fs.rmSync(path.join(WORKDIR, '1_shard'), { recursive: true, force: true });
     fs.rmSync(path.join(WORKDIR, '_ctx'), { recursive: true, force: true });
     await main(['--src', FIXTURE, '--lang', 'zh', '--workdir', WORKDIR]);
     const idx2 = JSON.parse(fs.readFileSync(path.join(WORKDIR, '_ctx', 'shard_index.json'), 'utf-8'));
