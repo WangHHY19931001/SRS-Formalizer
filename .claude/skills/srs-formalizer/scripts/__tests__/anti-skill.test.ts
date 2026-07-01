@@ -1,6 +1,6 @@
 // .claude/skills/srs-formalizer/scripts/__tests__/anti-skill.test.ts
 import { describe, it } from 'node:test';
-import { deepStrictEqual, strictEqual } from 'node:assert';
+import { strictEqual } from 'node:assert';
 import { inject, getViolationsByLevel } from '../lib/anti-skill.js';
 import type { SkillIR, ProcedureStep } from '../types/skir.js';
 
@@ -20,8 +20,7 @@ function makeIR(procedures: ProcedureStep[]): SkillIR {
 }
 
 function makeStep(order: number, instruction: string): ProcedureStep {
-  return { order, instruction, is_critical: false, constraints: [],
-           expected_output: undefined, on_error: undefined };
+  return { order, instruction, is_critical: false, constraints: [] };
 }
 
 describe('AntiSkillInjector', () => {
