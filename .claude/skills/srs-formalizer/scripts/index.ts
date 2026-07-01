@@ -42,6 +42,15 @@ function printUsage(): void {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
+  // Block poison values (undefined, null, NaN, etc.) in any position
+  const { validateNoPoisonArgs } = await import('./lib/cli.js');
+  try {
+    validateNoPoisonArgs(args);
+  } catch (err) {
+    console.error(JSON.stringify({ status: 'error', message: (err as Error).message }));
+    process.exit(1);
+  }
+
   if (args.length === 0 || args[0] === '--help') {
     printUsage();
     process.exit(0);

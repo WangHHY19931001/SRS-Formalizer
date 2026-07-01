@@ -10,6 +10,27 @@ import * as path from 'node:path';
 const POISON_VALUES = new Set(['undefined', 'null', 'NaN', 'Infinity', '-Infinity', '[object Object]']);
 
 /**
+ * Scan ALL positional arguments for poison values. Call this at the
+ * entry point (index.ts) before dispatching to any command.
+ * This catches LLM-generated garbage that safeParseArg misses because
+ * it only checks named flag values, not bare positional args.
+ */
+export function validateNoPoisonArgs(args: string[]): void {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (POISON_VALUES.has(arg)) {
+      const pos = i + 1; // 1-based for readability
+      const nearby = args.slice(Math.max(0, i - 1), i + 2).join(' ');
+      throw new Error(
+        `PoisonArgument at position #${pos}: "${arg}" in [${nearby}]. ` +
+        `This is likely a prompt template bug — an unreplaced {{variable}}. ` +
+        `Re-read SKILL.md §"快速参考" for correct command signatures.`
+      );
+    }
+  }
+}
+
+/**
  * Parse a named argument (--key value).
  * Rejects: missing key, poison values, empty strings, whitespace-only.
  * Returns the validated value or null if the key is not present.
