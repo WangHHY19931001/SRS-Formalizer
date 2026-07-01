@@ -1,11 +1,11 @@
 {
   "skill_name": "srs-formalizer",
-  "packed_at": "2026-07-01T01:14:40.881Z",
+  "packed_at": "2026-07-01T01:23:26.107Z",
   "total_files": 120,
   "files": {
     "BASELINE.md": "1f018d8132545154850fc6fc68c017f7ade8f41e99b23073b4867c5d59871888",
     "CHANGELOG.md": "451d3702e982ac6d5ac5687cac1d50f32d5e5fde735d8b2a7b1f9652a9cb2c61",
-    "SKILL.md": "88dd04b138ab872c631ccf42bed0371410f58148b9c2c02ec609422c4a001fe7",
+    "SKILL.md": "067d3ac21fa3babc5d16ee494a442cac06ad88c75f3558ee7432d4052e8716f6",
     "prompts/debug-lean.md": "86b7d95025ef96ac74b2d5b1e852636fe8cf6338d966b50113bd7714f8dc78bf",
     "prompts/debug-tlc.md": "f535f3dcb0d296381e0b80608f88e93e8db7a3be0b3c0225008cc5f590e00a8f",
     "prompts/executor-R1.md": "ae52fe551322f929a5db43910c6058683113a38920aff9fcda5111d75d5b9568",
@@ -75,7 +75,7 @@
     "scripts/commands/manifest.ts": "8a3ef605771fe33a3db25b41ae9bd7a0dcf893c74634441a33a0946e760c32f9",
     "scripts/commands/merge-analysis.ts": "35759d09b347065c5c865c9e65f9d6d291a0502e71976231a2bdb9398eb47b58",
     "scripts/commands/merge-structure.ts": "5cd8404eb185724f78cd780ef44d8890fe9819d81aa73a2c1a73ba16252798e9",
-    "scripts/commands/pack-skill.ts": "0a5d889f9107da77218db22838dffc1cf36bff03570ca472be3c1cf5a5cbd677",
+    "scripts/commands/pack-skill.ts": "92971320d4ba08daadf7d5b46f5c621f88b8176af00c8fedb09013ccf81cb7e7",
     "scripts/commands/query-graph.ts": "d470d064155aa10238ff3a9beb9f02433d86eabaa3e8e4cc4d66620fa56c23a3",
     "scripts/commands/validate-architecture.ts": "bfc9039cc571c545b5fef97d2534eaeabff4f8e9be1e465ba39dd0060aea2411",
     "scripts/commands/validate-bdd.ts": "89588be21f5c64b78147c6251a8c2b6c6885e38af6594b04b3f1b40fb82dd376",
