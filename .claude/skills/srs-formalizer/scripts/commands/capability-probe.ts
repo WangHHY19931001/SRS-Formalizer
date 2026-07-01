@@ -74,7 +74,11 @@ export interface ProbeItem {
     /** Creative-reasoning: specific domain for implicit requirement derivation */
     creative_domain?: 'security' | 'integration' | 'concurrency' | 'fault_tolerance';
     /** Logical-reasoning: expected relation type for this probe */
-    relation_type?: 'DEPENDS_ON' | 'REFINES' | 'CONFLICTS_WITH';
+    relation_type?: string;
+    /** Logical-reasoning: LLM must detect transitive dependencies */
+    transitive_dep?: boolean;
+    /** Logical-reasoning: LLM must detect cyclic dependencies */
+    cyclic_dep?: boolean;
   };
 }
 
@@ -1501,7 +1505,6 @@ function parseJsonlLines(text: string): Record<string, unknown>[] {
 
 // ===================== Scoring Functions =====================
 
-const VALID_ID_RE = /^R1-[A-Z]+-\d{4}$/;
 const VALID_CATEGORIES = ['explicit', 'implicit', 'relational'];
 const REQUIRED_FIELDS = ['id', 'category', 'statement', 'source_file', 'confidence'];
 
@@ -1584,7 +1587,7 @@ function scoreInstructionFollowing(probe: ProbeItem, answer: string): ProbeResul
       }
       return { score: 0, detail: 'no_missing_field_warning: 未检测到模板字段缺失警告，LLM 盲从了不完整模板' };
     },
-    no_interference_extraction: (records, rawAnswer) => {
+    no_interference_extraction: (records, _rawAnswer) => {
       if (records.length === 0) return { score: 0, detail: 'no_interference_extraction: 无记录可检查' };
       // LLM should NOT extract implementation details or non-requirements
       const interferenceKeywords = ['PostgreSQL', 'React', '美化', '验证码', '推荐算法'];
@@ -1696,7 +1699,7 @@ function scoreStructuredOutput(probe: ProbeItem, answer: string): ProbeResult {
       }
       return { score: 0, detail: 'unicode_handled: Unicode 字符丢失或混合语言未保留' };
     },
-    contradiction_resolved: (records) => {
+    contradiction_resolved: (records, _rawAnswer) => {
       if (records.length === 0) return { score: 0, detail: 'contradiction_resolved: 无记录可检查' };
       // Check LLM adopted the revision for FR-004 (第六周 not 第四周) and excluded unconfirmed items
       const allText = records.map(r => JSON.stringify(r)).join(' ');
@@ -1710,7 +1713,7 @@ function scoreStructuredOutput(probe: ProbeItem, answer: string): ProbeResult {
       }
       return { score: 0, detail: 'contradiction_resolved: 未正确处理矛盾信息（未采纳已批准修改或提取了否决意见）' };
     },
-    long_text_no_truncation: (records, rawAnswer) => {
+    long_text_no_truncation: (records, _rawAnswer) => {
       // Check coverage: LLM should cover requirements from all chapters (not just early ones)
       const chapterKeywords = ['密码', '课程创建', '容量', '先修课程', '预选', '退选', 'GPA', '评估', '备份', 'RBAC'];
       const allText = records.map(r => JSON.stringify(r)).join(' ');

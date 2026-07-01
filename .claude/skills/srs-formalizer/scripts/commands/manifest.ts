@@ -10,13 +10,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import type { CliResult, ShardIndex, ShardEntry, GapEntry } from '../types/index.js';
-import { validateWorkDir } from '../lib/security.js';
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
+import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 
 function collectSourceFiles(absSrc: string): string[] {
   const stat = fs.statSync(absSrc);
@@ -259,9 +253,16 @@ ${gaps.length > 0
 }
 
 export async function main(args: string[]): Promise<CliResult> {
-  const srcPath = parseArg(args, '--src');
-  const lang = (parseArg(args, '--lang') || 'zh') as 'zh' | 'en';
-  const workDirArg = parseArg(args, '--workdir');
+  let srcPath: string | null;
+  let lang: string;
+  let workDirArg: string | null;
+  try {
+    srcPath = safeParseArg(args, '--src');
+    lang = safeParseArg(args, '--lang') || 'zh';
+    workDirArg = safeParseArg(args, '--workdir');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
 
   if (!srcPath) {
     return { status: 'error', message: 'Missing required argument: --src' };

@@ -182,9 +182,11 @@ S2 子阶段:
 
 ## 快速参考
 
+> **Agent 注意**: 所有命令必须通过 `npx tsx index.ts <command>` 调用。参数值禁止使用 `undefined`、`null`、`NaN` 等占位符——CLI 将直接拒绝这些值并报错。`init` 命令使用 `--output`（不是 `--workdir`）。
+
 | 命令 | 功能 | 阶段 |
 |------|------|------|
-| `init --output .srs_formalizer` | 初始化工作目录 | S1 |
+| `init --output .srs_formalizer` | 初始化工作目录（注意：用 `--output` 不是 `--workdir`） | S1 |
 | `manifest --src <path> --lang zh\|en --workdir .srs_formalizer` | 索引化分片 + 章节识别 (不创建物理文件) | S1 |
 | `inject-prompt --template <path> --shard-id <id> --workdir .srs_formalizer` | 填充子代理提示词模板（按分片ID查找） | S2 |
 | `validate-jsonl --file <path> --workdir .srs_formalizer` | JSONL 格式校验（6 项） | S2 |

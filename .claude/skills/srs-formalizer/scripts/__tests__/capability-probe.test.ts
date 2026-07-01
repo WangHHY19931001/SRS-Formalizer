@@ -94,7 +94,7 @@ interface TestProbeItem {
     expected_real_reqs?: string[];
     fake_keywords?: string[];
     hierarchy_expected?: Record<string, string>;
-    logical_expected?: Array<{ source: string; target: string }>;
+    logical_expected?: Array<{ source: string; target: string; relation?: string }>;
     max_records?: number;
     id_prefix?: string;
     empty_input?: boolean;
@@ -105,6 +105,10 @@ interface TestProbeItem {
     creative_domain?: string;
     dedup_required?: boolean;
     cross_line_ref?: boolean;
+    nested_metadata?: boolean;
+    unicode_content?: boolean;
+    contradiction_detection?: boolean;
+    long_text?: boolean;
   };
 }
 

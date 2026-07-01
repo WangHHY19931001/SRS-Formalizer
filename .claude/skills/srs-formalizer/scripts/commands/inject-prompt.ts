@@ -15,17 +15,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
-import { validateWorkDir } from '../lib/security.js';
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
+import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 
 export async function main(args: string[]): Promise<CliResult> {
-  const templatePath = parseArg(args, '--template');
-  const paramsRaw = parseArg(args, '--params');
+  const templatePath = safeParseArg(args, '--template');
+  const paramsRaw = safeParseArg(args, '--params');
 
   if (!templatePath) {
     return { status: 'error', message: 'Missing required argument: --template' };
@@ -47,8 +41,8 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   // Parse optional --shard-id
-  const shardId = parseArg(args, '--shard-id');
-  const workDirArg = parseArg(args, '--workdir');
+  const shardId = safeParseArg(args, '--shard-id');
+  const workDirArg = safeParseArg(args, '--workdir');
 
   // Auto-resolve SHARD_CONTENT from shard_index.json when --shard-id is provided
   if (shardId) {

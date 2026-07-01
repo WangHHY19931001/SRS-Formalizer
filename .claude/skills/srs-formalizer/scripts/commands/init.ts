@@ -8,7 +8,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
-import { validateWorkDir } from '../lib/security.js';
+import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 
 const SUBDIRS = [
   // S1: 预处理 — shards tracked via shard_index.json
@@ -34,12 +34,6 @@ const SUBDIRS = [
 ];
 
 import { writeChecklists } from '../lib/checklists.js';
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
 
 function generateStateTemplate(): string {
   const now = new Date().toISOString();
@@ -74,7 +68,12 @@ function generateStateTemplate(): string {
 }
 
 export async function main(args: string[]): Promise<CliResult> {
-  const outputArg = parseArg(args, '--output');
+  let outputArg: string | null;
+  try {
+    outputArg = safeParseArg(args, '--output');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
 
   if (!outputArg) {
     return { status: 'error', message: 'Missing required argument: --output' };
