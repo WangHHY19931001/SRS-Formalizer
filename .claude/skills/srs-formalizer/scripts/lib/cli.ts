@@ -65,3 +65,38 @@ export function assertSafePath(targetPath: string, workDir: string): void {
     );
   }
 }
+
+/**
+ * Guard: refuse direct invocation of command files. All commands MUST be
+ * invoked through index.ts. This prevents LLM agents from bypassing the
+ * entry point and passing raw/unvalidated arguments.
+ *
+ * Usage: add at the END of each command file:
+ *   import { refuseDirectInvocation } from '../lib/cli.js';
+ *   refuseDirectInvocation(import.meta.url);
+ */
+export function refuseDirectInvocation(importMetaUrl: string): void {
+  const scriptPath = process.argv[1];
+  if (!scriptPath) return; // Can't determine, allow
+
+  const endsWith = (s: string, suffix: string): boolean =>
+    s.endsWith(suffix) || s.endsWith(suffix.replace('.ts', '.js'));
+
+  // Extract the expected sub-path from import.meta.url
+  // e.g. file:///.../scripts/commands/init.ts → check if argv[1] ends with commands/init.ts
+  const urlPath = new URL(importMetaUrl).pathname;
+
+  if (endsWith(scriptPath, urlPath) || scriptPath.includes(urlPath)) {
+    const cmdName = urlPath.split('/').pop()?.replace(/\.(ts|js)$/, '') ?? '?';
+    console.error(
+      `\n⛔ DIRECT INVOCATION REFUSED\n` +
+        `\nYou called:  npx tsx ${scriptPath}` +
+        `\nCorrect is:  npx tsx index.ts ${cmdName} [options]` +
+        `\n` +
+        `\nAll srs-formalizer commands MUST be invoked through index.ts.` +
+        `\nRe-read SKILL.md §"快速参考" for the correct command signatures.` +
+        `\n`
+    );
+    process.exit(1);
+  }
+}

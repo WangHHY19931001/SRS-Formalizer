@@ -359,3 +359,7 @@ ${totalGaps.length === 0 ? '（无已检测到的缺口）' : ''}
     data: { shard_count: allShards.length, gap_count: totalGaps.length, source_hash: sourceHash },
   };
 }
+
+// Guard: refuse direct invocation (must go through index.ts)
+import { refuseDirectInvocation } from '../lib/cli.js';
+refuseDirectInvocation(import.meta.url);
