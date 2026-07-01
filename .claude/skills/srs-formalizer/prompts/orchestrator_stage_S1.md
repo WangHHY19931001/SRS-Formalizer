@@ -28,7 +28,7 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts compile \
 ```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts init --output .srs_formalizer
 ```
-验证输出为 `{"status":"ok"}`。目录结构：1_shard/ 2_extract/ 3_graph/ 4_bdd/ 5_formal/ 6_outputs/
+验证输出为 `{"status":"ok"}`。目录结构：2_extract/ 3_graph/ 4_bdd/ 5_formal/ 6_outputs/
 
 ### 步骤 2：SRS 分片 + 章节识别 + 源位置标注
 ```bash
@@ -37,11 +37,11 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts manifest \
   --lang zh \
   --workdir .srs_formalizer
 ```
-验证输出为 `{"status":"ok"}`。分片写入 `1_shard/S001.md`~`S###.md`。
+验证输出为 `{"status":"ok"}`。分片索引写入 `_ctx/shard_index.json`。
 
-### 步骤 3：审查分片结果
-- 读取 `_ctx/shard_index.json`，确认 `total_shards` 与 `1_shard/` 下文件数一致
-- 每个分片头部含 `# source: <abs_path>:<start>-<end>`，可快速定位原文
+### 步骤 3：审查分片索引
+- 读取 `_ctx/shard_index.json`，确认 `total_shards` >= 1
+- 每个 shard 含 `locator`（`{file_abspath}-{start}-{end}-{chunk_id}`），可快速定位源文件
 - 确认每分片 `estimated_tokens ≤ 20000`
 
 ### 步骤 4：信息缺口深度检索
@@ -56,6 +56,5 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts manifest \
 - 信息不足时使用不确定性表述规范
 
 ## 产出物
-- `1_shard/S*.md` — SRS 分片（含源位置头部）
-- `_ctx/shard_index.json` — 分片索引（含 source_path/line/total_shards）
+- `_ctx/shard_index.json` — 分片索引（含 locator/source_path/line_range/total_shards）
 - CONTEXT.md / GAPS.md / MINDMAP.md / STATE.md

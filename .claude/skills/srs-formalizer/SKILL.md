@@ -103,7 +103,7 @@ S2 子阶段:
 
 ```
 .srs_formalizer/
-├── 1_shard/              # S1: 分片文件（含源位置头部）
+├── _ctx/                  # shard_index.json (索引化分片)
 ├── 2_extract/
 │   ├── r1-explicit/      # S2.1: R1 显式需求 JSONL
 │   ├── architecture/     # S2.2/2.4/2.6: 架构分解 JSONL（arch-1/2/3）
@@ -125,7 +125,7 @@ S2 子阶段:
 ## 分片 ID 规则
 
 - manifest 生成安全顺序 ID：`S001`~`S999`（纯 ASCII）
-- 每个分片头部标注：`# source: <绝对路径>:<起始行>-<结束行>`
+- 每个分片含 `locator`（`{file_abspath}-{start}-{end}-{chunk_id}`）
 - `shard_index.json` 报告 `total_shards`，子代理可据此检测遗漏
 - 子代理 R1 提取时 ID 格式：`R1-<shard_id>-NNNN`（如 `R1-S001-0001`）
 - ID 严格匹配正则 `^R[123]-[A-Za-z0-9_.]+-\d{4}$`，禁止中文
@@ -135,7 +135,7 @@ S2 子阶段:
 | 命令 | 功能 |
 |------|------|
 | `init --output .srs_formalizer` | 初始化阶段前缀目录结构 |
-| `manifest --src <path> --lang zh\|en --workdir .srs_formalizer` | SRS 分片 + 章节识别 + 缺口检测 + 源位置标注 |
+| `manifest --src <path> --lang zh\|en --workdir .srs_formalizer` | 索引化分片 + 章节识别 + 缺口检测 (不创建物理文件) |
 
 ## 技能完整性（防篡改，最高优先级）
 
@@ -185,8 +185,8 @@ S2 子阶段:
 | 命令 | 功能 | 阶段 |
 |------|------|------|
 | `init --output .srs_formalizer` | 初始化工作目录 | S1 |
-| `manifest --src <path> --lang zh\|en --workdir .srs_formalizer` | SRS 分片 + 章节识别 + 源位置标注 | S1 |
-| `inject-prompt --template <path> --params '<json>'` | 填充子代理提示词模板 | S2 |
+| `manifest --src <path> --lang zh\|en --workdir .srs_formalizer` | 索引化分片 + 章节识别 (不创建物理文件) | S1 |
+| `inject-prompt --template <path> --shard-id <id> --workdir .srs_formalizer` | 填充子代理提示词模板（按分片ID查找） | S2 |
 | `validate-jsonl --file <path> --workdir .srs_formalizer` | JSONL 格式校验（6 项） | S2 |
 | `build-graph --workdir .srs_formalizer` | JSONL → 需求图谱 | S3 |
 | `analyze-structure --workdir .srs_formalizer` | 孤立/悬挂/孤岛检测 | S3 |

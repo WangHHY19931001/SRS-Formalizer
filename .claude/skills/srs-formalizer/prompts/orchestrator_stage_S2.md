@@ -18,9 +18,9 @@ S2.7 R3 关系推导-2   ──→ 2_extract/r3-relational/ (最终)
 ## 执行流程
 
 ### S2.1：R1 显式需求提取
-对 1_shard/ 下每个分片：
+对 `_ctx/shard_index.json` 中每个分片：
 ```bash
-inject-prompt --template prompts/executor-R1.md → 分派 LLM 子代理
+inject-prompt --template prompts/executor-R1.md --shard-id <shard_id> --workdir .srs_formalizer
 ```
 输出写入 `2_extract/r1-explicit/<shard_id>.jsonl`。
 ```bash
@@ -44,8 +44,7 @@ build-architecture --workdir .srs_formalizer
 基于 R1 + **架构（Arch-1）**，对每个分片：
 ```bash
 # 关键：将 Arch-1 作为 ARCHITECTURE 参数传入
-inject-prompt --template prompts/executor-R2.md \
-  --params '{"ARCHITECTURE":"<arch-1.jsonl内容>","R1_OUTPUT":"<r1记录>","SHARD_CONTENT":"<分片内容>"}'
+inject-prompt --template prompts/executor-R2.md --shard-id <shard_id> --workdir .srs_formalizer
 → 分派 LLM 子代理
 ```
 输出写入 `2_extract/r2-implicit/<shard_id>.jsonl`。
