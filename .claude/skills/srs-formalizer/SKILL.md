@@ -4,7 +4,7 @@ description: 将 SRS 文档转化为需求知识图谱（Cypher）、BDD（Gherk
 compatibility: requires Node.js>=20, typescript>=5.5, Claude Code>=1.0
 tags: [srs, requirements, knowledge-graph, bdd, tla+, lean, formal-methods, cypher, gherkin, verification]
 metadata:
-  version: "0.4.0"
+  version: "0.5.1"
   compatibility: requires Node.js>=20, typescript>=5.5, Claude Code>=1.0
   security_level: high
   permissions:
