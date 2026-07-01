@@ -313,7 +313,6 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   // Renumber shards with sequential IDs
-  const total = allShards.length;
   for (let i = 0; i < allShards.length; i++) {
     const s = allShards[i]!;
     s.id = `S${String(i + 1).padStart(3, '0')}`;
