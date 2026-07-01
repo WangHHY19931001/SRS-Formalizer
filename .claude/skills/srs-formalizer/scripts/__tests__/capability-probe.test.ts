@@ -34,6 +34,37 @@ function genPerfectJsonl(minRecords: number): string {
   return records.map(r => JSON.stringify(r)).join('\n');
 }
 
+/** Generate perfectly valid JSONL with custom ID prefix */
+function genPerfectJsonlPrefix(minRecords: number, prefix: string): string {
+  const records = Array.from({ length: minRecords }, (_, i) => ({
+    id: `${prefix}-TOPIC-${String(i + 1).padStart(4, '0')}`,
+    category: 'explicit' as const,
+    statement: `Requirement ${i + 1}`,
+    source_file: 'srs.md',
+    confidence: 'high' as const,
+    metadata: {},
+  }));
+  return records.map(r => JSON.stringify(r)).join('\n');
+}
+
+/** Generate valid JSONL with special characters for special_chars_preserved test */
+function genPerfectJsonlSpecialChars(minRecords: number): string {
+  const specialContents = [
+    '密码必须包含特殊字符（如 !@#$%^&*()、中文、emoji \u{1F600} 等）',
+    '学生姓名必须支持 Unicode 字符，包括 "José"、"Müller" 和 "李"',
+    '系统在遇到"内部错误"时显示 message：系统处理请求时出错，请稍后重试',
+  ];
+  const records = Array.from({ length: Math.min(minRecords, specialContents.length) }, (_, i) => ({
+    id: `R1-TOPIC-${String(i + 1).padStart(4, '0')}`,
+    category: 'explicit' as const,
+    statement: specialContents[i],
+    source_file: 'srs.md',
+    confidence: 'high' as const,
+    metadata: {},
+  }));
+  return records.map(r => JSON.stringify(r)).join('\n');
+}
+
 /** Generate completely invalid (non-JSONL) text */
 function genZeroJsonl(): string {
   return 'this is not valid jsonl at all';
@@ -64,6 +95,16 @@ interface TestProbeItem {
     fake_keywords?: string[];
     hierarchy_expected?: Record<string, string>;
     logical_expected?: Array<{ source: string; target: string }>;
+    max_records?: number;
+    id_prefix?: string;
+    empty_input?: boolean;
+    refuse_wrong_template?: boolean;
+    refuse_missing_field?: boolean;
+    transitive_dep?: boolean;
+    cyclic_dep?: boolean;
+    creative_domain?: string;
+    dedup_required?: boolean;
+    cross_line_ref?: boolean;
   };
 }
 
@@ -72,28 +113,160 @@ function buildPerfectAnswers(probes: TestProbeItem[]): Record<string, string> {
   const answers: Record<string, string> = {};
   for (const probe of probes) {
     switch (probe.dimension) {
-      case 'instruction_following':
-      case 'structured_output':
-        answers[probe.probe_id] = genPerfectJsonl(probe.expected.min_records ?? 1);
+      case 'instruction_following': {
+        if (probe.expected.empty_input) {
+          answers[probe.probe_id] = '';
+        } else if (probe.expected.refuse_wrong_template) {
+          answers[probe.probe_id] = '无法提取：模板要求 student_name, phone_number, home_address 等字段在 SRS 需求中不存在，拒绝生成。';
+        } else if (probe.expected.refuse_missing_field) {
+          answers[probe.probe_id] = '注意：模板缺少 source_file 和 metadata 字段。但仍按现有模板格式输出：\n' + genPerfectJsonl(probe.expected.min_records ?? 1);
+        } else if (probe.expected.id_prefix) {
+          answers[probe.probe_id] = genPerfectJsonlPrefix(probe.expected.min_records ?? 1, probe.expected.id_prefix);
+        } else if (probe.expected.checks.includes('special_chars_preserved')) {
+          answers[probe.probe_id] = genPerfectJsonlSpecialChars(probe.expected.min_records ?? 1);
+        } else {
+          answers[probe.probe_id] = genPerfectJsonl(probe.expected.min_records ?? 1);
+        }
         break;
+      }
+      case 'structured_output': {
+        const minRec = probe.expected.min_records ?? 1;
+        if (probe.expected.nested_metadata) {
+          // Probe-2: needs nested metadata with priority, module, contacts, tags
+          const records = Array.from({ length: minRec }, (_, i) => ({
+            id: `R1-TOPIC-${String(i + 1).padStart(4, '0')}`,
+            category: 'explicit' as const,
+            statement: `Requirement ${i + 1} description`,
+            source_file: 'srs.md',
+            confidence: 'high' as const,
+            metadata: {
+              priority: 'P0',
+              module: ['login', 'course', 'enroll'][i] ?? 'general',
+              contacts: { owner: 'Zhang Wei', reviewer: 'Li Ming' },
+              tags: ['core', 'security'],
+            },
+          }));
+          answers[probe.probe_id] = records.map(r => JSON.stringify(r)).join('\n');
+        } else if (probe.expected.unicode_content) {
+          // Probe-4: needs mixed Chinese/English with Unicode names
+          const unicodeStatements = [
+            'The system must support students using student ID and password to login (登录系统).',
+            'The system must display all available courses including course name, instructor (教师), and credits (学分).',
+            'Students submit enrollment application during open period. Deadline: semester week 3.',
+            'The system must ensure data consistency across read and write operations (读写操作).',
+            'The system supports Unicode characters in student names such as José, Müller, 李小龙.',
+            'API response must include status code, message (中文), and data payload.',
+          ];
+          const records = Array.from({ length: Math.min(minRec, unicodeStatements.length) }, (_, i) => ({
+            id: `R1-TOPIC-${String(i + 1).padStart(4, '0')}`,
+            category: 'explicit' as const,
+            statement: unicodeStatements[i],
+            source_file: 'srs.md',
+            confidence: 'high' as const,
+            metadata: {},
+          }));
+          answers[probe.probe_id] = records.map(r => JSON.stringify(r)).join('\n');
+        } else if (probe.expected.contradiction_detection) {
+          // Probe-6: adopt approved revision (FR-004->第六周), exclude rejected/unconfirmed
+          const statements = [
+            '系统必须支持学生通过学号和密码登录。',
+            '系统必须展示课程列表，包含课程名称、教师姓名、学分和课程容量上限 50 人。',
+            '学生可以在选课开放期间提交选课申请。',
+            '退选截止日期为每学期第六周周五。',
+            '系统必须记录所有选课操作日志。',
+          ];
+          const records = Array.from({ length: Math.min(minRec, statements.length) }, (_, i) => ({
+            id: `R1-TOPIC-${String(i + 1).padStart(4, '0')}`,
+            category: 'explicit' as const,
+            statement: statements[i],
+            source_file: 'srs.md',
+            confidence: 'high' as const,
+            metadata: {},
+          }));
+          answers[probe.probe_id] = records.map(r => JSON.stringify(r)).join('\n');
+        } else if (probe.expected.long_text) {
+          // Probe-7: generate ~20 records covering all chapters
+          const chapterStatements = [
+            '系统必须支持学生通过学号（10位数字）和密码登录。',
+            '系统必须支持教师通过工号和密码登录。',
+            '管理员可创建新课程，录入课程代码、名称、学分、学时、开课院系。',
+            '学生可按课程名称、教师姓名、开课院系等条件查询课程。',
+            '系统必须展示每门课程的详细信息（简介、大纲、考核方式、参考书目）。',
+            '每门课程有容量限制，系统实时显示已选人数和剩余名额。',
+            '系统检查教室和时间冲突。',
+            '学生必须在选课期间登录系统提交选课申请。',
+            '系统自动检查先修课程要求。',
+            '系统在补退选阶段支持退选课程。',
+            '选课结束后系统自动生成学生课表。',
+            '教师通过系统录入学生成绩（平时40%+期末60%）。',
+            '系统自动计算最终成绩和GPA。',
+            '学生可随时查询已发布课程的成绩。',
+            '系统在评估窗口内支持学生匿名评价教师。',
+            '系统自动计算教师综合评分。',
+            '系统每日凌晨自动备份数据库。',
+            '系统记录所有关键操作日志。',
+            '系统基于RBAC管理用户权限。',
+            '系统支持管理员进行系统参数配置。',
+          ];
+          const records = chapterStatements.map((stmt, i) => ({
+            id: `R1-TOPIC-${String(i + 1).padStart(4, '0')}`,
+            category: 'explicit' as const,
+            statement: stmt,
+            source_file: 'srs.md',
+            confidence: 'high' as const,
+            metadata: {},
+          }));
+          answers[probe.probe_id] = records.map(r => JSON.stringify(r)).join('\n');
+        } else {
+          answers[probe.probe_id] = genPerfectJsonl(minRec);
+        }
+        break;
+      }
       case 'precision':
         // Return the expected real requirement keywords as self-contained items
         answers[probe.probe_id] = JSON.stringify(probe.expected.expected_real_reqs ?? []);
         break;
       case 'hierarchical_reasoning': {
-        const items = Object.entries(probe.expected.hierarchy_expected ?? {}).map(([fr, module]) => ({
-          requirement: `${fr}: test requirement`,
-          module,
-        }));
-        answers[probe.probe_id] = JSON.stringify(items);
+        const expected = probe.expected.hierarchy_expected ?? {};
+        if (Object.keys(expected).length === 0) {
+          // Probe-5: flat text auto-infer — return 12 reasonable module assignments
+          const items = [
+            { requirement: 'FR-001: student login', module: '用户管理' },
+            { requirement: 'FR-002: teacher login', module: '用户管理' },
+            { requirement: 'FR-003: browse courses', module: '课程管理' },
+            { requirement: 'FR-004: admin course mgmt', module: '课程管理' },
+            { requirement: 'FR-005: enroll courses', module: '选课管理' },
+            { requirement: 'FR-006: drop courses', module: '选课管理' },
+            { requirement: 'FR-007: show capacity', module: '选课管理' },
+            { requirement: 'FR-008: reject full course', module: '选课管理' },
+            { requirement: 'FR-009: enter grades', module: '成绩管理' },
+            { requirement: 'FR-010: view grades', module: '成绩管理' },
+            { requirement: 'FR-011: init semester', module: '系统管理' },
+            { requirement: 'FR-012: daily backup', module: '系统管理' },
+          ];
+          answers[probe.probe_id] = JSON.stringify(items);
+        } else {
+          const items = Object.entries(expected).map(([fr, module]) => ({
+            requirement: `${fr}: test requirement`,
+            module,
+          }));
+          answers[probe.probe_id] = JSON.stringify(items);
+        }
         break;
       }
       case 'logical_reasoning': {
         const items = (probe.expected.logical_expected ?? []).map(e => ({
           source: e.source,
           target: e.target,
-          relation: 'DEPENDS_ON' as const,
+          relation: e.relation ?? 'DEPENDS_ON',
         }));
+        if (probe.expected.transitive_dep) {
+          // Add a transitive dependency
+          items.push({ source: 'R-E', target: 'R-A', relation: 'DEPENDS_ON_TRANSITIVE' });
+        }
+        if (probe.expected.cyclic_dep) {
+          items.push({ source: 'cycle_detected', target: 'R-A→R-B→R-C→R-I→R-A', relation: 'CYCLE' });
+        }
         answers[probe.probe_id] = JSON.stringify(items);
         break;
       }
@@ -120,14 +293,29 @@ function buildZeroAnswers(probes: TestProbeItem[]): Record<string, string> {
   const answers: Record<string, string> = {};
   for (const probe of probes) {
     switch (probe.dimension) {
-      case 'instruction_following':
+      case 'instruction_following': {
+        if (probe.expected.empty_input) {
+          // Wrong: hallucinate content for empty input
+          answers[probe.probe_id] = '{"id":"R1-HALLUCINATE-0001","category":"explicit","statement":"fake requirement"}';
+        } else if (probe.expected.refuse_wrong_template) {
+          // Wrong: blindly follow the wrong template
+          answers[probe.probe_id] = '{"student_name":"Alice","phone_number":"123","home_address":"Beijing"}';
+        } else if (probe.expected.refuse_missing_field) {
+          // Wrong: blindly follow incomplete template without warning
+          answers[probe.probe_id] = genZeroJsonl();
+        } else {
+          answers[probe.probe_id] = genZeroJsonl();
+        }
+        break;
+      }
       case 'structured_output':
         answers[probe.probe_id] = genZeroJsonl();
         break;
-      case 'precision':
-        // Return only fabricated requirements
-        answers[probe.probe_id] = JSON.stringify(probe.expected.fake_keywords ?? []);
+      case 'precision': {
+        // Return empty array — scores 0 on ALL checks (no_fabricated, no_missing, dedup_correct, cross_line_resolved)
+        answers[probe.probe_id] = '[]';
         break;
+      }
       case 'hierarchical_reasoning':
         answers[probe.probe_id] = '[]';
         break;
@@ -164,14 +352,29 @@ function buildPartialAnswers(probes: TestProbeItem[]): Record<string, string> {
   const answers: Record<string, string> = {};
   for (const probe of probes) {
     switch (probe.dimension) {
-      case 'instruction_following':
+      case 'instruction_following': {
+        if (probe.expected.empty_input) {
+          // Partial wrong: output one record when should output zero
+          answers[probe.probe_id] = '{"id":"R1-TOPIC-0001","category":"explicit","statement":"partial","source_file":"srs.md","confidence":"high","metadata":{}}';
+        } else if (probe.expected.refuse_wrong_template) {
+          // Partial: point out issue but still output some content
+          answers[probe.probe_id] = '模板有问题但还是要输出：\n{"student_name":"test","phone_number":"000","home_address":"test"}';
+        } else {
+          answers[probe.probe_id] = genPartialJsonl(probe.expected.min_records ?? 1);
+        }
+        break;
+      }
       case 'structured_output':
         answers[probe.probe_id] = genPartialJsonl(probe.expected.min_records ?? 1);
         break;
       case 'precision': {
-        // Return only half the expected real reqs
-        const half = Math.max(1, Math.floor((probe.expected.expected_real_reqs?.length ?? 1) / 2));
-        answers[probe.probe_id] = JSON.stringify((probe.expected.expected_real_reqs ?? []).slice(0, half));
+        const realReqs = probe.expected.expected_real_reqs ?? [];
+        const fakeReqs = probe.expected.fake_keywords ?? [];
+        const half = Math.max(1, Math.floor(realReqs.length / 2));
+        const partial = [...realReqs.slice(0, half)];
+        // Add one fake to ensure no_fabricated triggers partial penalty
+        if (fakeReqs.length > 0) partial.push(fakeReqs[0]!);
+        answers[probe.probe_id] = JSON.stringify(partial);
         break;
       }
       case 'hierarchical_reasoning': {

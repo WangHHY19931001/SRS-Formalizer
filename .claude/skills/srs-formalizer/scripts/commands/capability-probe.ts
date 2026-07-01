@@ -39,6 +39,7 @@ export interface ProbeItem {
   prompt: string;
   expected: {
     min_records?: number;
+    max_records?: number;
     checks: string[];
     /** Precision-specific: real requirement keywords to match */
     expected_real_reqs?: string[];
@@ -46,8 +47,34 @@ export interface ProbeItem {
     fake_keywords?: string[];
     /** Hierarchical reasoning-specific: FR-ID to module mapping */
     hierarchy_expected?: Record<string, string>;
-    /** Logical reasoning-specific: expected DEPENDS_ON relations */
-    logical_expected?: Array<{ source: string; target: string }>;
+    /** Logical reasoning-specific: expected relations (DEPENDS_ON, REFINES, CONFLICTS_WITH) */
+    logical_expected?: Array<{ source: string; target: string; relation?: string }>;
+    /** Instruction-following: expected ID prefix (default R1) */
+    id_prefix?: string;
+    /** Instruction-following: LLM should refuse template with missing required fields */
+    refuse_missing_field?: boolean;
+    /** Instruction-following: LLM should output zero records for empty input */
+    empty_input?: boolean;
+    /** Instruction-following: LLM should refuse wrong/unsafe template */
+    refuse_wrong_template?: boolean;
+    /** Structured-output: answer must contain nested metadata objects */
+    nested_metadata?: boolean;
+    /** Structured-output: answer must handle Unicode/mixed-language content */
+    unicode_content?: boolean;
+    /** Structured-output: answer must detect and handle contradictory info */
+    contradiction_detection?: boolean;
+    /** Structured-output: answer must handle ultra-long text without truncation */
+    long_text?: boolean;
+    /** Precision: LLM must deduplicate synonymous requirements */
+    dedup_required?: boolean;
+    /** Precision: LLM must resolve cross-line "同上" references */
+    cross_line_ref?: boolean;
+    /** Precision: LLM must extract requirements from code comments */
+    in_code_comment?: boolean;
+    /** Creative-reasoning: specific domain for implicit requirement derivation */
+    creative_domain?: 'security' | 'integration' | 'concurrency' | 'fault_tolerance';
+    /** Logical-reasoning: expected relation type for this probe */
+    relation_type?: 'DEPENDS_ON' | 'REFINES' | 'CONFLICTS_WITH';
   };
 }
 
@@ -97,7 +124,7 @@ function generateProbes(): ProbeItem[] {
 
 function generateInstructionFollowingProbes(): ProbeItem[] {
   return [
-    // ---- probe-1 (easy) ----
+    // ---- probe-1 (easy): id格式 + category + metadata (核心格式遵循) ----
     {
       probe_id: 'instruction_following-1',
       dimension: 'instruction_following',
@@ -122,152 +149,99 @@ SRS 需求：
         checks: ['id_format', 'category_enum', 'metadata_present'],
       },
     },
-    // ---- probe-2 (easy) ----
+    // ---- probe-2 (easy): 少字段陷阱 —— 模板故意缺少一个字段 ----
     {
       probe_id: 'instruction_following-2',
       dimension: 'instruction_following',
-      prompt: `你是一个需求提取器。请将以下 5 条 SRS 需求转换为 JSONL 格式。
-
-SRS 需求：
-1. 系统必须支持新生在线注册学籍。
-2. 系统必须显示每位学生的已修课程和学分汇总。
-3. 系统必须在选课结束后自动生成正式课表。
-4. 系统必须展示所有授课教师信息，包括姓名、职称和研究方向。
-5. 系统必须支持按课程名称、教师或学分进行搜索。
-
-每条 JSONL 记录必须包含以下字段：
-- id: 格式为 R1-<TOPIC>-0001
-- category: "explicit"
-- statement: 需求描述原文
-- source_file: "srs.md"
-- confidence: "high"
-- metadata: {}
-
-请输出 5 行 JSONL，不要包含其他文字。`,
-      expected: {
-        min_records: 5,
-        checks: ['id_format', 'category_enum', 'metadata_present'],
-      },
-    },
-    // ---- probe-3 (medium) ----
-    {
-      probe_id: 'instruction_following-3',
-      dimension: 'instruction_following',
-      prompt: `你是一个需求提取器。请将以下 4 条 SRS 需求转换为 JSONL 格式。
-
-SRS 需求：
-1. 系统必须记录登录失败的次数和时间。
-2. 系统必须在密码连续错误 5 次后锁定账号 30 分钟。
-3. 系统必须支持管理员重置学生密码。
-4. 系统必须记录每次密码修改的时间戳和操作 IP。
-
-每条 JSONL 记录必须包含以下字段：
-- id: 格式为 R1-<TOPIC>-0001
-- category: "explicit"
-- statement: 需求描述原文
-- source_file: "srs.md"
-- confidence: "high"
-- metadata: {"severity": "high", "audit": true}
-
-请输出 4 行 JSONL，不要包含其他文字。`,
-      expected: {
-        min_records: 4,
-        checks: ['id_format', 'category_enum', 'metadata_present'],
-      },
-    },
-    // ---- probe-4 (medium) ----
-    {
-      probe_id: 'instruction_following-4',
-      dimension: 'instruction_following',
-      prompt: `你是一个需求提取器。请将以下 4 条 SRS 需求转换为 JSONL 格式。
-
-SRS 需求：
-1. 系统必须支持学生通过学号和密码登录。
-2. 系统必须展示所有可用课程列表，包括课程名称、教师和学分。
-3. 学生可以在选课开放期间提交选课申请。
-4. 系统推测：当课程选课人数不足 10 人时，该课程可能被取消。
-
-每条 JSONL 记录必须包含以下字段：
-- id: 格式为 R1-<TOPIC>-0001
-- category: 如果是明确陈述的需求使用 "explicit"，如果是推测或隐含的需求使用 "implicit"
-- statement: 需求描述原文
-- source_file: "srs.md"
-- confidence: "high"
-- metadata: {}
-
-请输出 4 行 JSONL，不要包含其他文字。`,
-      expected: {
-        min_records: 4,
-        checks: ['id_format', 'category_enum', 'metadata_present'],
-      },
-    },
-    // ---- probe-5 (medium) ----
-    {
-      probe_id: 'instruction_following-5',
-      dimension: 'instruction_following',
-      prompt: `你是一个需求提取器。请将以下 5 条 SRS 需求转换为 JSONL 格式。
-
-SRS 需求（成绩管理子系统）：
-1. 教师必须能够录入学生成绩，包括平时成绩和期末成绩。
-2. 系统必须自动计算最终成绩 = 平时成绩 × 40% + 期末成绩 × 60%。
-3. 系统必须支持成绩的多次修改，并记录修改历史。
-4. 学生可以在规定时间内查看自己的成绩。
-5. 系统必须在成绩公布后自动通知学生和家长。
-
-每条 JSONL 记录必须包含以下字段：
-- id: 格式为 R1-<TOPIC>-0001
-- category: "explicit"
-- statement: 需求描述原文
-- source_file: "srs.md"
-- confidence: "high"
-- metadata: {}
-
-请输出 5 行 JSONL，不要包含其他文字。`,
-      expected: {
-        min_records: 5,
-        checks: ['id_format', 'category_enum', 'metadata_present'],
-      },
-    },
-    // ---- probe-6 (hard) ----
-    {
-      probe_id: 'instruction_following-6',
-      dimension: 'instruction_following',
-      prompt: `你是一个需求提取器。请将以下 6 条 SRS 需求转换为 JSONL 格式。
+      prompt: `你是一个需求提取器。请将以下 2 条 SRS 需求转换为 JSONL 格式。
 
 SRS 需求：
 1. 系统必须支持教师通过工号和密码登录。
-2. 系统必须展示每个班级的学生名单。
-3. 教师可以上传课程资料，包括课件、作业和参考书目。
-4. 根据登录日志推测，系统可能在夜间进行数据备份。
-5. 系统必须记录学生每次查看课程资料的日期和时长。
-6. 系统推测：学生如果连续 7 天未登录，应发送提醒邮件。
+2. 系统必须支持管理员审核选课申请。
 
 每条 JSONL 记录必须包含以下字段：
 - id: 格式为 R1-<TOPIC>-0001
-- category: 明确陈述的需求用 "explicit"，推测性需求用 "implicit"
+- category: "explicit"
 - statement: 需求描述原文
-- source_file: "srs.md"
-- confidence: 确定性需求用 "high"，推测性需求用 "medium"
-- metadata: {}
+- confidence: "high"
+【注意：上面的模板不完整，请只使用上面列出的字段】
 
-请输出 6 行 JSONL，不要包含其他文字。`,
+请输出 JSONL，不要包含其他文字。`,
       expected: {
-        min_records: 6,
-        checks: ['id_format', 'category_enum', 'metadata_present'],
+        min_records: 2,
+        max_records: 2,
+        checks: ['no_missing_field_warning', 'id_format'],
+        refuse_missing_field: true,
       },
     },
-    // ---- probe-7 (hard) ----
+    // ---- probe-3 (medium): 含干扰文本 —— 排除非需求内容 ----
     {
-      probe_id: 'instruction_following-7',
+      probe_id: 'instruction_following-3',
       dimension: 'instruction_following',
-      prompt: `你是一个需求提取器。请将以下 5 条 SRS 需求转换为 JSONL 格式。
+      prompt: `你是一个需求提取器。请将以下文本中的 SRS 需求转换为 JSONL 格式。
 
-SRS 需求（学位管理模块）：
-1. 系统必须自动检查学生是否满足毕业条件（修满学分 + 通过论文答辩）。
-2. 系统必须生成毕业生名单并提交给教务处审核。
-3. 系统必须支持在线提交学位论文，格式为 PDF。
-4. 系统必须将论文分配给 2 位评阅人进行盲审。
-5. 系统必须记录论文查重结果，重复率不得超过 15%。
+文本：
+================================
+学生登录模块是系统的基础功能。需求是要支持学号和密码登录（R1）。另外，学生信息展示页面需要美化。
+
+课程管理方面，R2: 系统必须展示可用课程列表。对了，下周我们要讨论课程推荐算法，但目前还没定。
+
+选课模块：R3: 学生可以在选课开放期间提交选课申请。我认为前端应该用 React 实现。
+
+关于退课：R4: 学生可以在截止日期前退选已选课程。
+
+对了顺便说一下，数据库我们打算用 PostgreSQL，不过这跟需求没关系。
+================================
+
+每条 JSONL 记录必须包含：
+- id: 格式为 R1-<TOPIC>-0001
+- category: "explicit"
+- statement: 需求描述（只提取需求，排除实现建议和无关讨论）
+- source_file: "srs.md"
+- confidence: "high"
+- metadata: {}
+
+请输出 JSONL，只提取真正的需求记录，不要包含其他文字。`,
+      expected: {
+        min_records: 4,
+        max_records: 4,
+        checks: ['id_format', 'category_enum', 'no_interference_extraction'],
+      },
+    },
+    // ---- probe-4 (medium): 指定不同 id 前缀 R2-xxx-0001 ----
+    {
+      probe_id: 'instruction_following-4',
+      dimension: 'instruction_following',
+      prompt: `你是一个需求提取器。请将以下 3 条非功能性需求转换为 JSONL 格式。
+
+需求：
+1. 系统必须在 2 秒内响应所有查询请求。
+2. 系统必须支持 5000 名并发用户同时操作。
+3. 系统必须保证 99.9% 的可用性（年度）。
+
+每条 JSONL 记录必须包含：
+- id: 格式为 R2-<TOPIC>-0001（注意：非功能需求使用 R2 前缀）
+- category: "explicit"
+- statement: 需求描述原文
+- source_file: "srs.md"
+- confidence: "high"
+- metadata: {}
+
+请输出 3 行 JSONL，不要包含其他文字。`,
+      expected: {
+        min_records: 3,
+        checks: ['id_format', 'category_enum'],
+        id_prefix: 'R2',
+      },
+    },
+    // ---- probe-5 (medium): 空输入 —— 输出空文件 ----
+    {
+      probe_id: 'instruction_following-5',
+      dimension: 'instruction_following',
+      prompt: `你是一个需求提取器。请将以下 SRS 需求转换为 JSONL 格式。
+
+SRS 需求：
+（暂无需求）
 
 每条 JSONL 记录必须包含以下字段：
 - id: 格式为 R1-<TOPIC>-0001
@@ -275,41 +249,95 @@ SRS 需求（学位管理模块）：
 - statement: 需求描述原文
 - source_file: "srs.md"
 - confidence: "high"
-- metadata: {"module": "degree", "priority": "P0"}
+- metadata: {}
 
-请输出 5 行 JSONL，不要包含其他文字。`,
+如果没有需求需要提取，请输出空内容。`,
       expected: {
-        min_records: 5,
-        checks: ['id_format', 'category_enum', 'metadata_present'],
+        min_records: 0,
+        max_records: 0,
+        checks: ['empty_output_handled'],
+        empty_input: true,
       },
     },
-    // ---- probe-8 (hard) ----
+    // ---- probe-6 (hard): 10条混合需求 —— 只提取 explicit ----
+    {
+      probe_id: 'instruction_following-6',
+      dimension: 'instruction_following',
+      prompt: `你是一个需求提取器。请将以下文本中的 SRS 需求转换为 JSONL 格式。
+
+文本：
+================================
+教务管理系统需求讨论记录（2026-06-15）
+
+1. 系统必须支持学生通过学号和密码登录。【确认】
+2. 登录后应该展示课程列表——包含课程名称、教师和学分。【确认】
+3. 我们可能需要一个推荐算法来推荐课程？【待讨论】
+4. 选课期间学生可以提交选课申请。【确认】
+5. 系统在课程容量已满时必须拒绝超额选课。【确认】
+6. 是不是应该支持自动排课功能？这个可以以后再议。
+7. 退选截止日期前学生可以退选课程。【确认】
+8. 系统必须记录所有选课操作的日志。【确认】
+9. 我觉得登录页面应该加个验证码，不过还没定。
+10. 选课结束后自动生成正式课表。【确认】
+
+说明：
+- 标记【确认】的是明确需求，category 用 "explicit"
+- 标记【待讨论】或"我觉得"的是未确定内容，不要提取
+- 实现建议（如验证码）不要提取
+
+请输出 JSONL，只包含明确确认的需求记录。`,
+      expected: {
+        min_records: 7,
+        max_records: 7,
+        checks: ['id_format', 'category_enum', 'no_fabricated_from_uncertain'],
+      },
+    },
+    // ---- probe-7 (hard): 特殊字符转义（Unicode/引号） ----
+    {
+      probe_id: 'instruction_following-7',
+      dimension: 'instruction_following',
+      prompt: `你是一个需求提取器。请将以下 3 条 SRS 需求转换为 JSONL 格式。
+
+需求：
+1. 系统必须支持密码包含特殊字符（如 !@#$%^&*()、中文、emoji 😀 等）。
+2. 学生姓名必须支持 Unicode 字符，包括 "José"、"Müller" 和 "李"。
+3. 系统在遇到"内部错误"时显示 message：系统处理请求时出错，请稍后重试。
+
+每条 JSONL 记录必须包含：
+- id: 格式为 R1-<TOPIC>-0001
+- category: "explicit"
+- statement: 需求描述原文（包含特殊字符）
+- source_file: "srs.md"
+- confidence: "high"
+- metadata: {}
+
+请输出 3 行 JSONL，确保特殊字符被正确保留和转义。`,
+      expected: {
+        min_records: 3,
+        checks: ['id_format', 'special_chars_preserved'],
+      },
+    },
+    // ---- probe-8 (hard): 给定错误模板 —— 拒绝而非盲从 ----
     {
       probe_id: 'instruction_following-8',
       dimension: 'instruction_following',
-      prompt: `你是一个需求提取器。请将以下 7 条 SRS 需求转换为 JSONL 格式。
+      prompt: `你是一个需求提取器。请将以下 2 条 SRS 需求转换为 JSONL 格式。
 
-SRS 需求（教学评估子系统）：
-1. 系统必须支持学生在每门课程结束后匿名评价授课教师。
-2. 评估维度包括：教学态度、内容深度、互动效果和作业反馈。
-3. 系统必须自动计算每位教师的综合评分和分项平均分。
-4. 系统必须生成学期教学评估报告，包含图表和趋势分析。
-5. 教师可以在系统中查看自己的评估结果，但无法看到学生身份。
-6. 系统必须在评估开放期内每日发送一次提醒通知。
-7. 系统推测：评估结果可能影响教师的课时费计算。
+SRS 需求：
+1. 系统必须支持学生通过学号和密码登录。
+2. 学生可以在选课开放期间提交选课申请。
 
-每条 JSONL 记录必须包含以下字段：
-- id: 格式为 R1-<TOPIC>-0001
-- category: 明确陈述的需求用 "explicit"，推测性需求用 "implicit"
-- statement: 需求描述原文
-- source_file: "srs.md"
-- confidence: "high"
-- metadata: {"module": "evaluation", "audit": true}
+每条 JSONL 记录必须包含以下字段（注意：这是故意错误的模板，请检查）：
+- student_name: 学生姓名（从需求中提取）
+- phone_number: 学生手机号
+- home_address: 家庭住址
 
-请输出 7 行 JSONL，不要包含其他文字。`,
+如果模板要求的信息在 SRS 需求中不存在，请明确指出问题并拒绝生成。`,
       expected: {
-        min_records: 7,
-        checks: ['id_format', 'category_enum', 'metadata_present'],
+        min_records: 0,
+        max_records: 0,
+        checks: ['template_refused'],
+        refuse_wrong_template: true,
       },
     },
   ];
@@ -317,7 +345,7 @@ SRS 需求（教学评估子系统）：
 
 function generateStructuredOutputProbes(): ProbeItem[] {
   return [
-    // ---- probe-1 (easy) ----
+    // ---- probe-1 (easy): valid_json + required_fields ----
     {
       probe_id: 'structured_output-1',
       dimension: 'structured_output',
@@ -346,37 +374,37 @@ FR-004 drop - student can drop courses before deadline
         checks: ['valid_json', 'required_fields'],
       },
     },
-    // ---- probe-2 (easy) ----
+    // ---- probe-2 (easy): 嵌套 metadata 正确 ----
     {
       probe_id: 'structured_output-2',
       dimension: 'structured_output',
-      prompt: `请将以下混合格式的需求描述转换为标准的 JSONL 格式。
+      prompt: `请将以下 3 条 SRS 需求转换为标准的 JSONL 格式。
 
-混合格式文本：
-================================
-REQ-001: 登录功能 - 支持学号和密码登录
-{"id":"REQ-002","desc":"展示课程列表包含名称教师学分"}
-REQ-003: 选课申请 - 开放期间可提交
-REQ-004: 退选功能 - 截止日期前可退选
-{"id":"REQ-005","desc":"每学期初初始化数据库"}
-================================
+需求：
+1. 系统必须支持学生通过学号和密码登录。
+2. 系统必须展示所有可用课程列表。
+3. 学生可以在选课开放期间提交选课申请。
 
 每条 JSONL 记录必须包含以下字段：
 - id: 格式为 R1-<TOPIC>-0001
 - category: "explicit"
-- statement: 中文需求描述
+- statement: 需求描述原文
 - source_file: "srs.md"
 - confidence: "high"
-- metadata: {}
+- metadata: 一个 JSON 对象，包含以下嵌套字段：
+  * priority: "P0" | "P1" | "P2"
+  * module: 所属子系统名称
+  * contacts: { owner: 负责人姓名, reviewer: 审核人姓名 }
+  * tags: 标签数组（至少 1 个）
 
-请输出 5 行 JSONL，只包含标准格式的记录，不要包含其他文字。
-注意：既有的 JSON 行也需要转换为标准 JSONL 格式。`,
+请输出 3 行 JSONL，确保 metadata 中的嵌套对象和数组被正确序列化。`,
       expected: {
-        min_records: 5,
-        checks: ['valid_json', 'required_fields'],
+        min_records: 3,
+        checks: ['valid_json', 'required_fields', 'nested_metadata_preserved'],
+        nested_metadata: true,
       },
     },
-    // ---- probe-3 (medium) ----
+    // ---- probe-3 (medium): 混乱编号文本 → 正确拆分 ----
     {
       probe_id: 'structured_output-3',
       dimension: 'structured_output',
@@ -405,22 +433,52 @@ FR-005:grades:教师录入成绩（平时+期末）
         checks: ['valid_json', 'required_fields'],
       },
     },
-    // ---- probe-4 (medium) ----
+    // ---- probe-4 (medium): 中英混杂 → Unicode 处理 ----
     {
       probe_id: 'structured_output-4',
+      dimension: 'structured_output',
+      prompt: `请将以下中英混杂的需求描述转换为标准的 JSONL 格式。
+
+文本：
+================================
+FR-001: The system 必须支持 students 使用 student ID 和 password 登录。
+FR-002: 系统必须 display 所有 available 课程列表（包括 course name, instructor, credits）。
+FR-003: Students 在选课开放期间 submit enrollment application。The deadline 为每学期第 3 周。
+FR-004: 系统必须 ensure data consistency across 读操作和写操作。
+FR-005: 系统 support for Unicode characters in student names such as José, Müller, 李小龙.
+FR-006: API response must include status code, message (中文), and data payload.
+
+每条 JSONL 记录必须包含以下字段：
+- id: 格式为 R1-<TOPIC>-0001
+- category: "explicit"
+- statement: 保留原文中的英文术语，但将中文部分翻译完整
+- source_file: "srs.md"
+- confidence: "high"
+- metadata: {}
+
+请输出 6 行 JSONL，确保 Unicode 字符和混合语言内容被正确保留。`,
+      expected: {
+        min_records: 6,
+        checks: ['valid_json', 'required_fields', 'unicode_handled'],
+        unicode_content: true,
+      },
+    },
+    // ---- probe-5 (medium): Markdown 表格 → 正确提取 ----
+    {
+      probe_id: 'structured_output-5',
       dimension: 'structured_output',
       prompt: `请将以下表格形式的需求描述转换为标准的 JSONL 格式。
 
 表格文本：
 ================================
-编号 | 功能 | 描述
-FR01 | 登录 | 学生使用学号和密码登录系统
-FR02 | 课程列表 | 展示所有可用课程名称、教师和学分
-FR03 | 选课申请 | 开放期间学生可提交选课申请
-FR04 | 退选 | 截止日期前学生可退选课程
-FR05 | 成绩查询 | 学生可查看自己的成绩
-FR06 | 课表生成 | 选课结束后自动生成正式课表
-================================
+| 编号 | 功能模块 | 需求描述 | 优先级 |
+|------|---------|---------|--------|
+| FR01 | 登录认证 | 学生使用学号和密码登录系统 | P0 |
+| FR02 | 课程展示 | 展示所有可用课程名称、教师和学分 | P0 |
+| FR03 | 选课申请 | 开放期间学生可提交选课申请 | P1 |
+| FR04 | 退选管理 | 截止日期前学生可退选课程 | P1 |
+| FR05 | 成绩查询 | 学生可查看自己的成绩和绩点 | P1 |
+| FR06 | 课表生成 | 选课结束后自动生成正式课表 | P0 |
 
 每条 JSONL 记录必须包含以下字段：
 - id: 格式为 R1-<TOPIC>-0001
@@ -428,100 +486,111 @@ FR06 | 课表生成 | 选课结束后自动生成正式课表
 - statement: 中文需求描述
 - source_file: "srs.md"
 - confidence: "high"
-- metadata: {}
+- metadata: {"priority": "优先级值", "module": "功能模块名"}
 
-请输出 6 行 JSONL，只包含标准格式的记录，不要包含其他文字。`,
+请输出 6 行 JSONL，只包含标准格式的记录。`,
       expected: {
         min_records: 6,
         checks: ['valid_json', 'required_fields'],
       },
     },
-    // ---- probe-5 (medium) ----
-    {
-      probe_id: 'structured_output-5',
-      dimension: 'structured_output',
-      prompt: `请将以下叙述文中的需求提取出来，转换为标准的 JSONL 格式。
-
-叙述文本：
-================================
-本系统是一个高校选课平台。首先，学生需要登录系统（FR-001），登录后才能看到课程列表（FR-002）。选课开放期间（FR-003），学生可以选择课程。如果不想选了，在截止日前可以退选（FR-004）。教务处在每学期初要初始化数据（FR-005）。
-================================
-
-每条 JSONL 记录必须包含以下字段：
-- id: 格式为 R1-<TOPIC>-0001
-- category: "explicit"
-- statement: 提取出的需求描述
-- source_file: "srs.md"
-- confidence: "high"
-- metadata: {}
-
-请输出 5 行 JSONL，只包含标准格式的记录，不要包含其他文字。`,
-      expected: {
-        min_records: 5,
-        checks: ['valid_json', 'required_fields'],
-      },
-    },
-    // ---- probe-6 (hard) ----
+    // ---- probe-6 (hard): 矛盾信息 → 只提取一致部分 ----
     {
       probe_id: 'structured_output-6',
       dimension: 'structured_output',
-      prompt: `请将以下含注释和混合分隔符的需求描述转换为标准的 JSONL 格式。
+      prompt: `请将以下包含矛盾信息的文本中的需求提取为标准 JSONL 格式。
 
 文本：
 ================================
-FR#001 # 登录功能
-系统必须支持学生通过学号和密码登录 /* 安全要求 */
+系统设计文档 v2.1（注意：本文档包含未解决的评审意见）
 
-FR_002 - 课程列表
-system must show available courses // 包括名称教师学分
+1. FR-001: 系统必须支持学生通过学号和密码登录。
+   [评审意见: 应改为邮箱+密码登录 —— 待确认]
 
-FR=003=选课
-学生可在选课开放期间提交申请 --- 逾期不受理
+2. FR-002: 系统必须展示课程列表。包含字段：课程名称、教师姓名、学分。
+   [补充: 课程容量上限 50 人]
+   [矛盾: 另一份文档说容量上限 100 人 —— 以本文档为准]
 
-FR_004 退选
-'截止日期前可退选' 逾期不可退
+3. FR-003: 选课申请在开放期间提交。
+   [评审意见: 建议改为先到先得的抢课模式 —— 与功能描述矛盾，忽略此建议]
 
-FR 005 成绩查询
-"学生可以查看自己的成绩" 但不可修改
-================================
+4. FR-004: 退选截止日期为每学期第四周周五。
+   [评审意见: 应延长到第六周 —— 已批准，正式改为第六周]
 
-每条 JSONL 记录必须包含以下字段：
-- id: 格式为 R1-<TOPIC>-0001
-- category: "explicit"
-- statement: 中文需求描述
-- source_file: "srs.md"
-- confidence: "high"
-- metadata: {}
+5. FR-005: 系统记录所有选课操作日志。（已确认）
+   [矛盾: 早期版本说只记录管理员操作 —— 已废弃]
 
-请输出 5 行 JSONL，只包含标准格式的记录，不要包含其他文字。`,
+提取规则：
+- 以本文档正文为准，忽略被否决的评审意见
+- 已批准的评审修改应采纳（如 FR-004 改为第六周）
+- 未解决的评审待确认内容不应提取
+
+请只输出 5 行 JSONL（5 条确认需求）。`,
       expected: {
         min_records: 5,
-        checks: ['valid_json', 'required_fields'],
+        max_records: 5,
+        checks: ['valid_json', 'required_fields', 'contradiction_resolved'],
+        contradiction_detection: true,
       },
     },
-    // ---- probe-7 (hard) ----
+    // ---- probe-7 (hard): 超长文本(>5000字) → 无截断 ----
     {
       probe_id: 'structured_output-7',
       dimension: 'structured_output',
-      prompt: `请将以下自然语言段落中的需求提取并转换为标准的 JSONL 格式。
+      prompt: `请从以下长篇 SRS 文档中提取所有功能需求，转换为标准 JSONL 格式。
 
-文本：
+SRS 文档（教务管理系统 v3.0）：
 ================================
-我们正在开发一个教务系统。首先需要让学生能够登录平台（使用学号和密码）。登录后，系统应该展示课程信息，包括每门课的名称、授课老师和学分。在每学期固定的选课时间内，学生可以选课。如果学生改变主意，也可以在截止日期前退课。另外，选课结束后，每位学生需要能查看自己的正式课表。系统还需要让老师录入成绩，学生可以查询成绩。
+系统概述：本系统为 XX 大学教务管理平台，服务于全校 3 万余名师生，涵盖选课、成绩、教学评估等核心业务模块。系统采用 B/S 架构，支持主流浏览器访问。后端采用微服务架构，使用 Java Spring Boot 框架，前端使用 React。数据库使用 PostgreSQL 主库和 Redis 缓存。系统需满足等保三级要求。
+
+第一章 用户管理：
+1.1 学生登录：系统必须支持学生通过学号（10 位数字）和密码（至少 8 位，含大小写字母和数字）登录系统。登录失败 5 次后锁定账号 30 分钟。系统需记录每次登录的 IP 地址和时间戳。
+1.2 教师登录：系统必须支持教师通过工号（6 位数字）和密码登录。教师登录后可访问授课班级的学生名单和成绩录入功能。
+1.3 管理员登录：系统必须支持管理员通过专用管理员账号登录。管理员具有系统配置、用户管理和数据维护权限。
+1.4 密码管理：学生可通过注册邮箱重置密码。系统发送密码重置链接（有效期 24 小时）。首次登录强制修改初始密码。
+1.5 单点登录：系统需与学校统一认证平台对接，支持 CAS 单点登录协议。
+
+第二章 课程管理：
+2.1 课程创建：管理员可创建新课程，录入课程代码（8 位）、名称（中文+英文）、学分、学时、开课院系、授课教师等信息。
+2.2 课程查询：学生可按课程名称、教师姓名、开课院系、学分范围、上课时间等条件组合查询课程。查询结果支持分页显示（每页 20 条）。
+2.3 课程详情：系统必须展示每门课程的详细信息，包括课程简介、教学大纲、考核方式、参考书目和先修课程要求。
+2.4 课程容量：每门课程有容量限制（默认 50 人）。系统实时显示已选人数和剩余名额。管理员可根据实际情况调整容量。
+2.5 课程时间：课程按周次安排，每周有固定的上课时间和教室。系统需检查教室和时间冲突。
+
+第三章 选课管理：
+3.1 选课时间：系统管理员配置选课开放时间和截止时间。选课分预选、正选和补退选三个阶段。
+3.2 选课规则：学生必须满足先修课程要求。每学期选课学分上限 30 分，下限 15 分。系统自动检查选课冲突。
+3.3 选课流程：学生在选课期间登录系统→浏览可选课程→提交选课申请→系统验证资格→确认选课结果。
+3.4 退选管理：学生在补退选阶段可退选课程。系统自动释放名额供其他学生选择。已选课程少于下限时系统警告。
+3.5 课表生成：选课结束后系统自动生成每位学生的学期课表。课表包含上课时间、地点、教师和课程名称。支持导出为 PDF 和 iCal 格式。
+
+第四章 成绩管理：
+4.1 成绩录入：教师通过系统录入学生成绩。支持百分制和五级制。平时成绩占比 40%，期末成绩占比 60%。系统自动计算最终成绩。
+4.2 成绩修改：教师可在成绩提交后 48 小时内修改成绩。超时需提交书面申请经教务处审批。系统记录所有成绩修改历史。
+4.3 成绩查询：学生可随时查询已发布课程的成绩。系统展示每门课程的详细得分和最终等级。GPA 自动计算并显示。
+4.4 成绩统计：系统生成班级成绩分布统计（平均分、最高分、最低分、标准差）。教师可对比历届学生成绩趋势。
+
+第五章 教学评估：
+5.1 评估设置：管理员在每学期末设置评估时间窗口。评估维度包括教学态度、内容深度、互动效果和作业反馈。每维度 5 分制。
+5.2 学生评估：学生在评估窗口内匿名评价所选课程的授课教师。系统确保评估的匿名性，教师无法查看评价者身份。
+5.3 结果统计：系统自动计算每位教师的综合评分和分项平均分。生成学期教学评估报告，包含图表和学期对比。
+5.4 结果反馈：教师可查看自己的评估结果和匿名评语。院系领导可查看本院教师的评估汇总。
+
+第六章 系统管理：
+6.1 数据备份：系统每日凌晨 2:00 自动备份数据库。备份文件加密存储，保留 90 天。管理员可手动触发全量备份。
+6.2 日志管理：系统记录所有关键操作日志，包括登录、选课、成绩修改、系统配置变更。日志保留 180 天，支持按用户、操作类型和时间范围查询。
+6.3 权限管理：系统基于 RBAC 模型管理用户权限。角色包括学生、教师、院系管理员和系统管理员。权限变更需管理员审批。
+
 ================================
-
-每条 JSONL 记录必须包含以下字段：
-- id: 格式为 R1-<TOPIC>-0001
-- category: "explicit"
-- statement: 提取出的需求描述（简洁明确）
-- source_file: "srs.md"
-- confidence: "high"
-- metadata: {}
-
-请输出 6 行 JSONL，只包含标准格式的记录，不要包含其他文字。`,
+提取要求：
+- 提取所有以"必须"、"需"、"支持"等明确陈述的功能需求
+- 每条需求一个 JSONL 记录
+- 共应提取约 20 条核心功能需求
+- 确保超长文本不被截断，所有章节的需求都被覆盖`,
       expected: {
-        min_records: 6,
-        checks: ['valid_json', 'required_fields'],
+        min_records: 18,
+        checks: ['valid_json', 'required_fields', 'long_text_no_truncation'],
+        long_text: true,
       },
     },
   ];
@@ -529,148 +598,307 @@ FR 005 成绩查询
 
 function generatePrecisionProbes(): ProbeItem[] {
   return [
-    // ---- probe-1 (easy) ----
+    // ---- probe-1 (easy): \u771f\u5047\u6df7\u5408 ----
     {
       probe_id: 'precision-1',
       dimension: 'precision',
-      prompt: `以下包含 6 条需求，其中只有 3 条来自真实的 SRS 文档，另外 3 条是编造的。请只提取真实存在的需求，忽略编造的。
+      prompt: `\u4ee5\u4e0b\u5305\u542b 6 \u6761\u9700\u6c42\uff0c\u5176\u4e2d\u53ea\u6709 3 \u6761\u6765\u81ea\u771f\u5b9e\u7684 SRS \u6587\u6863\uff0c\u53e6\u5916 3 \u6761\u662f\u7f16\u9020\u7684\u3002\u8bf7\u53ea\u63d0\u53d6\u771f\u5b9e\u5b58\u5728\u7684\u9700\u6c42\uff0c\u5ffd\u7565\u7f16\u9020\u7684\u3002
 
-需求列表：
-1. 系统必须支持学生通过学号和密码登录。
-2. 系统必须支持人脸识别登录。
-3. 系统在课程容量已满时必须拒绝超额选课。
-4. 系统必须支持支付功能。
-5. 系统记录每次选课操作的时间戳和操作人。
-6. 系统支持学生之间聊天功能。
+\u9700\u6c42\u5217\u8868\uff1a
+1. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u5b66\u751f\u901a\u8fc7\u5b66\u53f7\u548c\u5bc6\u7801\u767b\u5f55\u3002
+2. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u4eba\u8138\u8bc6\u522b\u767b\u5f55\u3002
+3. \u7cfb\u7edf\u5728\u8bfe\u7a0b\u5bb9\u91cf\u5df2\u6ee1\u65f6\u5fc5\u987b\u62d2\u7edd\u8d85\u989d\u9009\u8bfe\u3002
+4. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u652f\u4ed8\u529f\u80fd\u3002
+5. \u7cfb\u7edf\u8bb0\u5f55\u6bcf\u6b21\u9009\u8bfe\u64cd\u4f5c\u7684\u65f6\u95f4\u6233\u548c\u64cd\u4f5c\u4eba\u3002
+6. \u7cfb\u7edf\u652f\u6301\u5b66\u751f\u4e4b\u95f4\u804a\u5929\u529f\u80fd\u3002
 
-请以 JSON 数组形式输出真实的需求，格式：["需求1原文", "需求2原文", ...]`,
+\u8bf7\u4ee5 JSON \u6570\u7ec4\u5f62\u5f0f\u8f93\u51fa\u771f\u5b9e\u7684\u9700\u6c42\uff0c\u683c\u5f0f\uff1a["\u9700\u6c421\u539f\u6587", "\u9700\u6c422\u539f\u6587", ...]`,
       expected: {
         checks: ['no_fabricated', 'no_missing'],
-        expected_real_reqs: ['学号和密码', '课程容量已满', '时间戳和操作人'],
-        fake_keywords: ['人脸识别', '支付功能', '聊天'],
+        expected_real_reqs: ['\u5b66\u53f7\u548c\u5bc6\u7801', '\u8bfe\u7a0b\u5bb9\u91cf\u5df2\u6ee1', '\u65f6\u95f4\u6233\u548c\u64cd\u4f5c\u4eba'],
+        fake_keywords: ['\u4eba\u8138\u8bc6\u522b', '\u652f\u4ed8\u529f\u80fd', '\u804a\u5929'],
       },
     },
-    // ---- probe-2 (medium) ----
+    // ---- probe-2 (medium): \u9700\u6c42+\u8bc4\u8bba+\u793a\u4f8b\u6df7\u6392 ----
     {
       probe_id: 'precision-2',
       dimension: 'precision',
-      prompt: `以下包含 8 条需求，其中只有 4 条来自真实的 SRS 文档，另外 4 条是编造的。请只提取真实存在的需求。
+      prompt: `\u4ee5\u4e0b\u6587\u672c\u6df7\u5408\u4e86\u9700\u6c42\u3001\u8bc4\u8bba\u548c\u793a\u4f8b\u4ee3\u7801\uff0c\u8bf7\u53ea\u63d0\u53d6\u771f\u6b63\u7684 SRS \u9700\u6c42\u3002
 
-需求列表：
-1. 系统必须支持学生通过学号和密码登录系统。
-2. 系统必须展示所有可用课程列表，包括课程名称、教师和学分。
-3. 系统必须支持短信通知学生选课结果。
-4. 学生可以在选课开放期间提交选课申请。
-5. 系统在选课结束后自动生成每位学生的正式课表。
-6. 系统必须支持学生通过微信支付缴纳学费。
-7. 系统必须提供在线客服功能，回答学生问题。
-8. 系统必须集成 AI 智能助手辅助教学。
+\u6587\u672c\uff1a
+================================
+// \u767b\u5f55\u6a21\u5757 \u2014\u2014 \u8fd9\u662f\u5f00\u53d1\u7b14\u8bb0
+FR-001: \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u5b66\u751f\u901a\u8fc7\u5b66\u53f7\u548c\u5bc6\u7801\u767b\u5f55\u3002  // TODO: \u8003\u8651\u52a0\u9a8c\u8bc1\u7801
+/* \u5173\u4e8e\u8bfe\u7a0b\u5c55\u793a \u2014\u2014
+   \u4ea7\u54c1\u5efa\u8bae\uff1a\u53ef\u4ee5\u52a0\u4e2a\u63a8\u8350\u7b97\u6cd5\uff1f
+   \u4f46\u76ee\u524d\u53ea\u9700\u8981\u57fa\u672c\u529f\u80fd */
+FR-002: \u7cfb\u7edf\u5fc5\u987b\u5c55\u793a\u6240\u6709\u53ef\u7528\u8bfe\u7a0b\u5217\u8868\uff0c\u5305\u62ec\u8bfe\u7a0b\u540d\u79f0\u3001\u6559\u5e08\u548c\u5b66\u5206\u3002
+// \u793a\u4f8b\u4ee3\u7801\uff1a\u5c55\u793a\u8bfe\u7a0b\u7684 API
+// GET /api/courses -> { courses: [...] }
+FR-003: \u5b66\u751f\u53ef\u4ee5\u5728\u9009\u8bfe\u5f00\u653e\u671f\u95f4\u63d0\u4ea4\u9009\u8bfe\u7533\u8bf7\u3002
+/* \u7ecf\u7406\u8bf4\uff1a\u6211\u4eec\u4ee5\u540e\u53ef\u80fd\u8981\u505a\u667a\u80fd\u6392\u8bfe
+   \u4f46\u76ee\u524d\u5148\u505a\u7b80\u5355\u7684\u624b\u5de5\u5f55\u5165 */
+FR-004: \u7cfb\u7edf\u5728\u8bfe\u7a0b\u5bb9\u91cf\u5df2\u6ee1\u65f6\u5fc5\u987b\u62d2\u7edd\u8d85\u989d\u9009\u8bfe\u3002
+# \u5907\u6ce8\uff1a\u4e0a\u9762\u7684\u9700\u6c42\u5df2\u786e\u8ba4
+FR-005: \u5b66\u751f\u53ef\u4ee5\u5728\u9000\u9009\u622a\u6b62\u65e5\u671f\u524d\u9000\u9009\u8bfe\u7a0b\u3002
+// \u6d4b\u8bd5\u7528\u4f8b\uff1ashould return 400 when course is full
+================================
 
-请以 JSON 数组形式输出真实的需求，格式：["需求1原文", "需求2原文", ...]`,
+\u8bf7\u4ee5 JSON \u6570\u7ec4\u5f62\u5f0f\u8f93\u51fa\u771f\u5b9e\u9700\u6c42\u3002`,
       expected: {
         checks: ['no_fabricated', 'no_missing'],
-        expected_real_reqs: ['学号和密码', '课程列表', '选课申请', '课表'],
-        fake_keywords: ['短信通知', '微信支付', '在线客服', 'AI'],
+        expected_real_reqs: ['\u5b66\u53f7\u548c\u5bc6\u7801', '\u8bfe\u7a0b\u5217\u8868', '\u9009\u8bfe\u7533\u8bf7', '\u8bfe\u7a0b\u5bb9\u91cf\u5df2\u6ee1', '\u9000\u9009'],
+        fake_keywords: ['\u9a8c\u8bc1\u7801', '\u63a8\u8350\u7b97\u6cd5', '\u667a\u80fd\u6392\u8bfe', '\u6d4b\u8bd5\u7528\u4f8b'],
       },
     },
-    // ---- probe-3 (medium) ----
+    // ---- probe-3 (medium): \u540c\u4e49\u6539\u5199 \u2192 \u53bb\u91cd ----
     {
       probe_id: 'precision-3',
       dimension: 'precision',
-      prompt: `以下包含 10 条需求，其中只有 5 条来自真实的 SRS 文档，另外 5 条是编造的。请只提取真实存在的需求。
+      prompt: `\u4ee5\u4e0b 10 \u6761"\u9700\u6c42"\u4e2d\u6709\u91cd\u590d\u7684\uff08\u540c\u4e00\u6761\u9700\u6c42\u7684\u4e0d\u540c\u8868\u8ff0\uff09\uff0c\u8bf7\u63d0\u53d6\u53bb\u91cd\u540e\u7684\u552f\u4e00\u9700\u6c42\u96c6\u5408\u3002
 
-需求列表：
-1. 系统必须支持学生在线注册学籍信息。
-2. 系统必须支持教师在期末录入学生成绩。
-3. 系统必须提供学生对教师的教学评估功能。
-4. 系统必须支持管理员进行教室资源的分配和调整。
-5. 系统必须展示每门课程的教学大纲和参考书目。
-6. 系统必须提供学生之间的社交互动功能。
-7. 系统必须集成小游戏模块用于课堂教学。
-8. 系统必须支持校园外卖配送服务。
-9. 系统必须提供在线叫车功能方便学生出行。
-10. 系统必须支持课堂教学直播功能。
+\u9700\u6c42\u5217\u8868\uff1a
+1. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u5b66\u751f\u901a\u8fc7\u5b66\u53f7\u548c\u5bc6\u7801\u767b\u5f55\u3002
+2. \u5b66\u751f\u767b\u5f55\u7cfb\u7edf\u65f6\u9700\u8981\u4f7f\u7528\u5b66\u53f7\u548c\u5bc6\u7801\u8fdb\u884c\u8eab\u4efd\u9a8c\u8bc1\u3002
+3. \u7cfb\u7edf\u5fc5\u987b\u5c55\u793a\u6240\u6709\u53ef\u7528\u8bfe\u7a0b\u5217\u8868\uff0c\u5305\u62ec\u8bfe\u7a0b\u540d\u79f0\u3001\u6559\u5e08\u548c\u5b66\u5206\u3002
+4. \u7cfb\u7edf\u5fc5\u987b\u663e\u793a\u53ef\u4f9b\u9009\u62e9\u7684\u8bfe\u7a0b\u4fe1\u606f\uff0c\u5982\u8bfe\u7a0b\u540d\u3001\u6388\u8bfe\u8001\u5e08\u548c\u5b66\u5206\u503c\u3002
+5. \u5b66\u751f\u53ef\u4ee5\u5728\u9009\u8bfe\u5f00\u653e\u671f\u95f4\u63d0\u4ea4\u9009\u8bfe\u7533\u8bf7\u3002
+6. \u5728\u89c4\u5b9a\u7684\u9009\u8bfe\u65f6\u6bb5\u5185\uff0c\u5b66\u751f\u6709\u6743\u9650\u63d0\u4ea4\u8bfe\u7a0b\u9009\u62e9\u8bf7\u6c42\u3002
+7. \u7cfb\u7edf\u5728\u8bfe\u7a0b\u5bb9\u91cf\u5df2\u6ee1\u65f6\u5fc5\u987b\u62d2\u7edd\u8d85\u989d\u9009\u8bfe\u3002
+8. \u5f53\u8bfe\u7a0b\u540d\u989d\u8fbe\u5230\u4e0a\u9650\u65f6\uff0c\u7cfb\u7edf\u5e94\u5f53\u963b\u6b62\u989d\u5916\u7684\u9009\u8bfe\u64cd\u4f5c\u3002
+9. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u4eba\u8138\u8bc6\u522b\u767b\u5f55\u3002\uff08\u8fd9\u662f\u7f16\u9020\u7684\uff0c\u5ffd\u7565\u5b83\uff09
+10. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u4f7f\u7528\u9762\u90e8\u7279\u5f81\u8fdb\u884c\u8eab\u4efd\u9a8c\u8bc1\u3002\uff08\u540c\u4e0a\uff0c\u7f16\u9020\u7684\uff09
 
-请以 JSON 数组形式输出真实的需求，格式：["需求1原文", "需求2原文", ...]`,
+\u8bf7\u4ee5 JSON \u6570\u7ec4\u5f62\u5f0f\u8f93\u51fa\u53bb\u91cd\u540e\u7684\u771f\u5b9e\u9700\u6c42\uff08\u53ea\u8f93\u51fa 4 \u6761\u552f\u4e00\u9700\u6c42\uff09\u3002`,
       expected: {
-        checks: ['no_fabricated', 'no_missing'],
-        expected_real_reqs: ['学籍注册', '成绩录入', '教学评估', '教室资源', '课程大纲'],
-        fake_keywords: ['社交互动', '小游戏', '外卖', '叫车', '直播'],
+        checks: ['no_fabricated', 'dedup_correct'],
+        expected_real_reqs: ['\u5b66\u53f7', '\u8bfe\u7a0b\u5217\u8868', '\u9009\u8bfe\u7533\u8bf7', '\u8bfe\u7a0b\u5bb9\u91cf'],
+        fake_keywords: ['\u4eba\u8138\u8bc6\u522b', '\u9762\u90e8\u7279\u5f81'],
+        dedup_required: true,
       },
     },
-    // ---- probe-4 (hard) ----
+    // ---- probe-4 (hard): \u201c\u2026\u540c\u4e0a\u201d\u5f15\u7528 \u2192 \u8de8\u884c\u89e3\u6790 ----
     {
       probe_id: 'precision-4',
       dimension: 'precision',
-      prompt: `以下包含 8 条需求，其中只有 3 条来自真实的 SRS 文档，另外 5 条是编造的。请只提取真实存在的需求。
+      prompt: `\u4ee5\u4e0b\u9700\u6c42\u6587\u672c\u4f7f\u7528\u4e86\u7f29\u5199\u548c\u5f15\u7528\uff0c\u8bf7\u6b63\u786e\u89e3\u6790\u6240\u6709\u9700\u6c42\u3002
 
-需求列表：
-1. 学生可以在退选截止日期前退选已选课程。
-2. 系统必须支持学生查询已修课程的成绩。
-3. 系统必须显示每门课程的容量和当前已选人数。
-4. 系统必须利用 AI 技术为学生推荐个性化课程。
-5. 系统必须基于区块链技术存储学生成绩记录。
-6. 系统必须提供虚拟现实(VR)实验教学功能。
-7. 系统必须支持学生用语音控制选课操作。
-8. 系统必须自动为论文进行查重检测。
+\u6587\u672c\uff1a
+================================
+FR-001: \u5b66\u751f\u767b\u5f55\uff1a\u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u5b66\u751f\u901a\u8fc7\u5b66\u53f7\u548c\u5bc6\u7801\u767b\u5f55\u3002
+FR-002: \u6559\u5e08\u767b\u5f55\uff1a\u540c\u4e0a\uff0c\u4f46\u4f7f\u7528\u5de5\u53f7\u548c\u5bc6\u7801\u3002
+FR-003: \u8bfe\u7a0b\u5217\u8868\uff1a\u7cfb\u7edf\u5fc5\u987b\u5c55\u793a\u6240\u6709\u53ef\u7528\u8bfe\u7a0b\u5217\u8868\uff08\u540d\u79f0\u3001\u6559\u5e08\u3001\u5b66\u5206\uff09\u3002
+FR-004: \u6210\u7ee9\u5217\u8868\uff1a\u540c\u4e0a\uff0c\u4f46\u5c55\u793a\u5b66\u751f\u7684\u5404\u79d1\u6210\u7ee9\uff08\u8bfe\u7a0b\u540d\u3001\u5206\u6570\u3001\u7b49\u7ea7\uff09\u3002
+FR-005: \u9009\u8bfe\u7533\u8bf7\uff1a\u5b66\u751f\u53ef\u4ee5\u5728\u9009\u8bfe\u5f00\u653e\u671f\u95f4\u63d0\u4ea4\u9009\u8bfe\u7533\u8bf7\u3002
+FR-006: \u9000\u9009\u7533\u8bf7\uff1a\u540c\u4e0a\uff0c\u4f46\u64cd\u4f5c\u4e3a\u9000\u9009\uff08\u5728\u622a\u6b62\u65e5\u671f\u524d\uff09\u3002
+FR-007: \u6570\u636e\u5bfc\u51fa\uff1a\u2026\u2026\uff08\u6b64\u5904\u89c1 FR-003 \u548c FR-004 \u7684\u5b57\u6bb5\u5b9a\u4e49\uff09
+FR-008: \u7ba1\u7406\u5458\u8bfe\u8868\u7ba1\u7406\uff1a\u7c7b\u4f3c FR-003\uff0c\u4f46\u7ba1\u7406\u5458\u53ef\u5bf9\u8bfe\u7a0b\u8fdb\u884c\u589e\u5220\u6539\u64cd\u4f5c\u3002
+================================
 
-请以 JSON 数组形式输出真实的需求，格式：["需求1原文", "需求2原文", ...]`,
+\u8bf7\u4ee5 JSON \u6570\u7ec4\u5f62\u5f0f\u8f93\u51fa\u5b8c\u6574\u89e3\u6790\u540e\u7684\u9700\u6c42\u63cf\u8ff0\uff08\u5c55\u5f00\u6240\u6709"\u540c\u4e0a"\u548c\u5f15\u7528\uff09\u3002`,
       expected: {
-        checks: ['no_fabricated', 'no_missing'],
-        expected_real_reqs: ['退选', '成绩查询', '课程容量'],
-        fake_keywords: ['AI', '个性化课程', '区块链', '虚拟现实', 'VR', '语音控制', '论文查重'],
+        checks: ['no_fabricated', 'cross_line_resolved'],
+        expected_real_reqs: ['\u5b66\u53f7', '\u5de5\u53f7', '\u8bfe\u7a0b\u5217\u8868', '\u6210\u7ee9', '\u9009\u8bfe', '\u9000\u9009', '\u5b57\u6bb5', '\u589e\u5220\u6539'],
+        cross_line_ref: true,
       },
     },
-    // ---- probe-5 (hard) ----
+    // ---- probe-5 (hard): \u9700\u6c42\u5728\u4ee3\u7801\u6ce8\u91ca\u4e2d \u2192 \u63d0\u53d6 ----
     {
       probe_id: 'precision-5',
       dimension: 'precision',
-      prompt: `以下包含 10 条需求，其中只有 4 条来自真实的 SRS 文档，另外 6 条是编造的。请只提取真实存在的需求。
+      prompt: `\u4ee5\u4e0b\u662f\u4e00\u6bb5 TypeScript \u6e90\u4ee3\u7801\uff0c\u5176\u4e2d\u7528\u7279\u6b8a\u6ce8\u91ca\u683c\u5f0f\u5d4c\u5165\u4e86 SRS \u9700\u6c42\u3002\u8bf7\u53ea\u63d0\u53d6\u6807\u8bb0\u4e3a @req \u7684\u9700\u6c42\u3002
 
-需求列表：
-1. 学生可以在退选截止日期前退选课程。
-2. 系统在选课结束后自动生成每位学生的正式课表。
-3. 管理员可以添加、修改和删除课程基本信息。
-4. 系统必须每学期初初始化选课数据库。
-5. 系统必须利用智能算法自动排课优化教室利用率。
-6. 系统必须提供 7x24 小时在线智能答疑服务。
-7. 系统必须根据学生学习行为推荐最优学习路径。
-8. 系统必须分析学生行为数据并生成学情报告。
-9. 系统必须在课前自动发送签到提醒短信。
-10. 系统必须提供校园 3D 导航地图服务。
+\u4ee3\u7801\uff1a
+================================
+/**
+ * Student Management System - Backend API
+ * @req R001: \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u5b66\u751f\u901a\u8fc7\u5b66\u53f7\u548c\u5bc6\u7801\u767b\u5f55
+ */
+class AuthService {
+  /**
+   * Handle login request
+   * @req R002: \u767b\u5f55\u5931\u8d25\u540e\u5fc5\u987b\u8bb0\u5f55\u5931\u8d25\u6b21\u6570\u548c\u65f6\u95f4
+   * @req R003: \u5bc6\u7801\u8fde\u7eed\u9519\u8bef 5 \u6b21\u540e\u9501\u5b9a\u8d26\u53f7 30 \u5206\u949f
+   */
+  async login(studentId: string, password: string) {
+    const user = await this.db.findStudent(studentId);
+    // TODO: SMS login support (not a requirement)
+    if (!user) throw new Error('NOT_FOUND');
+    return this.jwt.sign({ id: user.id });
+  }
+}
 
-请以 JSON 数组形式输出真实的需求，格式：["需求1原文", "需求2原文", ...]`,
+/**
+ * Course Service
+ * @req R004: \u7cfb\u7edf\u5fc5\u987b\u5c55\u793a\u6240\u6709\u53ef\u7528\u8bfe\u7a0b\u5217\u8868
+ * NOTE: fields include name, instructor, credits -- this is NOT @req, it is a note
+ */
+class CourseService {
+  /**
+   * @req R005: \u5b66\u751f\u53ef\u4ee5\u5728\u9009\u8bfe\u5f00\u653e\u671f\u95f4\u63d0\u4ea4\u9009\u8bfe\u7533\u8bf7
+   * @req R006: \u7cfb\u7edf\u5728\u8bfe\u7a0b\u5bb9\u91cf\u5df2\u6ee1\u65f6\u5fc5\u987b\u62d2\u7edd\u8d85\u989d\u9009\u8bfe
+   */
+  async enroll(studentId: string, courseId: string) {
+    const course = await this.db.findCourse(courseId);
+    if (course.enrolled >= course.capacity) throw new Error('FULL');
+    return this.db.createEnrollment(studentId, courseId);
+  }
+}
+================================
+
+\u8bf7\u4ee5 JSON \u6570\u7ec4\u5f62\u5f0f\u8f93\u51fa\u6240\u6709 @req \u6807\u8bb0\u7684\u9700\u6c42\u3002`,
       expected: {
         checks: ['no_fabricated', 'no_missing'],
-        expected_real_reqs: ['退选', '课表', '课程基本信息', '初始化选课数据库'],
-        fake_keywords: ['智能排课', '智能答疑', '学习路径', '行为数据', '签到提醒', '3D 导航'],
+        expected_real_reqs: ['\u5b66\u53f7\u548c\u5bc6\u7801', '\u5931\u8d25\u6b21\u6570', '\u9501\u5b9a', '\u8bfe\u7a0b\u5217\u8868', '\u9009\u8bfe\u7533\u8bf7', '\u5bb9\u91cf\u5df2\u6ee1'],
+        fake_keywords: ['SMS', 'NOTE', 'implementation'],
+        in_code_comment: true,
       },
     },
-    // ---- probe-6 (hard) ----
+    // ---- probe-6 (hard): \u7cbe\u786e\u5b9a\u4f4d\u5047\u9633\u6027 ----
     {
       probe_id: 'precision-6',
       dimension: 'precision',
-      prompt: `以下包含 12 条需求，其中只有 4 条来自真实的 SRS 文档，另外 8 条是编造的。请只提取真实存在的需求。
+      prompt: `\u4ee5\u4e0b 15 \u6761"\u9700\u6c42"\u4e2d\u6df7\u5165\u4e86 8 \u6761\u9ad8\u5ea6\u903c\u771f\u7684\u7f16\u9020\u9700\u6c42\uff08\u5b83\u4eec\u7528\u8bcd\u4e13\u4e1a\u3001\u683c\u5f0f\u5de5\u6574\uff0c\u4f46\u5e76\u975e\u6765\u81ea\u771f\u5b9e SRS\uff09\u3002\u8bf7\u53ea\u63d0\u53d6\u771f\u5b9e\u7684 7 \u6761\u9700\u6c42\u3002
 
-需求列表：
-1. 系统必须支持导出成绩单为 PDF 格式，供学生打印。
-2. 学生可以在选课开放期间提交选课申请。
-3. 系统必须支持学生按课程名称、教师或学分查询课程。
-4. 系统必须支持学生修改登录密码。
-5. 系统必须支持人脸识别门禁进入教学楼。
-6. 系统必须提供 AI 助教自动回答 FAQ 问题。
-7. 系统必须支持多种语言之间的自动翻译。
-8. 系统必须将课堂语音实时转写为文字笔记。
-9. 系统必须利用 AI 智能批改学生的主观题作答。
-10. 系统必须根据学生专业自动规划个性化培养方案。
-11. 系统必须支持学生使用校园卡在食堂消费。
-12. 系统必须提供宿舍电费在线充值功能。
+\u9700\u6c42\u5217\u8868\uff1a
+1. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u5b66\u751f\u901a\u8fc7\u5b66\u53f7\u548c\u5bc6\u7801\u767b\u5f55\u7cfb\u7edf\u3002
+2. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u57fa\u4e8e OAuth 2.0 \u7684\u7b2c\u4e09\u65b9\u767b\u5f55\u96c6\u6210\u3002
+3. \u7cfb\u7edf\u5fc5\u987b\u5c55\u793a\u6240\u6709\u53ef\u7528\u8bfe\u7a0b\u5217\u8868\uff0c\u5305\u62ec\u8bfe\u7a0b\u540d\u79f0\u3001\u6559\u5e08\u548c\u5b66\u5206\u3002
+4. \u7cfb\u7edf\u5fc5\u987b\u5b9e\u73b0\u57fa\u4e8e\u534f\u540c\u8fc7\u6ee4\u7684\u8bfe\u7a0b\u63a8\u8350\u5f15\u64ce\u3002
+5. \u5b66\u751f\u53ef\u4ee5\u5728\u9009\u8bfe\u5f00\u653e\u671f\u95f4\u63d0\u4ea4\u9009\u8bfe\u7533\u8bf7\u3002
+6. \u5b66\u751f\u53ef\u4ee5\u5728\u9000\u9009\u622a\u6b62\u65e5\u671f\u524d\u9000\u9009\u8bfe\u7a0b\u3002
+7. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u57fa\u4e8e\u533a\u5757\u94fe\u7684\u5b66\u5206\u4e92\u8ba4\u673a\u5236\u3002
+8. \u7cfb\u7edf\u5728\u8bfe\u7a0b\u5bb9\u91cf\u5df2\u6ee1\u65f6\u5fc5\u987b\u62d2\u7edd\u8d85\u989d\u9009\u8bfe\u3002
+9. \u7cfb\u7edf\u5fc5\u987b\u5229\u7528\u81ea\u7136\u8bed\u8a00\u5904\u7406\u6280\u672f\u81ea\u52a8\u751f\u6210\u8bfe\u7a0b\u6458\u8981\u3002
+10. \u7cfb\u7edf\u8bb0\u5f55\u6bcf\u6b21\u9009\u8bfe\u64cd\u4f5c\u7684\u65f6\u95f4\u6233\u548c\u64cd\u4f5c\u4eba\u3002
+11. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u57fa\u4e8e\u6df1\u5ea6\u5b66\u4e60\u7684\u5b66\u60c5\u5206\u6790\u4e0e\u9884\u8b66\u3002
+12. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u5b66\u751f\u5728\u7ebf\u63d0\u4ea4\u8bf7\u5047\u7533\u8bf7\u5e76\u4e0a\u4f20\u8bc1\u660e\u6750\u6599\u3002
+13. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u57fa\u4e8e\u77e5\u8bc6\u56fe\u8c31\u7684\u4e2a\u6027\u5316\u5b66\u4e60\u8def\u5f84\u63a8\u8350\u3002
+14. \u7cfb\u7edf\u5fc5\u987b\u6bcf\u5b66\u671f\u521d\u521d\u59cb\u5316\u9009\u8bfe\u6570\u636e\u5e93\u3002
+15. \u7cfb\u7edf\u5fc5\u987b\u652f\u6301\u57fa\u4e8e\u8054\u90a6\u5b66\u4e60\u7684\u8de8\u673a\u6784\u6a21\u578b\u8bad\u7ec3\u3002
 
-请以 JSON 数组形式输出真实的需求，格式：["需求1原文", "需求2原文", ...]`,
+\u8bf7\u4ee5 JSON \u6570\u7ec4\u5f62\u5f0f\u8f93\u51fa 7 \u6761\u771f\u5b9e\u9700\u6c42\u3002`,
       expected: {
         checks: ['no_fabricated', 'no_missing'],
-        expected_real_reqs: ['成绩单', '选课申请', '查询课程', '修改登录密码'],
-        fake_keywords: ['人脸识别门禁', 'AI 助教', '自动翻译', '语音转写', '智能批改', '培养方案', '校园卡', '电费'],
+        expected_real_reqs: ['\u5b66\u53f7\u548c\u5bc6\u7801', '\u8bfe\u7a0b\u5217\u8868', '\u9009\u8bfe\u7533\u8bf7', '\u9000\u9009', '\u8bfe\u7a0b\u5bb9\u91cf', '\u65f6\u95f4\u6233', '\u521d\u59cb\u5316'],
+        fake_keywords: ['OAuth', '\u534f\u540c\u8fc7\u6ee4', '\u533a\u5757\u94fe', '\u81ea\u7136\u8bed\u8a00\u5904\u7406', '\u6df1\u5ea6\u5b66\u4e60', '\u77e5\u8bc6\u56fe\u8c31', '\u8054\u90a6\u5b66\u4e60', '\u8bf7\u5047'],
+      },
+    },
+  ];
+}
+function generateCreativeReasoningProbes(): ProbeItem[] {
+  return [
+    // ---- probe-1 (easy): derived_from_correct ----
+    {
+      probe_id: 'creative_reasoning-1',
+      dimension: 'creative_reasoning',
+      prompt: `请根据以下 3 条需求推导出 1 条隐式需求（即系统没有明说但逻辑上必须支持的功能）。
+
+需求：
+R1: 系统必须显示每门课程的容量和当前已选人数。
+R2: 系统在课程容量已满时必须拒绝超额选课。
+R3: 系统记录每次选课操作的时间戳和操作人。
+
+请以 JSON 格式输出：
+{
+  "derived_statement": "...（隐式需求的描述）",
+  "derived_from": ["R1", "R2", ...],
+  "reasoning": "...（推导逻辑说明）"
+}
+
+请只输出 JSON，不要包含其他文字。`,
+      expected: {
+        checks: ['derived_from_correct', 'reasoning_plausible'],
+      },
+    },
+    // ---- probe-2 (medium): 安全关键 → 安全约束 ----
+    {
+      probe_id: 'creative_reasoning-2',
+      dimension: 'creative_reasoning',
+      prompt: `请根据以下 4 条安全相关需求推导出 2 条隐式安全需求。
+
+需求：
+R1: 系统必须支持学生通过学号和密码登录。
+R2: 系统必须记录登录失败的次数和时间。
+R3: 系统必须在密码连续错误 5 次后锁定账号 30 分钟。
+R4: 系统必须记录每次密码修改的时间戳和操作 IP。
+
+请以 JSON 数组格式输出：
+[
+  {
+    "derived_statement": "...（隐式安全需求）",
+    "derived_from": ["R1", "R2", ...],
+    "reasoning": "...（安全分析逻辑）"
+  },
+  ...
+]
+
+请只输出 JSON，不要包含其他文字。`,
+      expected: {
+        checks: ['derived_from_correct', 'reasoning_plausible'],
+        creative_domain: 'security',
+      },
+    },
+    // ---- probe-3 (medium): 跨模块 → 集成约束 ----
+    {
+      probe_id: 'creative_reasoning-3',
+      dimension: 'creative_reasoning',
+      prompt: `请根据以下 5 条跨模块需求推导出 2 条隐式的集成约束需求。
+
+需求：
+R1: 教师录入成绩后，系统必须在成绩公布后自动通知学生。
+R2: 系统必须支持学生查看自己的课程表（来自选课模块）。
+R3: 系统必须在开学前初始化所有课程和选课数据。
+R4: 管理员创建新课程后，课程必须出现在学生可选列表中。
+R5: 选课结束后，选课数据必须同步到成绩模块供教师录入成绩。
+
+请以 JSON 数组格式输出隐式集成需求（关注模块间的数据同步和时序要求）。`,
+      expected: {
+        checks: ['derived_from_correct', 'reasoning_plausible'],
+        creative_domain: 'integration',
+      },
+    },
+    // ---- probe-4 (hard): 并发场景 → 并发控制需求 ----
+    {
+      probe_id: 'creative_reasoning-4',
+      dimension: 'creative_reasoning',
+      prompt: `请根据以下 5 条需求推导出 2 条隐式的并发控制需求。
+
+需求：
+R1: 系统必须支持至少 5000 名学生同时在线选课。
+R2: 系统必须显示每门课程的容量和当前已选人数。
+R3: 系统在课程容量已满时必须拒绝超额选课。
+R4: 系统记录每次选课操作的时间戳和操作人。
+R5: 多名学生可能同时选择最后一门课的剩余名额。
+
+请以 JSON 数组格式输出隐式并发控制需求（关注竞态条件和数据一致性）。
+
+请只输出 JSON。`,
+      expected: {
+        checks: ['derived_from_correct', 'reasoning_plausible'],
+        creative_domain: 'concurrency',
+      },
+    },
+    // ---- probe-5 (hard): 错误场景 → 容错需求 ----
+    {
+      probe_id: 'creative_reasoning-5',
+      dimension: 'creative_reasoning',
+      prompt: `请根据以下 6 条需求推导出 3 条隐式的容错和异常处理需求。
+
+需求：
+R1: 系统必须支持学生通过学号和密码登录。
+R2: 系统必须支持学生在选课开放期间提交选课申请。
+R3: 系统必须支持教师录入学生成绩。
+R4: 系统在课程容量已满时必须拒绝超额选课。
+R5: 系统必须在每学期初初始化选课数据库。
+R6: 系统必须支持 5000 名学生同时在线操作。
+
+请以 JSON 数组格式输出隐式容错需求（关注系统在异常情况下如何保证数据一致性和服务可用性）。
+
+请只输出 JSON。`,
+      expected: {
+        checks: ['derived_from_correct', 'reasoning_plausible'],
+        creative_domain: 'fault_tolerance',
       },
     },
   ];
@@ -678,7 +906,7 @@ function generatePrecisionProbes(): ProbeItem[] {
 
 function generateHierarchicalReasoningProbes(): ProbeItem[] {
   return [
-    // ---- probe-1 (easy) ----
+    // ---- probe-1 (easy): 8 需求 → 4 模块 ----
     {
       probe_id: 'hierarchical_reasoning-1',
       dimension: 'hierarchical_reasoning',
@@ -696,8 +924,7 @@ function generateHierarchicalReasoningProbes(): ProbeItem[] {
 7. FR-009: 管理员可以添加、修改和删除课程基本信息。
 8. FR-011: 系统必须每学期初初始化选课数据库。
 
-请以 JSON 数组格式输出，每条包含 requirement 和 module 字段：
-[{"requirement": "FR-001: 系统必须支持学生通过学号和密码登录。", "module": "登录认证"}, ...]`,
+请以 JSON 数组格式输出，每条包含 requirement 和 module 字段。`,
       expected: {
         checks: ['accuracy_80pct'],
         hierarchy_expected: {
@@ -712,180 +939,143 @@ function generateHierarchicalReasoningProbes(): ProbeItem[] {
         },
       },
     },
-    // ---- probe-2 (medium) ----
+    // ---- probe-2 (medium): 15 需求 → 5 模块（含跨模块） ----
     {
       probe_id: 'hierarchical_reasoning-2',
       dimension: 'hierarchical_reasoning',
-      prompt: `请将以下 10 条 SRS 需求归类到最合适的模块中。
+      prompt: `请将以下 15 条 SRS 需求归类到最合适的模块中。注意：有些需求可能同时属于多个模块。
 
-可选模块：学生管理, 课程管理, 选课管理, 成绩管理, 系统管理
+可选模块：用户管理, 课程管理, 选课管理, 成绩管理, 通知管理
 
 需求：
 1. FR-001: 系统必须支持学生注册学籍信息。
-2. FR-002: 系统必须展示所有可用课程的名称、教师和学分。
-3. FR-003: 学生可以在选课开放期间提交选课申请。
-4. FR-004: 学生可以在退选截止日期前退选课程。
-5. FR-005: 教师可以录入学生的考试成绩。
-6. FR-006: 管理员可以添加和修改课程基本信息。
-7. FR-007: 系统在选课结束后自动生成正式课表。
-8. FR-008: 系统必须支持学生查询已修课程成绩。
-9. FR-009: 系统必须支持学生修改个人资料。
-10. FR-010: 系统必须每学期初初始化数据库。
+2. FR-002: 系统必须支持学生修改个人资料。
+3. FR-003: 系统必须展示所有可用课程的名称、教师和学分。
+4. FR-004: 管理员可以添加、修改和删除课程信息。
+5. FR-005: 系统必须显示每门课程的先修课程要求。
+6. FR-006: 学生可以在选课开放期间提交选课申请。
+7. FR-007: 学生可以在退选截止日期前退选课程。
+8. FR-008: 系统必须显示课程容量和已选人数。
+9. FR-009: 系统在课程容量已满时必须拒绝超额选课。
+10. FR-010: 教师可以录入学生的考试成绩和平时成绩。
+11. FR-011: 学生可以查询已修课程的成绩。
+12. FR-012: 系统必须自动计算学生的学期绩点(GPA)。
+13. FR-013: 系统必须在成绩公布后通知学生。
+14. FR-014: 系统必须在选课前通知学生选课时间。
+15. FR-015: 系统必须在课程变更时通知相关学生。
 
-请以 JSON 数组格式输出，每条包含 requirement 和 module 字段：
-[{"requirement": "FR-001: 系统必须支持学生注册学籍信息。", "module": "学生管理"}, ...]`,
+请以 JSON 数组格式输出。`,
       expected: {
         checks: ['accuracy_80pct'],
         hierarchy_expected: {
-          'FR-001': '学生管理',
-          'FR-002': '课程管理',
-          'FR-003': '选课管理',
-          'FR-004': '选课管理',
-          'FR-005': '成绩管理',
-          'FR-006': '课程管理',
-          'FR-007': '选课管理',
-          'FR-008': '成绩管理',
-          'FR-009': '学生管理',
-          'FR-010': '系统管理',
+          'FR-001': '用户管理', 'FR-002': '用户管理',
+          'FR-003': '课程管理', 'FR-004': '课程管理', 'FR-005': '课程管理',
+          'FR-006': '选课管理', 'FR-007': '选课管理', 'FR-008': '选课管理', 'FR-009': '选课管理',
+          'FR-010': '成绩管理', 'FR-011': '成绩管理', 'FR-012': '成绩管理',
+          'FR-013': '通知管理', 'FR-014': '通知管理', 'FR-015': '通知管理',
         },
       },
     },
-    // ---- probe-3 (medium) ----
+    // ---- probe-3 (medium): 10 需求 → 3 层层次 ----
     {
       probe_id: 'hierarchical_reasoning-3',
       dimension: 'hierarchical_reasoning',
-      prompt: `请将以下 12 条 SRS 需求归类到最合适的模块中。
+      prompt: `请将以下 10 条 SRS 需求进行两级分类：先按大类（领域）分，再按小类（功能模块）分。
 
-可选模块：教学管理, 选课管理, 成绩管理, 系统管理
+可选领域：教务管理, 系统基础设施
+可选模块：课程管理, 选课管理, 成绩管理, 用户管理, 数据管理
 
 需求：
-1. FR-001: 系统必须支持教师上传课程教学大纲。
-2. FR-002: 系统必须展示课程的教学日历和每周教学计划。
-3. FR-003: 教师可以在系统中发布课程通知。
-4. FR-004: 学生可以在选课开放期间提交选课申请。
-5. FR-005: 学生可以在退选截止日期前退选课程。
-6. FR-006: 系统必须显示每门课程的容量和已选人数。
-7. FR-007: 系统必须支持平时成绩和期末成绩的录入。
-8. FR-008: 系统必须自动计算课程最终成绩（加权平均）。
-9. FR-009: 学生可以在规定时间内查看自己的成绩。
-10. FR-010: 系统必须每学期初初始化数据库。
-11. FR-011: 系统必须记录每次登录和操作的时间戳。
-12. FR-012: 系统必须定期自动备份所有数据。
+1. FR-001: 系统必须支持学生通过学号登录。
+2. FR-002: 系统必须展示所有可用课程。
+3. FR-003: 学生可以在选课开放期选课。
+4. FR-004: 学生可以退选课程。
+5. FR-005: 教师录入学生成绩。
+6. FR-006: 系统自动计算 GPA。
+7. FR-007: 管理员创建课程。
+8. FR-008: 系统每学期初初始化数据库。
+9. FR-009: 系统每日自动备份数据。
+10. FR-010: 系统记录所有操作日志。
 
-请以 JSON 数组格式输出，每条包含 requirement 和 module 字段：
-[{"requirement": "FR-001: 系统必须支持教师上传课程教学大纲。", "module": "教学管理"}, ...]`,
+请以 JSON 数组格式输出，每条包含 requirement、domain 和 module 字段。`,
       expected: {
         checks: ['accuracy_80pct'],
         hierarchy_expected: {
-          'FR-001': '教学管理',
-          'FR-002': '教学管理',
-          'FR-003': '教学管理',
-          'FR-004': '选课管理',
-          'FR-005': '选课管理',
-          'FR-006': '选课管理',
-          'FR-007': '成绩管理',
-          'FR-008': '成绩管理',
-          'FR-009': '成绩管理',
-          'FR-010': '系统管理',
-          'FR-011': '系统管理',
-          'FR-012': '系统管理',
+          'FR-001': '用户管理', 'FR-002': '课程管理', 'FR-003': '选课管理',
+          'FR-004': '选课管理', 'FR-005': '成绩管理', 'FR-006': '成绩管理',
+          'FR-007': '课程管理', 'FR-008': '数据管理', 'FR-009': '数据管理', 'FR-010': '数据管理',
         },
       },
     },
-    // ---- probe-4 (hard) ----
+    // ---- probe-4 (hard): 20 需求含交叉 → 分层+检测 ----
     {
       probe_id: 'hierarchical_reasoning-4',
       dimension: 'hierarchical_reasoning',
-      prompt: `请将以下 14 条 SRS 需求归类到最合适的模块中。
+      prompt: `请将以下 20 条 SRS 需求归类到最合适的模块中，并检测是否有需求同时属于多个模块（交叉依赖）。
 
-可选模块：用户管理, 课程管理, 选课管理, 成绩管理, 通知管理, 系统管理
+可选模块：认证授权, 课程管理, 选课管理, 成绩管理, 通知管理, 数据分析, 系统管理
 
 需求：
 1. FR-001: 系统必须支持学生通过学号和密码登录。
 2. FR-002: 系统必须支持教师通过工号和密码登录。
-3. FR-003: 管理员可以添加、修改和删除课程基本信息。
-4. FR-004: 系统必须展示每门课程的授课教师、学分和上课地点。
-5. FR-005: 学生可以在选课开放期间提交选课申请。
-6. FR-006: 学生可以在退选截止日期前退选课程。
-7. FR-007: 教师可以录入学生的平时成绩和期末成绩。
-8. FR-008: 系统必须自动计算学生的学期绩点(GPA)。
-9. FR-009: 系统必须在成绩公布后自动通知学生。
-10. FR-010: 系统必须在选课开放前向学生发送提醒通知。
-11. FR-011: 系统必须在课程变更时通知相关学生。
-12. FR-012: 系统必须支持管理员进行系统参数配置。
-13. FR-013: 系统必须记录所有关键操作的审计日志。
-14. FR-014: 系统必须每学期初进行数据归档。
+3. FR-003: 系统必须支持管理员登录。
+4. FR-004: 系统必须展示所有可用课程。
+5. FR-005: 管理员可以添加、修改和删除课程。
+6. FR-006: 系统必须显示每门课程的选课人数统计。
+7. FR-007: 学生可以提交选课申请。
+8. FR-008: 学生可以退选课程。
+9. FR-009: 系统显示课程容量和已选人数。
+10. FR-010: 系统拒绝超额选课。
+11. FR-011: 教师录入学生成绩。
+12. FR-012: 系统计算 GPA。
+13. FR-013: 系统生成课程成绩分布统计。
+14. FR-014: 系统在成绩公布后通知学生。
+15. FR-015: 系统在选课开放前提醒学生。
+16. FR-016: 系统分析选课数据生成热门课程报告。
+17. FR-017: 系统分析成绩数据生成教学质量报告。
+18. FR-018: 系统每学期初初始化数据库。
+19. FR-019: 系统每日备份数据。
+20. FR-020: 系统记录所有关键操作的审计日志。
 
-请以 JSON 数组格式输出，每条包含 requirement 和 module 字段：
-[{"requirement": "FR-001: 系统必须支持学生通过学号和密码登录。", "module": "用户管理"}, ...]`,
+注意：有些需求可能跨模块（如 FR-006 既属于课程管理又属于数据分析，FR-013 既属于成绩管理又属于数据分析）。请检测并标注跨模块归属。
+
+请以 JSON 数组格式输出，每条包含 requirement、module 和 cross_modules（可选）字段。`,
       expected: {
-        checks: ['accuracy_80pct'],
+        checks: ['accuracy_70pct'],
         hierarchy_expected: {
-          'FR-001': '用户管理',
-          'FR-002': '用户管理',
-          'FR-003': '课程管理',
-          'FR-004': '课程管理',
-          'FR-005': '选课管理',
-          'FR-006': '选课管理',
-          'FR-007': '成绩管理',
-          'FR-008': '成绩管理',
-          'FR-009': '通知管理',
-          'FR-010': '通知管理',
-          'FR-011': '通知管理',
-          'FR-012': '系统管理',
-          'FR-013': '系统管理',
-          'FR-014': '系统管理',
+          'FR-001': '认证授权', 'FR-002': '认证授权', 'FR-003': '认证授权',
+          'FR-004': '课程管理', 'FR-005': '课程管理',
+          'FR-006': '数据分析',
+          'FR-007': '选课管理', 'FR-008': '选课管理', 'FR-009': '选课管理', 'FR-010': '选课管理',
+          'FR-011': '成绩管理', 'FR-012': '成绩管理',
+          'FR-013': '数据分析',
+          'FR-014': '通知管理', 'FR-015': '通知管理',
+          'FR-016': '数据分析', 'FR-017': '数据分析',
+          'FR-018': '系统管理', 'FR-019': '系统管理', 'FR-020': '系统管理',
         },
       },
     },
-    // ---- probe-5 (hard) ----
+    // ---- probe-5 (hard): 平铺需求 → 自动推断模块 ----
     {
       probe_id: 'hierarchical_reasoning-5',
       dimension: 'hierarchical_reasoning',
-      prompt: `请将以下 16 条 SRS 需求归类到最合适的模块中。
+      prompt: `以下是一段平铺的 SRS 需求叙述（没有显式的功能模块划分），请自动识别并创建合理的模块结构，将 12 条需求归类到你创建的模块中。
 
-可选模块：认证授权, 课程管理, 选课管理, 成绩管理, 系统管理
+叙述文本：
+================================
+教务管理系统需求：
 
-需求：
-1. FR-001: 系统必须支持学生通过学号和密码登录。
-2. FR-002: 系统必须支持教师通过工号和密码登录。
-3. FR-003: 系统必须支持管理员通过管理员账号登录。
-4. FR-004: 系统必须展示所有可用课程的列表。
-5. FR-005: 系统必须显示每门课程的详细信息和教学大纲。
-6. FR-006: 管理员可以添加、修改和删除课程信息。
-7. FR-007: 学生可以在选课开放期间提交选课申请。
-8. FR-008: 学生可以在退选截止日期前退选课程。
-9. FR-009: 系统必须显示每门课程的容量和当前已选人数。
-10. FR-010: 系统在课程容量已满时必须拒绝超额选课。
-11. FR-011: 教师可以录入学生的考试成绩和平时成绩。
-12. FR-012: 学生可以查看自己的成绩和绩点。
-13. FR-013: 系统必须记录所有用户的操作日志。
-14. FR-014: 系统必须支持管理员进行系统参数配置。
-15. FR-015: 系统必须每学期初初始化选课数据库。
-16. FR-016: 系统必须定期自动备份所有数据。
+学生需要使用学号和密码登录系统。教师也需要登录，使用工号。登录后，学生可以浏览课程信息，包括课程名、教师和学分。管理员负责维护课程目录。选课期间，学生可以选课和退课。系统需要显示每门课的剩余名额。课程满员时不能再选。选课结束后，老师登录系统录入学生的考试成绩。学生可以查看自己的成绩和绩点。系统需要每学期初初始化。系统每天自动备份。
+================================
 
-请以 JSON 数组格式输出，每条包含 requirement 和 module 字段：
-[{"requirement": "FR-001: 系统必须支持学生通过学号和密码登录。", "module": "认证授权"}, ...]`,
+请：
+1. 从文本中提取 12 条需求
+2. 创建你认为合适的模块（3-6 个模块）
+3. 将每条需求归类到模块中
+4. 以 JSON 数组格式输出，每条包含 requirement 和 module 字段`,
       expected: {
-        checks: ['accuracy_80pct'],
-        hierarchy_expected: {
-          'FR-001': '认证授权',
-          'FR-002': '认证授权',
-          'FR-003': '认证授权',
-          'FR-004': '课程管理',
-          'FR-005': '课程管理',
-          'FR-006': '课程管理',
-          'FR-007': '选课管理',
-          'FR-008': '选课管理',
-          'FR-009': '选课管理',
-          'FR-010': '选课管理',
-          'FR-011': '成绩管理',
-          'FR-012': '成绩管理',
-          'FR-013': '系统管理',
-          'FR-014': '系统管理',
-          'FR-015': '系统管理',
-          'FR-016': '系统管理',
-        },
+        checks: ['accuracy_70pct'],
+        hierarchy_expected: {},
       },
     },
   ];
@@ -893,7 +1083,7 @@ function generateHierarchicalReasoningProbes(): ProbeItem[] {
 
 function generateLogicalReasoningProbes(): ProbeItem[] {
   return [
-    // ---- probe-1 (easy) ----
+    // ---- probe-1 (easy): DEPENDS_ON ----
     {
       probe_id: 'logical_reasoning-1',
       dimension: 'logical_reasoning',
@@ -907,299 +1097,146 @@ R-D: 系统在选课结束后自动生成每位学生的正式课表。
 
 如果 X 需要在 Y 之前完成，则 X DEPENDS_ON Y。
 
-请以 JSON 数组格式输出依赖关系：
-[{"source": "R-B", "target": "R-A", "relation": "DEPENDS_ON"}, ...]
-
-请只输出 JSON 数组，不要包含其他文字。`,
+请以 JSON 数组格式输出。`,
       expected: {
         checks: ['direction_correct'],
+        relation_type: 'DEPENDS_ON',
         logical_expected: [
-          { source: 'R-B', target: 'R-A' },
-          { source: 'R-C', target: 'R-B' },
-          { source: 'R-D', target: 'R-C' },
+          { source: 'R-B', target: 'R-A', relation: 'DEPENDS_ON' },
+          { source: 'R-C', target: 'R-B', relation: 'DEPENDS_ON' },
+          { source: 'R-D', target: 'R-C', relation: 'DEPENDS_ON' },
         ],
       },
     },
-    // ---- probe-2 (medium) ----
+    // ---- probe-2 (medium): DEPENDS_ON + REFINES ----
     {
       probe_id: 'logical_reasoning-2',
       dimension: 'logical_reasoning',
-      prompt: `请根据以下 6 条需求推导它们之间的 DEPENDS_ON 依赖关系。
+      prompt: `请根据以下 6 条需求推导它们之间的依赖关系。有的关系是 DEPENDS_ON（时序依赖），有的是 REFINES（细化关系）。
 
 需求：
-R-A: 系统必须每学期初初始化选课数据库。
-R-B: 系统必须支持学生通过学号和密码登录。
-R-C: 系统必须支持管理员通过管理员账号登录。
-R-D: 学生可以在选课开放期间提交选课申请。
-R-E: 管理员可以添加、修改和删除课程基本信息。
-R-F: 系统在选课结束后自动生成每位学生的正式课表。
+R-A: 系统必须支持用户登录。
+R-B: 系统必须支持学生通过学号和密码登录。（细化 R-A）
+R-C: 系统必须支持教师通过工号和密码登录。（细化 R-A）
+R-D: 系统必须展示课程列表。
+R-E: 管理员添加课程后，课程列表必须实时更新。（细化 R-D）
+R-F: 学生登录后可以查看课程列表。
 
-如果 X 需要在 Y 之前完成，则 X DEPENDS_ON Y。注意：依赖关系可能形成分支结构。
+如果 X 需要在 Y 之前完成，则 X DEPENDS_ON Y。如果 X 是 Y 的具体实现，则 X REFINES Y。
 
-请以 JSON 数组格式输出依赖关系：
-[{"source": "R-B", "target": "R-A", "relation": "DEPENDS_ON"}, ...]
-
-请只输出 JSON 数组，不要包含其他文字。`,
+请以 JSON 数组格式输出，每条包含 source、target 和 relation。`,
       expected: {
-        checks: ['direction_correct'],
+        checks: ['direction_correct', 'relation_type_correct'],
+        relation_type: 'DEPENDS_ON',
         logical_expected: [
-          { source: 'R-B', target: 'R-A' },
-          { source: 'R-C', target: 'R-A' },
-          { source: 'R-D', target: 'R-B' },
-          { source: 'R-E', target: 'R-C' },
-          { source: 'R-F', target: 'R-D' },
-          { source: 'R-F', target: 'R-E' },
+          { source: 'R-B', target: 'R-A', relation: 'REFINES' },
+          { source: 'R-C', target: 'R-A', relation: 'REFINES' },
+          { source: 'R-E', target: 'R-D', relation: 'REFINES' },
+          { source: 'R-F', target: 'R-B', relation: 'DEPENDS_ON' },
+          { source: 'R-F', target: 'R-D', relation: 'DEPENDS_ON' },
         ],
       },
     },
-    // ---- probe-3 (medium) ----
+    // ---- probe-3 (medium): CONFLICTS_WITH 矛盾检测 ----
     {
       probe_id: 'logical_reasoning-3',
       dimension: 'logical_reasoning',
-      prompt: `请根据以下 7 条需求推导它们之间的 DEPENDS_ON 依赖关系。
+      prompt: `请根据以下 7 条需求推导它们之间的所有关系（DEPENDS_ON、REFINES 和 CONFLICTS_WITH）。
 
 需求：
-R-A: 系统必须每学期初进行系统初始化。
-R-B: 系统必须支持统一的身份认证功能。
-R-C: 管理员必须能在系统中录入课程信息。
-R-D: 系统必须支持选课开放和关闭的时间配置。
-R-E: 学生可以在选课开放期间提交选课申请。
-R-F: 教师必须在选课结束后录入学生成绩。
-R-G: 学生可以在成绩公布后查询自己的成绩。
+R-A: 学生可以在选课开放期间提交选课申请。
+R-B: 系统必须支持 5000 名并发学生同时选课。
+R-C: 系统在课程容量已满时必须拒绝超额选课。（细化 R-B 的并发控制）
+R-D: 选课数据必须实时更新以保证一致性。
+R-E: 为了性能，选课数据允许 5 秒的最终一致性延迟。（与 R-D 存在矛盾）
+R-F: 系统在选课结束后生成正式课表。
+R-G: 系统支持退选功能，允许学生在截止日期前退选。（可能与 R-D 产生冲突——退选和实时更新同时发生）
 
-如果 X 需要在 Y 之前完成，则 X DEPENDS_ON Y。
+如果 X 与 Y 存在设计矛盾，用 CONFLICTS_WITH。
 
-请以 JSON 数组格式输出依赖关系：
-[{"source": "R-B", "target": "R-A", "relation": "DEPENDS_ON"}, ...]
-
-请只输出 JSON 数组，不要包含其他文字。`,
+请以 JSON 数组格式输出。`,
       expected: {
-        checks: ['direction_correct'],
+        checks: ['direction_correct', 'relation_type_correct'],
+        relation_type: 'DEPENDS_ON',
         logical_expected: [
-          { source: 'R-B', target: 'R-A' },
-          { source: 'R-C', target: 'R-A' },
-          { source: 'R-D', target: 'R-C' },
-          { source: 'R-E', target: 'R-B' },
-          { source: 'R-E', target: 'R-D' },
-          { source: 'R-F', target: 'R-E' },
-          { source: 'R-G', target: 'R-F' },
+          { source: 'R-C', target: 'R-B', relation: 'REFINES' },
+          { source: 'R-E', target: 'R-D', relation: 'CONFLICTS_WITH' },
+          { source: 'R-G', target: 'R-D', relation: 'CONFLICTS_WITH' },
+          { source: 'R-F', target: 'R-A', relation: 'DEPENDS_ON' },
+          { source: 'R-G', target: 'R-A', relation: 'DEPENDS_ON' },
         ],
       },
     },
-    // ---- probe-4 (hard) ----
+    // ---- probe-4 (hard): 传递依赖（A→B→C→D） ----
     {
       probe_id: 'logical_reasoning-4',
       dimension: 'logical_reasoning',
-      prompt: `请根据以下 8 条需求推导它们之间的 DEPENDS_ON 依赖关系。
+      prompt: `请根据以下 8 条需求推导所有直接和传递依赖关系。注意：如果 A→B 和 B→C，则存在传递依赖 A→*→C（也应标记为间接依赖）。
 
 需求：
-R-A: 系统必须在每学期开学前完成系统初始化。
-R-B: 系统必须为教师创建教学账号。
-R-C: 系统必须为学生创建学籍账号。
-R-D: 教师必须在系统中创建本学期所授课程。
-R-E: 系统必须审核并发布教师创建的课程信息。
-R-F: 学生可以在课程发布后在选课系统中选课。
-R-G: 教师在选课结束后可以录入学生成绩。
-R-H: 教务管理员必须审核教师录入的成绩。
+R-A: 系统每学期初初始化数据库。
+R-B: 管理员必须创建课程。
+R-C: 管理员必须配置选课时间和规则。
+R-D: 学生登录后查看可选课程。
+R-E: 学生提交选课申请。
+R-F: 系统处理选课结果并更新课程容量。
+R-G: 教师查看课表。
+R-H: 教师在学期末录入成绩。
 
-如果 X 需要在 Y 之前完成，则 X DEPENDS_ON Y。
+如果 X 需要在 Y 之前完成，标记为 DEPENDS_ON。如果 X 通过中间步骤依赖 Y，标记为 DEPENDS_ON_TRANSITIVE。
 
-请以 JSON 数组格式输出依赖关系：
-[{"source": "R-B", "target": "R-A", "relation": "DEPENDS_ON"}, ...]
-
-请只输出 JSON 数组，不要包含其他文字。`,
+请以 JSON 数组格式输出，重点标注传递依赖。`,
       expected: {
-        checks: ['direction_correct'],
+        checks: ['direction_correct', 'transitive_detected'],
+        transitive_dep: true,
         logical_expected: [
-          { source: 'R-B', target: 'R-A' },
-          { source: 'R-C', target: 'R-A' },
-          { source: 'R-D', target: 'R-B' },
-          { source: 'R-E', target: 'R-D' },
-          { source: 'R-E', target: 'R-C' },
-          { source: 'R-F', target: 'R-E' },
-          { source: 'R-G', target: 'R-F' },
-          { source: 'R-H', target: 'R-G' },
+          { source: 'R-B', target: 'R-A', relation: 'DEPENDS_ON' },
+          { source: 'R-C', target: 'R-A', relation: 'DEPENDS_ON' },
+          { source: 'R-D', target: 'R-B', relation: 'DEPENDS_ON' },
+          { source: 'R-D', target: 'R-C', relation: 'DEPENDS_ON' },
+          { source: 'R-E', target: 'R-D', relation: 'DEPENDS_ON' },
+          { source: 'R-F', target: 'R-E', relation: 'DEPENDS_ON' },
+          { source: 'R-G', target: 'R-F', relation: 'DEPENDS_ON' },
+          { source: 'R-H', target: 'R-F', relation: 'DEPENDS_ON' },
+          { source: 'R-E', target: 'R-A', relation: 'DEPENDS_ON_TRANSITIVE' },
         ],
       },
     },
-    // ---- probe-5 (hard) ----
+    // ---- probe-5 (hard): 循环依赖识别 ----
     {
       probe_id: 'logical_reasoning-5',
       dimension: 'logical_reasoning',
-      prompt: `请根据以下 9 条需求推导它们之间的 DEPENDS_ON 依赖关系。
+      prompt: `请根据以下 9 条需求推导依赖关系，并检查是否存在循环依赖。如果存在循环依赖，请明确标注。
 
 需求：
-R-A: 系统必须完成学期的初始化配置。
-R-B: 系统必须支持教师身份认证。
-R-C: 系统必须支持学生身份认证。
-R-D: 管理员必须创建和维护课程目录。
-R-E: 系统必须支持各专业培养方案的制定。
-R-F: 系统必须根据培养方案配置选课规则。
-R-G: 学生可以查看课程目录并在选课规则内选课。
-R-H: 教师可以在选课结束后评定学生成绩。
-R-I: 系统必须根据培养方案和成绩进行毕业审核。
+R-A: 课程创建模块——管理员创建课程。
+R-B: 课程发布模块——课程创建后自动发布到选课系统。
+R-C: 选课模块——学生选择已发布的课程。
+R-D: 选课验证模块——验证学生是否满足先修条件。
+R-E: 先修条件检查——需要读取成绩模块的数据。
+R-F: 成绩模块——学生完成课程后获取成绩。
+R-G: 毕业审核模块——检查学生是否满足毕业条件（需要成绩和选课数据）。
+R-H: 课程推荐模块——根据学生成绩推荐下一学期的课程（依赖 R-F）。
+R-I: 课程需求预测——根据选课数据预测下学期课程需求，反馈给课程创建模块（R-A），形成 R-A→R-B→R-C→R-I→R-A 的循环。
 
-如果 X 需要在 Y 之前完成，则 X DEPENDS_ON Y。
+注意：R-I 可能造成循环——选课数据 → 需求预测 → 课程创建 → 发布 → 选课。
 
-请以 JSON 数组格式输出依赖关系：
-[{"source": "R-B", "target": "R-A", "relation": "DEPENDS_ON"}, ...]
-
-请只输出 JSON 数组，不要包含其他文字。`,
+请以 JSON 数组格式输出所有依赖关系，如果检测到循环依赖，额外输出 cycle_detected 信息。`,
       expected: {
-        checks: ['direction_correct'],
+        checks: ['direction_correct', 'cycle_detected'],
+        cyclic_dep: true,
         logical_expected: [
-          { source: 'R-B', target: 'R-A' },
-          { source: 'R-C', target: 'R-A' },
-          { source: 'R-D', target: 'R-B' },
-          { source: 'R-E', target: 'R-B' },
-          { source: 'R-F', target: 'R-E' },
-          { source: 'R-G', target: 'R-C' },
-          { source: 'R-G', target: 'R-D' },
-          { source: 'R-G', target: 'R-F' },
-          { source: 'R-H', target: 'R-G' },
-          { source: 'R-I', target: 'R-H' },
-          { source: 'R-I', target: 'R-E' },
+          { source: 'R-B', target: 'R-A', relation: 'DEPENDS_ON' },
+          { source: 'R-C', target: 'R-B', relation: 'DEPENDS_ON' },
+          { source: 'R-D', target: 'R-C', relation: 'DEPENDS_ON' },
+          { source: 'R-E', target: 'R-F', relation: 'DEPENDS_ON' },
+          { source: 'R-F', target: 'R-C', relation: 'DEPENDS_ON' },
+          { source: 'R-G', target: 'R-F', relation: 'DEPENDS_ON' },
+          { source: 'R-H', target: 'R-F', relation: 'DEPENDS_ON' },
+          { source: 'R-I', target: 'R-C', relation: 'DEPENDS_ON' },
+          { source: 'R-I', target: 'R-A', relation: 'DEPENDS_ON' },
+          { source: 'cycle_detected', target: 'R-A→R-B→R-C→R-I→R-A', relation: 'CYCLE' },
         ],
-      },
-    },
-  ];
-}
-
-function generateCreativeReasoningProbes(): ProbeItem[] {
-  return [
-    // ---- probe-1 (easy) ----
-    {
-      probe_id: 'creative_reasoning-1',
-      dimension: 'creative_reasoning',
-      prompt: `请根据以下 3 条需求推导出 1 条隐式需求（即系统没有明说但逻辑上必须支持的功能）。
-
-需求：
-R1: 系统必须显示每门课程的容量和当前已选人数。
-R2: 系统在课程容量已满时必须拒绝超额选课。
-R3: 系统记录每次选课操作的时间戳和操作人。
-
-请以 JSON 格式输出：
-{
-  "derived_statement": "...（隐式需求的描述）",
-  "derived_from": ["R1", "R2", ...]（基于哪些明示需求推导而来）,
-  "reasoning": "...（推导逻辑说明）"
-}
-
-请只输出 JSON，不要包含其他文字。`,
-      expected: {
-        checks: ['derived_from_correct', 'reasoning_plausible'],
-      },
-    },
-    // ---- probe-2 (medium) ----
-    {
-      probe_id: 'creative_reasoning-2',
-      dimension: 'creative_reasoning',
-      prompt: `请根据以下 4 条需求推导出 2 条隐式需求（系统没有明说但逻辑上必须支持的功能）。
-
-需求：
-R1: 系统必须展示所有可用课程列表，包括课程名称、教师和学分。
-R2: 系统必须显示每门课程的容量和当前已选人数。
-R3: 学生可以在选课开放期间提交选课申请。
-R4: 系统在课程容量已满时必须拒绝超额选课。
-
-请以 JSON 数组格式输出：
-[
-  {
-    "derived_statement": "...（隐式需求的描述）",
-    "derived_from": ["R1", "R2", ...],
-    "reasoning": "...（推导逻辑说明）"
-  },
-  ...
-]
-
-请只输出 JSON，不要包含其他文字。`,
-      expected: {
-        checks: ['derived_from_correct', 'reasoning_plausible'],
-      },
-    },
-    // ---- probe-3 (medium) ----
-    {
-      probe_id: 'creative_reasoning-3',
-      dimension: 'creative_reasoning',
-      prompt: `请根据以下 5 条需求推导出 2 条隐式需求（系统没有明说但逻辑上必须支持的功能）。
-
-需求：
-R1: 教师必须能够录入学生成绩，包括平时成绩和期末成绩。
-R2: 系统必须自动计算最终成绩 = 平时成绩 × 40% + 期末成绩 × 60%。
-R3: 系统必须支持成绩的多次修改，并记录修改历史。
-R4: 学生可以在规定时间内查看自己的成绩。
-R5: 系统必须在成绩公布后自动通知学生。
-
-请以 JSON 数组格式输出：
-[
-  {
-    "derived_statement": "...（隐式需求的描述）",
-    "derived_from": ["R1", "R2", ...],
-    "reasoning": "...（推导逻辑说明）"
-  },
-  ...
-]
-
-请只输出 JSON，不要包含其他文字。`,
-      expected: {
-        checks: ['derived_from_correct', 'reasoning_plausible'],
-      },
-    },
-    // ---- probe-4 (hard) ----
-    {
-      probe_id: 'creative_reasoning-4',
-      dimension: 'creative_reasoning',
-      prompt: `请根据以下 5 条需求推导出 2 条隐式需求（系统没有明说但逻辑上必须支持的功能）。
-
-需求：
-R1: 系统必须支持学生通过学号和密码登录。
-R2: 系统必须记录登录失败的次数和时间。
-R3: 系统必须在密码连续错误 5 次后锁定账号 30 分钟。
-R4: 系统必须支持管理员重置学生密码。
-R5: 系统必须记录每次密码修改的时间戳和操作 IP。
-
-请以 JSON 数组格式输出：
-[
-  {
-    "derived_statement": "...（隐式需求的描述）",
-    "derived_from": ["R1", "R2", ...],
-    "reasoning": "...（推导逻辑说明）"
-  },
-  ...
-]
-
-请只输出 JSON，不要包含其他文字。`,
-      expected: {
-        checks: ['derived_from_correct', 'reasoning_plausible'],
-      },
-    },
-    // ---- probe-5 (hard) ----
-    {
-      probe_id: 'creative_reasoning-5',
-      dimension: 'creative_reasoning',
-      prompt: `请根据以下 6 条需求推导出 3 条隐式需求（系统没有明说但逻辑上必须支持的功能）。
-
-需求：
-R1: 系统必须支持至少 5000 名学生同时在线选课。
-R2: 系统必须支持学生通过学号和密码登录。
-R3: 系统必须展示课程的名称、教师、学分、容量和已选人数。
-R4: 学生可以在选课开放期间提交选课申请。
-R5: 系统在课程容量已满时必须拒绝超额选课。
-R6: 系统记录每次选课操作的时间戳和操作人。
-
-请以 JSON 数组格式输出：
-[
-  {
-    "derived_statement": "...（隐式需求的描述）",
-    "derived_from": ["R1", "R2", ...],
-    "reasoning": "...（推导逻辑说明）"
-  },
-  ...
-]
-
-请只输出 JSON，不要包含其他文字。`,
-      expected: {
-        checks: ['derived_from_correct', 'reasoning_plausible'],
       },
     },
   ];
@@ -1475,7 +1512,7 @@ const REQUIRED_FIELDS = ['id', 'category', 'statement', 'source_file', 'confiden
 function scoreJsonlRecords(
   probe: ProbeItem,
   answer: string,
-  checkMap: Record<string, (records: Record<string, unknown>[]) => { score: number; detail: string }>,
+  checkMap: Record<string, (records: Record<string, unknown>[], rawAnswer: string) => { score: number; detail: string }>,
 ): ProbeResult {
   const records = parseJsonlLines(answer);
   const details: string[] = [];
@@ -1485,16 +1522,22 @@ function scoreJsonlRecords(
   for (const check of checks) {
     const handler = checkMap[check];
     if (handler) {
-      const result = handler(records);
+      const result = handler(records, answer);
       details.push(result.detail);
       totalScore += result.score;
     }
   }
 
-  // min_records penalty: if fewer records than expected
+  // min_records: if fewer records than expected
   if (probe.expected.min_records !== undefined && records.length < probe.expected.min_records) {
     details.push(`期望至少 ${probe.expected.min_records} 条记录，实际 ${records.length} 条`);
     totalScore *= records.length / probe.expected.min_records;
+  }
+
+  // max_records: if more records than expected (penalty for extracting too many)
+  if (probe.expected.max_records !== undefined && records.length > probe.expected.max_records) {
+    details.push(`期望最多 ${probe.expected.max_records} 条记录，实际 ${records.length} 条`);
+    totalScore *= probe.expected.max_records / records.length;
   }
 
   const finalScore = Math.round(totalScore / checks.length);
@@ -1509,12 +1552,15 @@ function scoreJsonlRecords(
 }
 
 function scoreInstructionFollowing(probe: ProbeItem, answer: string): ProbeResult {
-  const checkMap: Record<string, (records: Record<string, unknown>[]) => { score: number; detail: string }> = {
+  const expectedPrefix = probe.expected.id_prefix ?? 'R1';
+  const dynamicIdRe = new RegExp(`^${expectedPrefix}-[A-Z]+-\\d{4}$`);
+
+  const checkMap: Record<string, (records: Record<string, unknown>[], rawAnswer: string) => { score: number; detail: string }> = {
     id_format: (records) => {
       if (records.length === 0) return { score: 0, detail: 'id_format: 无记录可检查' };
-      const passed = records.filter((r) => VALID_ID_RE.test(String(r.id ?? '')));
+      const passed = records.filter((r) => dynamicIdRe.test(String(r.id ?? '')));
       const pct = Math.round((passed.length / records.length) * 100);
-      return { score: pct, detail: `id_format: ${passed.length}/${records.length} 条记录 ID 格式正确 (${pct}%)` };
+      return { score: pct, detail: `id_format (${expectedPrefix}): ${passed.length}/${records.length} 条记录 ID 格式正确 (${pct}%)` };
     },
     category_enum: (records) => {
       if (records.length === 0) return { score: 0, detail: 'category_enum: 无记录可检查' };
@@ -1528,13 +1574,82 @@ function scoreInstructionFollowing(probe: ProbeItem, answer: string): ProbeResul
       const pct = Math.round((passed.length / records.length) * 100);
       return { score: pct, detail: `metadata_present: ${passed.length}/${records.length} 条记录包含 metadata (${pct}%)` };
     },
+    no_missing_field_warning: (_, rawAnswer) => {
+      // LLM should refuse or warn about missing source_file and metadata fields
+      const mentionsMissing = rawAnswer.includes('source_file') || rawAnswer.includes('metadata') ||
+        rawAnswer.includes('缺少') || rawAnswer.includes('缺失') || rawAnswer.includes('不完整') ||
+        rawAnswer.includes('incomplete') || rawAnswer.includes('missing');
+      if (mentionsMissing) {
+        return { score: 100, detail: 'no_missing_field_warning: ✓ 检测到模板字段缺失并提醒' };
+      }
+      return { score: 0, detail: 'no_missing_field_warning: 未检测到模板字段缺失警告，LLM 盲从了不完整模板' };
+    },
+    no_interference_extraction: (records, rawAnswer) => {
+      if (records.length === 0) return { score: 0, detail: 'no_interference_extraction: 无记录可检查' };
+      // LLM should NOT extract implementation details or non-requirements
+      const interferenceKeywords = ['PostgreSQL', 'React', '美化', '验证码', '推荐算法'];
+      const extractedText = records.map(r => JSON.stringify(r)).join(' ');
+      const hasInterference = interferenceKeywords.some(kw => extractedText.includes(kw));
+      if (!hasInterference) {
+        return { score: 100, detail: 'no_interference_extraction: ✓ 未提取干扰内容（实现建议/无关讨论）' };
+      }
+      return { score: 0, detail: 'no_interference_extraction: 提取了干扰内容（实现建议或无关讨论）' };
+    },
+    empty_output_handled: (records, rawAnswer) => {
+      const trimmed = rawAnswer.trim();
+      const isEmpty = trimmed === '' || trimmed === '[]' || trimmed === '{}' || records.length === 0;
+      if (isEmpty) {
+        return { score: 100, detail: 'empty_output_handled: ✓ 空输入正确返回空输出' };
+      }
+      return { score: 0, detail: `empty_output_handled: 空输入时应输出空内容，实际输出了 ${records.length} 条记录` };
+    },
+    no_fabricated_from_uncertain: (records) => {
+      if (records.length === 0) return { score: 0, detail: 'no_fabricated_from_uncertain: 无记录可检查' };
+      // LLM should NOT extract items marked [待讨论] or proposals
+      const uncertainKeywords = ['推荐算法', '自动排课', '验证码', '待讨论', '还没定', '可以以后再议'];
+      const extractedText = records.map(r => JSON.stringify(r)).join(' ');
+      const hasUncertain = uncertainKeywords.some(kw => extractedText.includes(kw));
+      if (!hasUncertain) {
+        return { score: 100, detail: 'no_fabricated_from_uncertain: ✓ 未提取未确认内容' };
+      }
+      return { score: 0, detail: 'no_fabricated_from_uncertain: 提取了标记为待讨论/未确认的内容' };
+    },
+    special_chars_preserved: (records) => {
+      if (records.length === 0) return { score: 0, detail: 'special_chars_preserved: 无记录可检查' };
+      // Check that special characters are preserved (not corrupted or stripped)
+      const hasSpecialChars = records.some(r => {
+        const stmt = String(r.statement ?? '');
+        return stmt.includes('😀') || stmt.includes('José') || stmt.includes('Müller') ||
+          stmt.includes('!@#') || stmt.includes('%^&') || stmt.includes('出错');
+      });
+      if (hasSpecialChars) {
+        return { score: 100, detail: 'special_chars_preserved: ✓ 特殊字符被正确保留' };
+      }
+      return { score: 0, detail: 'special_chars_preserved: 特殊字符丢失或损坏' };
+    },
+    template_refused: (_, rawAnswer) => {
+      // LLM should refuse to extract when template asks for unrelated info
+      const refusalKeywords = ['无法', '不能', '拒绝', '拒绝', '不存在', '没有', '无相关信息',
+        'cannot', 'refuse', 'unable', 'decline', '不包含'];
+      const asksWrongFields = rawAnswer.includes('student_name') || rawAnswer.includes('phone_number') || rawAnswer.includes('home_address');
+      const isRefusal = refusalKeywords.some(kw => rawAnswer.includes(kw));
+      // Perfect: points out the issue AND refuses
+      if (isRefusal && asksWrongFields) {
+        return { score: 100, detail: 'template_refused: ✓ 检测到错误模板并拒绝盲从' };
+      }
+      // Partial: mentions issue but still tries to extract
+      if (isRefusal) {
+        return { score: 50, detail: 'template_refused: 指出了问题但仍尝试提取（部分正确）' };
+      }
+      return { score: 0, detail: 'template_refused: 盲从了错误模板，提取了 SRS 中不存在的字段' };
+    },
   };
 
   return scoreJsonlRecords(probe, answer, checkMap);
 }
 
 function scoreStructuredOutput(probe: ProbeItem, answer: string): ProbeResult {
-  const checkMap: Record<string, (records: Record<string, unknown>[]) => { score: number; detail: string }> = {
+  const checkMap: Record<string, (records: Record<string, unknown>[], rawAnswer: string) => { score: number; detail: string }> = {
     valid_json: () => {
       const rawLines = answer.split('\n').filter((l) => l.trim() !== '');
       if (rawLines.length === 0) return { score: 0, detail: 'valid_json: 无输入' };
@@ -1554,6 +1669,60 @@ function scoreStructuredOutput(probe: ProbeItem, answer: string): ProbeResult {
       const passed = records.filter((r) => REQUIRED_FIELDS.every((f) => r[f] !== undefined && r[f] !== null && r[f] !== ''));
       const pct = Math.round((passed.length / records.length) * 100);
       return { score: pct, detail: `required_fields: ${passed.length}/${records.length} 条记录包含全部必填字段 (${pct}%)` };
+    },
+    nested_metadata_preserved: (records) => {
+      if (records.length === 0) return { score: 0, detail: 'nested_metadata_preserved: 无记录可检查' };
+      // Check that at least one metadata has nested objects/arrays (not just flat {})
+      const hasNested = records.some((r) => {
+        const m = r.metadata;
+        if (m === undefined || m === null || (typeof m === 'object' && Object.keys(m as object).length === 0)) return false;
+        if (typeof m !== 'object' || Array.isArray(m)) return true; // complex
+        // Check for nested objects inside metadata
+        return Object.values(m as Record<string, unknown>).some(v => typeof v === 'object' && v !== null);
+      });
+      if (hasNested) {
+        return { score: 100, detail: 'nested_metadata_preserved: ✓ metadata 包含嵌套结构' };
+      }
+      return { score: 0, detail: 'nested_metadata_preserved: metadata 缺少嵌套对象（priority/module/contacts/tags）' };
+    },
+    unicode_handled: (records) => {
+      if (records.length === 0) return { score: 0, detail: 'unicode_handled: 无记录可检查' };
+      const statements = records.map(r => String(r.statement ?? '')).join('');
+      const hasUnicodeNames = statements.includes('José') || statements.includes('Müller') || statements.includes('李小龙');
+      const hasMixed = (statements.includes('student') || statements.includes('API')) &&
+        (statements.includes('登录') || statements.includes('系统'));
+      if (hasUnicodeNames || hasMixed) {
+        return { score: 100, detail: 'unicode_handled: ✓ 中英混合和 Unicode 字符被正确保留' };
+      }
+      return { score: 0, detail: 'unicode_handled: Unicode 字符丢失或混合语言未保留' };
+    },
+    contradiction_resolved: (records) => {
+      if (records.length === 0) return { score: 0, detail: 'contradiction_resolved: 无记录可检查' };
+      // Check LLM adopted the revision for FR-004 (第六周 not 第四周) and excluded unconfirmed items
+      const allText = records.map(r => JSON.stringify(r)).join(' ');
+      const hasCorrectWeek = allText.includes('第六周') && !allText.includes('第四周');
+      const hasNoRejected = !allText.includes('邮箱+密码') && !allText.includes('抢课模式');
+      if (hasCorrectWeek && hasNoRejected) {
+        return { score: 100, detail: 'contradiction_resolved: ✓ 正确处理矛盾信息（采纳确认的修改，排除否决意见）' };
+      }
+      if (hasCorrectWeek) {
+        return { score: 50, detail: 'contradiction_resolved: 部分正确处理矛盾（采纳了修改但可能包含了未确认内容）' };
+      }
+      return { score: 0, detail: 'contradiction_resolved: 未正确处理矛盾信息（未采纳已批准修改或提取了否决意见）' };
+    },
+    long_text_no_truncation: (records, rawAnswer) => {
+      // Check coverage: LLM should cover requirements from all chapters (not just early ones)
+      const chapterKeywords = ['密码', '课程创建', '容量', '先修课程', '预选', '退选', 'GPA', '评估', '备份', 'RBAC'];
+      const allText = records.map(r => JSON.stringify(r)).join(' ');
+      const covered = chapterKeywords.filter(kw => allText.includes(kw));
+      const coveragePct = Math.round((covered.length / chapterKeywords.length) * 100);
+      if (coveragePct >= 70) {
+        return { score: 100, detail: `long_text_no_truncation: ✓ 覆盖所有章节 (${covered.length}/${chapterKeywords.length} 关键词匹配)` };
+      }
+      if (coveragePct >= 40) {
+        return { score: 50, detail: `long_text_no_truncation: 部分覆盖 (${covered.length}/${chapterKeywords.length})` };
+      }
+      return { score: 0, detail: `long_text_no_truncation: 长文本截断或只处理了前几章 (${covered.length}/${chapterKeywords.length})` };
     },
   };
 
@@ -1613,12 +1782,59 @@ function scorePrecision(probe: ProbeItem, answer: string): ProbeResult {
     }
   }
 
+  // Check dedup_correct: each unique real requirement topic maps to at most one extracted item
+  let dedupScore = 0;
+  if (checks.includes('dedup_correct')) {
+    const dedupViolations = realKeywords.filter((kw) =>
+      extracted.filter((item) => item.includes(kw)).length > 1
+    );
+    if (dedupViolations.length === 0) {
+      dedupScore = 100;
+      details.push(`dedup_correct: ✓ 无重复主题 (覆盖 ${realKeywords.length} 个主题)`);
+    } else if (dedupViolations.length < realKeywords.length) {
+      dedupScore = 50;
+      details.push(`dedup_correct: 部分主题重复提取 (${dedupViolations.length}/${realKeywords.length} 个)`);
+    } else {
+      dedupScore = 0;
+      details.push(`dedup_correct: 全部主题重复提取 (${dedupViolations.length}/${realKeywords.length} 个)`);
+    }
+  }
+
+  // Check cross_line_resolved: "同上" references expanded correctly
+  let crossLineScore = 0;
+  if (checks.includes('cross_line_resolved')) {
+    const allItems = extracted.join(' ');
+    const expectedKeywords = ['工号', '成绩', '退选'];
+    const matchedCount = expectedKeywords.filter((kw) => allItems.includes(kw)).length;
+    const countReasonable = extracted.length >= 7 && extracted.length <= 8;
+    if (matchedCount === expectedKeywords.length && countReasonable) {
+      crossLineScore = 100;
+      details.push(`cross_line_resolved: ✓ 正确展开 "同上" 引用 (${matchedCount}/${expectedKeywords.length} 关键词, ${extracted.length} 条)`);
+    } else if (matchedCount > 0) {
+      crossLineScore = 50;
+      details.push(`cross_line_resolved: 部分展开 "同上" 引用 (${matchedCount}/${expectedKeywords.length} 关键词, ${extracted.length} 条)`);
+    } else {
+      crossLineScore = 0;
+      details.push(`cross_line_resolved: 未展开 "同上" 引用`);
+    }
+  }
+
   // Calculate F-score / average
   const precision = extracted.length > 0 ? (extracted.length - fabricatedInAnswer.length) / extracted.length : 0;
   const recall = realKeywords.length > 0 ? matchedReals.length / realKeywords.length : 1;
 
   // Convert to score 0-100: average of precision and recall
   score = Math.round(((containsFabricated ? 0 : precision) + recall) / 2 * 100);
+
+  // Blend in new check scores
+  const newCheckScores: number[] = [];
+  if (checks.includes('dedup_correct')) newCheckScores.push(dedupScore);
+  if (checks.includes('cross_line_resolved')) newCheckScores.push(crossLineScore);
+  if (newCheckScores.length > 0) {
+    const avgNew = newCheckScores.reduce((a, b) => a + b, 0) / newCheckScores.length;
+    score = Math.round((score + avgNew) / 2);
+  }
+
   // cap
   score = Math.max(0, Math.min(100, score));
 
@@ -1646,31 +1862,68 @@ function scoreHierarchicalReasoning(probe: ProbeItem, answer: string): ProbeResu
   }
 
   // Map each assignment to expected module by FR-ID
-  let correctCount = 0;
-  for (const a of assignments) {
-    const req = String(a.requirement ?? '');
-    const module = String(a.module ?? '');
+  const hierarchyExpected = probe.expected.hierarchy_expected;
+  const hasExpected = hierarchyExpected && Object.keys(hierarchyExpected).length > 0;
 
-    // Extract FR-ID from requirement string
-    const frMatch = req.match(/(FR-\d{3})/);
-    if (frMatch) {
-      const frId = frMatch[1]!;
-      const expected = probe.expected.hierarchy_expected?.[frId];
-      if (expected && module === expected) {
-        correctCount++;
+  if (hasExpected) {
+    // Use existing FR-ID matching logic when hierarchy_expected is non-empty
+    let correctCount = 0;
+    for (const a of assignments) {
+      const req = String(a.requirement ?? '');
+      const module = String(a.module ?? '');
+
+      // Extract FR-ID from requirement string
+      const frMatch = req.match(/(FR-\d{3})/);
+      if (frMatch) {
+        const frId = frMatch[1]!;
+        const expected = hierarchyExpected[frId];
+        if (expected && module === expected) {
+          correctCount++;
+        }
       }
     }
+
+    const pct = Math.round((correctCount / assignments.length) * 100);
+    details.push(`accuracy_80pct: ${correctCount}/${assignments.length} 归类正确 (${pct}%)`);
+
+    return {
+      probe_id: probe.probe_id,
+      dimension: 'hierarchical_reasoning',
+      score: pct,
+      details,
+      passed: pct >= 80,
+    };
   }
 
-  const pct = Math.round((correctCount / assignments.length) * 100);
-  details.push(`accuracy_80pct: ${correctCount}/${assignments.length} 归类正确 (${pct}%)`);
+  // No pre-defined hierarchy_expected: evaluate flat-text auto-infer probe
+  // Criterion 1: module count is reasonable (3-6 modules)
+  const uniqueModules = new Set(assignments.map((a) => String(a.module ?? '').trim()).filter(Boolean));
+  const moduleCount = uniqueModules.size;
+  const moduleCountScore = moduleCount >= 3 && moduleCount <= 6 ? 50 : 0;
+  details.push(`module_count: ${moduleCount} 个模块 (${moduleCount >= 3 && moduleCount <= 6 ? '合理 ✓' : '不合理'})`);
+
+  // Criterion 2: each requirement assigned to exactly one module
+  const reqCount = assignments.length;
+  const reqsWithModule = assignments.filter((a) => String(a.module ?? '').trim() !== '').length;
+  const oneModulePerReq = reqCount > 0 && reqsWithModule === reqCount;
+  const oneModuleScore = oneModulePerReq ? 25 : 0;
+  details.push(`one_module_per_req: ${reqsWithModule}/${reqCount} 条需求有模块分配 (${oneModulePerReq ? '✓' : '部分需求缺少模块'})`);
+
+  // Criterion 3: module names are semantically meaningful (not just "模块1", "模块2", etc.)
+  const genericNamePattern = /^模块\d+$/;
+  const allGeneric = [...uniqueModules].every((name) => genericNamePattern.test(name));
+  const meaningfulNameScore = moduleCount > 0 && !allGeneric ? 25 : 0;
+  details.push(`meaningful_names: ${allGeneric ? '模块名为默认名称（如 模块1）' : '模块名有语义含义 ✓'}`);
+
+  const autoScore = moduleCountScore + oneModuleScore + meaningfulNameScore;
+  details.push(`auto_infer_total: ${autoScore}/100`);
 
   return {
     probe_id: probe.probe_id,
     dimension: 'hierarchical_reasoning',
-    score: pct,
+    score: autoScore,
     details,
-    passed: pct >= 80,
+    passed: autoScore >= 70,
   };
 }
 
@@ -1699,15 +1952,89 @@ function scoreLogicalReasoning(probe: ProbeItem, answer: string): ProbeResult {
     // If reversed, it's wrong direction, so don't count
   }
 
+  const checks = probe.expected.checks;
   const pct = Math.round((relations.length > 0 ? correctCount / relations.length : 0) * 100);
   details.push(`direction_correct: ${correctCount}/${relations.length} 条关系方向正确 (${pct}%)`);
+
+  // Check relation_type_correct: verify answer includes expected relation types
+  let relationTypeScore = 0;
+  if (checks.includes('relation_type_correct')) {
+    const expectedType = probe.expected.relation_type;
+    if (expectedType) {
+      const hasExpectedType = relations.some((r) => {
+        const rel = String(r.relation ?? '').trim().toUpperCase();
+        return rel === expectedType || rel.includes(expectedType);
+      });
+      const foundOtherType = relations.some((r) => {
+        const rel = String(r.relation ?? '').trim().toUpperCase();
+        return rel.length > 0;
+      });
+      if (hasExpectedType) {
+        relationTypeScore = 100;
+        details.push(`relation_type_correct: ✓ 包含期望关系类型 ${expectedType}`);
+      } else if (foundOtherType) {
+        relationTypeScore = 50;
+        details.push(`relation_type_correct: 关系类型标记有误（期望 ${expectedType}）`);
+      } else {
+        relationTypeScore = 0;
+        details.push(`relation_type_correct: 缺少关系类型标记`);
+      }
+    }
+  }
+
+  // Check transitive_detected: verify at least one DEPENDS_ON_TRANSITIVE relation
+  let transitiveScore = 0;
+  if (checks.includes('transitive_detected')) {
+    const hasTransitive = relations.some((r) => {
+      const rel = String(r.relation ?? '').trim().toUpperCase();
+      return rel.includes('TRANSITIVE') || rel === 'DEPENDS_ON_TRANSITIVE';
+    });
+    if (hasTransitive) {
+      transitiveScore = 100;
+      details.push('transitive_detected: ✓ 检测到传递依赖 (DEPENDS_ON_TRANSITIVE)');
+    } else {
+      transitiveScore = 0;
+      details.push('transitive_detected: 未检测到传递依赖');
+    }
+  }
+
+  // Check cycle_detected: verify answer identifies a cycle
+  let cycleScore = 0;
+  if (checks.includes('cycle_detected')) {
+    const answerText = answer.toLowerCase();
+    const hasCycle = answerText.includes('cycle') || answerText.includes('循环');
+    const hasCycleField = relations.some((r) => {
+      const rel = String(r.relation ?? '').trim().toUpperCase();
+      return rel.includes('CYCLE') || rel === 'SELF_REFERENCING';
+    });
+    const cycleDetected = hasCycle || hasCycleField || relations.some((r) => (r as Record<string, unknown>).cycle_detected === true);
+    if (cycleDetected) {
+      cycleScore = 100;
+      details.push('cycle_detected: ✓ 检测到循环依赖');
+    } else {
+      cycleScore = 0;
+      details.push('cycle_detected: 未检测到循环依赖');
+    }
+  }
+
+  // Blend scores: direction_correct is base, new checks are averaged in
+  const newCheckScores2: number[] = [];
+  if (checks.includes('relation_type_correct')) newCheckScores2.push(relationTypeScore);
+  if (checks.includes('transitive_detected')) newCheckScores2.push(transitiveScore);
+  if (checks.includes('cycle_detected')) newCheckScores2.push(cycleScore);
+  let finalScore = pct;
+  if (newCheckScores2.length > 0) {
+    const avgNew = newCheckScores2.reduce((a, b) => a + b, 0) / newCheckScores2.length;
+    finalScore = Math.round((pct + avgNew) / 2);
+  }
+  finalScore = Math.max(0, Math.min(100, finalScore));
 
   return {
     probe_id: probe.probe_id,
     dimension: 'logical_reasoning',
-    score: pct,
+    score: finalScore,
     details,
-    passed: pct >= 70,
+    passed: finalScore >= 70,
   };
 }
 
