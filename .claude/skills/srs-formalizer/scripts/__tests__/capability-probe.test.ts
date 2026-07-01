@@ -2,11 +2,11 @@
  * capability-probe.test.ts — 能力探测评估系统测试
  *
  * 测试覆盖：
- *   T1: generate 模式输出 6 个维度的 probe 对象，结构正确
+ *   T1: generate 模式输出 36 个 probe (6维度 × 5-8题)，结构正确
  *   T2: score 模式完美答案 → 全 100 分 + high tier
  *   T3: score 模式全错答案 → 全 0 分 + low tier
- *   T4: score 模式部分正确 → 中间分数 + medium tier
- *   T5: tier 推断逻辑（全低→low, 全中→medium, 全高→high）
+ *   T4: score 模式部分正确 → 中间分数
+ *   T5: tier 推断逻辑（全低→low, 全高→high）
  *   T6: 非法答案文件处理（文件不存在 / 无效 JSON / 空 answers）
  *   T7: 缺少 --mode 参数报错
  */
@@ -19,6 +19,193 @@ import * as os from 'node:os';
 
 const TMP = path.join(os.tmpdir(), `capability-probe-test-${Date.now()}`);
 
+// ========== answer-generation helpers ==========
+
+/** Generate perfectly valid JSONL with the required number of records */
+function genPerfectJsonl(minRecords: number): string {
+  const records = Array.from({ length: minRecords }, (_, i) => ({
+    id: `R1-TOPIC-${String(i + 1).padStart(4, '0')}`,
+    category: 'explicit' as const,
+    statement: `Requirement ${i + 1}`,
+    source_file: 'srs.md',
+    confidence: 'high' as const,
+    metadata: {},
+  }));
+  return records.map(r => JSON.stringify(r)).join('\n');
+}
+
+/** Generate completely invalid (non-JSONL) text */
+function genZeroJsonl(): string {
+  return 'this is not valid jsonl at all';
+}
+
+/** Generate half the required valid records (triggers min_records penalty) */
+function genPartialJsonl(minRecords: number): string {
+  const half = Math.max(1, Math.floor(minRecords / 2));
+  const records = Array.from({ length: half }, (_, i) => ({
+    id: `R1-TOPIC-${String(i + 1).padStart(4, '0')}`,
+    category: 'explicit' as const,
+    statement: `Requirement ${i + 1}`,
+    source_file: 'srs.md',
+    confidence: 'high' as const,
+    metadata: {},
+  }));
+  return records.map(r => JSON.stringify(r)).join('\n');
+}
+
+interface TestProbeItem {
+  probe_id: string;
+  dimension: string;
+  prompt: string;
+  expected: {
+    min_records?: number;
+    checks: string[];
+    expected_real_reqs?: string[];
+    fake_keywords?: string[];
+    hierarchy_expected?: Record<string, string>;
+    logical_expected?: Array<{ source: string; target: string }>;
+  };
+}
+
+/** Build perfect answers for every probe */
+function buildPerfectAnswers(probes: TestProbeItem[]): Record<string, string> {
+  const answers: Record<string, string> = {};
+  for (const probe of probes) {
+    switch (probe.dimension) {
+      case 'instruction_following':
+      case 'structured_output':
+        answers[probe.probe_id] = genPerfectJsonl(probe.expected.min_records ?? 1);
+        break;
+      case 'precision':
+        // Return the expected real requirement keywords as self-contained items
+        answers[probe.probe_id] = JSON.stringify(probe.expected.expected_real_reqs ?? []);
+        break;
+      case 'hierarchical_reasoning': {
+        const items = Object.entries(probe.expected.hierarchy_expected ?? {}).map(([fr, module]) => ({
+          requirement: `${fr}: test requirement`,
+          module,
+        }));
+        answers[probe.probe_id] = JSON.stringify(items);
+        break;
+      }
+      case 'logical_reasoning': {
+        const items = (probe.expected.logical_expected ?? []).map(e => ({
+          source: e.source,
+          target: e.target,
+          relation: 'DEPENDS_ON' as const,
+        }));
+        answers[probe.probe_id] = JSON.stringify(items);
+        break;
+      }
+      case 'creative_reasoning':
+        answers[probe.probe_id] = JSON.stringify({
+          derived_statement: 'System should verify prerequisites before enrollment.',
+          derived_from: ['R1', 'R2'],
+          reasoning: 'Multiple requirements imply the need for an implicit prerequisite check mechanism.',
+        });
+        break;
+    }
+  }
+  return answers;
+}
+
+/** Build all-zero answers for every probe */
+function buildZeroAnswers(probes: TestProbeItem[]): Record<string, string> {
+  const answers: Record<string, string> = {};
+  for (const probe of probes) {
+    switch (probe.dimension) {
+      case 'instruction_following':
+      case 'structured_output':
+        answers[probe.probe_id] = genZeroJsonl();
+        break;
+      case 'precision':
+        // Return only fabricated requirements
+        answers[probe.probe_id] = JSON.stringify(probe.expected.fake_keywords ?? []);
+        break;
+      case 'hierarchical_reasoning':
+        answers[probe.probe_id] = '[]';
+        break;
+      case 'logical_reasoning': {
+        // Reverse all expected relations
+        const reversed = (probe.expected.logical_expected ?? []).map(e => ({
+          source: e.target,
+          target: e.source,
+          relation: 'DEPENDS_ON' as const,
+        }));
+        answers[probe.probe_id] = JSON.stringify(reversed);
+        break;
+      }
+      case 'creative_reasoning':
+        answers[probe.probe_id] = JSON.stringify({
+          derived_statement: '',
+          derived_from: [],
+          reasoning: '',
+        });
+        break;
+    }
+  }
+  return answers;
+}
+
+/** Build partially-correct answers for every probe */
+function buildPartialAnswers(probes: TestProbeItem[]): Record<string, string> {
+  const answers: Record<string, string> = {};
+  for (const probe of probes) {
+    switch (probe.dimension) {
+      case 'instruction_following':
+      case 'structured_output':
+        answers[probe.probe_id] = genPartialJsonl(probe.expected.min_records ?? 1);
+        break;
+      case 'precision': {
+        // Return only half the expected real reqs
+        const half = Math.max(1, Math.floor((probe.expected.expected_real_reqs?.length ?? 1) / 2));
+        answers[probe.probe_id] = JSON.stringify((probe.expected.expected_real_reqs ?? []).slice(0, half));
+        break;
+      }
+      case 'hierarchical_reasoning': {
+        const entries = Object.entries(probe.expected.hierarchy_expected ?? {});
+        const half = Math.max(1, Math.floor(entries.length / 2));
+        const items = entries.slice(0, half).map(([fr, module]) => ({
+          requirement: `${fr}: test requirement`,
+          module,
+        }));
+        // Add one deliberately wrong entry
+        if (entries.length > half) {
+          items.push({ requirement: `${entries[half]![0]}: test requirement`, module: 'WRONG_MODULE' });
+        }
+        answers[probe.probe_id] = JSON.stringify(items);
+        break;
+      }
+      case 'logical_reasoning': {
+        const expected = probe.expected.logical_expected ?? [];
+        const half = Math.max(1, Math.floor(expected.length / 2));
+        const items = expected.slice(0, half).map(e => ({
+          source: e.source,
+          target: e.target,
+          relation: 'DEPENDS_ON' as const,
+        }));
+        // Add a deliberately reversed relation
+        if (expected.length > half) {
+          const extra = expected[half]!;
+          items.push({ source: extra.target, target: extra.source, relation: 'DEPENDS_ON' as const });
+        }
+        answers[probe.probe_id] = JSON.stringify(items);
+        break;
+      }
+      case 'creative_reasoning':
+        answers[probe.probe_id] = JSON.stringify({
+          derived_statement: 'Partial reasoning statement about system behavior.',
+          derived_from: ['R1'],
+          reasoning: 'This reasoning string is long enough to pass the length check.',
+        });
+        break;
+    }
+  }
+  return answers;
+}
+
+// ========== Tests ==========
+
 describe('capability-probe command', () => {
   before(() => {
     fs.mkdirSync(TMP, { recursive: true });
@@ -29,34 +216,38 @@ describe('capability-probe command', () => {
   });
 
   // ========== T1: generate mode ==========
-  it('T1: generate mode outputs array of 6 probe objects with correct structure', async () => {
+  it('T1: generate mode outputs 36 probes with correct structure and dimension counts', async () => {
     const { main } = await import('../commands/capability-probe.js');
     const result = await main(['--mode', 'generate']);
 
     assert.equal(result.status, 'ok');
     assert.ok(Array.isArray(result.data));
 
-    const probes = result.data as Array<{
-      probe_id: string;
-      dimension: string;
-      prompt: string;
-      expected: { min_records?: number; checks: string[] };
-    }>;
+    const probes = result.data as TestProbeItem[];
 
-    const expectedDims = [
-      'instruction_following',
-      'structured_output',
-      'precision',
-      'hierarchical_reasoning',
-      'logical_reasoning',
-      'creative_reasoning',
-    ];
-    assert.equal(probes.length, expectedDims.length);
+    // 8 + 7 + 6 + 5 + 5 + 5 = 36
+    assert.equal(probes.length, 36);
 
-    const dims = probes.map((p) => p.dimension);
-    for (const dim of expectedDims) {
-      assert.ok(dims.includes(dim), `Missing dimension: ${dim}`);
+    // Verify per-dimension distribution
+    const dimCounts: Record<string, number> = {};
+    for (const p of probes) {
+      dimCounts[p.dimension] = (dimCounts[p.dimension] ?? 0) + 1;
     }
+
+    const expectedCounts: Record<string, number> = {
+      instruction_following: 8,
+      structured_output: 7,
+      precision: 6,
+      hierarchical_reasoning: 5,
+      logical_reasoning: 5,
+      creative_reasoning: 5,
+    };
+
+    for (const [dim, count] of Object.entries(expectedCounts)) {
+      assert.equal(dimCounts[dim], count, `Dimension ${dim} should have ${count} probes`);
+    }
+
+    const expectedDims = Object.keys(expectedCounts);
 
     for (const p of probes) {
       assert.ok(typeof p.probe_id === 'string' && p.probe_id.length > 0, 'probe_id must be non-empty string');
@@ -70,26 +261,10 @@ describe('capability-probe command', () => {
   it('T2: score mode with perfect answer returns 100 across all dimensions (high tier)', async () => {
     const { main } = await import('../commands/capability-probe.js');
 
-    // Build perfect answers per probe
-    const perfectAnswers: Record<string, string> = {
-      'instruction_following-1':
-        '{"id":"R1-LOGIN-0001","category":"explicit","statement":"系统必须支持学生通过学号和密码登录。","source_file":"srs.md","confidence":"high","metadata":{}}\n' +
-        '{"id":"R1-COURSES-0001","category":"explicit","statement":"系统必须展示所有可用课程列表，包括课程名称、教师和学分。","source_file":"srs.md","confidence":"high","metadata":{}}\n' +
-        '{"id":"R1-ENROLL-0001","category":"explicit","statement":"学生可以在选课开放期间提交选课申请。","source_file":"srs.md","confidence":"high","metadata":{}}',
-      'structured_output-1':
-        '{"id":"R1-LOGIN-0001","category":"explicit","statement":"系统必须支持学生通过学号和密码登录","source_file":"srs.md","confidence":"high","metadata":{}}\n' +
-        '{"id":"R1-COURSES-0001","category":"explicit","statement":"系统必须展示可用课程列表","source_file":"srs.md","confidence":"high","metadata":{}}\n' +
-        '{"id":"R1-ENROLL-0001","category":"explicit","statement":"学生可以在选课开放期间提交选课申请","source_file":"srs.md","confidence":"high","metadata":{}}\n' +
-        '{"id":"R1-DROP-0001","category":"explicit","statement":"学生可以在截止日期前退选课程","source_file":"srs.md","confidence":"high","metadata":{}}',
-      'precision-1':
-        '["系统必须支持学生通过学号和密码登录。","系统在课程容量已满时必须拒绝超额选课。","系统记录每次选课操作的时间戳和操作人。"]',
-      'hierarchical_reasoning-1':
-        '[{"requirement":"FR-001: 系统必须支持学生通过学号和密码登录。","module":"登录认证"},{"requirement":"FR-002: 系统必须展示所有可用课程列表","module":"课程管理"},{"requirement":"FR-003: 系统必须显示每门课程的容量和当前已选人数","module":"选课管理"},{"requirement":"FR-004: 学生可以在选课开放期间提交选课申请","module":"选课管理"},{"requirement":"FR-006: 学生可以在退选截止日期前退选课程","module":"选课管理"},{"requirement":"FR-007: 系统在选课结束后自动生成每位学生的正式课表","module":"系统管理"},{"requirement":"FR-009: 管理员可以添加、修改和删除课程基本信息","module":"课程管理"},{"requirement":"FR-011: 系统必须每学期初初始化选课数据库","module":"系统管理"}]',
-      'logical_reasoning-1':
-        '[{"source":"R-B","target":"R-A","relation":"DEPENDS_ON"},{"source":"R-C","target":"R-B","relation":"DEPENDS_ON"},{"source":"R-D","target":"R-C","relation":"DEPENDS_ON"}]',
-      'creative_reasoning-1':
-        '{"derived_statement":"系统应在选课前自动验证学生是否已完成前置课程并检查选课资格。","derived_from":["R1","R2","R3"],"reasoning":"R1显示课程容量信息，R2在容量已满时拒绝选课，R3记录操作日志，这三点共同意味着系统需要一套选课资格验证机制来前置判断学生是否可以选课。"}',
-    };
+    // Generate probes and build perfect answers for all 36
+    const genResult = await main(['--mode', 'generate']);
+    const probes = genResult.data as TestProbeItem[];
+    const perfectAnswers = buildPerfectAnswers(probes);
 
     const answerFile = path.join(TMP, 'perfect-answers.json');
     fs.writeFileSync(answerFile, JSON.stringify({ answers: perfectAnswers }), 'utf-8');
@@ -101,7 +276,7 @@ describe('capability-probe command', () => {
     const profile = data.capability_profile as Record<string, number>;
 
     for (const dim of ['instruction_following', 'structured_output', 'precision', 'hierarchical_reasoning', 'logical_reasoning', 'creative_reasoning']) {
-      assert.equal(profile[dim], 100, `${dim} should be 100`); // Actually creative might not be 100 if reasoning is strict
+      assert.equal(profile[dim], 100, `${dim} should be 100, got ${profile[dim]}`);
     }
 
     assert.equal(data.estimated_tier, 'high');
@@ -112,14 +287,9 @@ describe('capability-probe command', () => {
   it('T3: score mode with completely wrong answer returns 0 on all dimensions (low tier)', async () => {
     const { main } = await import('../commands/capability-probe.js');
 
-    const zeroAnswers: Record<string, string> = {
-      'instruction_following-1': '这不是JSONL，是乱写的文字。',
-      'structured_output-1': 'not jsonl at all',
-      'precision-1': '["系统必须支持人脸识别登录。","系统必须支持支付功能。","系统支持学生之间聊天功能。"]',
-      'hierarchical_reasoning-1': '[{"requirement":"FR-001","module":"未知模块"},{"requirement":"FR-002","module":"未知模块"}]',
-      'logical_reasoning-1': '[{"source":"R-A","target":"R-B","relation":"DEPENDS_ON"},{"source":"R-B","target":"R-C","relation":"DEPENDS_ON"},{"source":"R-C","target":"R-D","relation":"DEPENDS_ON"}]',
-      'creative_reasoning-1': '{"derived_statement":"","derived_from":[],"reasoning":""}',
-    };
+    const genResult = await main(['--mode', 'generate']);
+    const probes = genResult.data as TestProbeItem[];
+    const zeroAnswers = buildZeroAnswers(probes);
 
     const answerFile = path.join(TMP, 'zero-answers.json');
     fs.writeFileSync(answerFile, JSON.stringify({ answers: zeroAnswers }), 'utf-8');
@@ -131,40 +301,24 @@ describe('capability-probe command', () => {
     const profile = data.capability_profile as Record<string, number>;
 
     for (const dim of ['instruction_following', 'structured_output', 'precision', 'hierarchical_reasoning']) {
-      assert.equal(profile[dim], 0, `${dim} should be 0`);
+      assert.equal(profile[dim], 0, `${dim} should be 0, got ${profile[dim]}`);
     }
 
-    // Check that at least some probes have score 0
-    const avgScore = Object.values(profile).reduce((a, b) => a + b, 0) / Object.keys(profile).length;
+    // Ensure average is low (at least some dimensions at 0 drag average down)
+    const scores = Object.values(profile);
+    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
     assert.ok(avgScore < 20, `Average score should be low, got ${avgScore}`);
 
     assert.equal(data.estimated_tier, 'low');
   });
 
   // ========== T4: score mode — partial answers ==========
-  it('T4: score mode with partially correct answer returns intermediate scores (medium tier)', async () => {
+  it('T4: score mode with partially correct answer returns intermediate scores', async () => {
     const { main } = await import('../commands/capability-probe.js');
 
-    // Mix: some perfect, some half, some zero
-    const partialAnswers: Record<string, string> = {
-      'instruction_following-1':
-        '{"id":"R1-LOGIN-0001","category":"explicit","statement":"系统必须支持学生通过学号和密码登录。","source_file":"srs.md","confidence":"high","metadata":{}}\n' +
-        '{"id":"R1-COURSES-0001","category":"explicit","statement":"系统必须展示所有可用课程列表","source_file":"srs.md","confidence":"high","metadata":{}}\n' +
-        '{"id":"bad-id","category":"explicit","statement":"学生可以在选课开放期间提交选课申请。","source_file":"srs.md","confidence":"high","metadata":{}}',
-      'structured_output-1':
-        '{"id":"R1-LOGIN-0001","category":"explicit","statement":"系统必须支持学生通过学号和密码登录","source_file":"srs.md","confidence":"high","metadata":{}}\n' +
-        '{"id":"R1-COURSES-0001","category":"explicit","statement":"系统必须展示可用课程列表","source_file":"srs.md","confidence":"high","metadata":{}}\n' +
-        'not valid json\n' +
-        '{"id":"R1-DROP-0001","category":"explicit","statement":"学生可以在截止日期前退选课程","source_file":"srs.md","confidence":"high","metadata":{}}',
-      'precision-1':
-        '["系统必须支持学生通过学号和密码登录。","系统在课程容量已满时必须拒绝超额选课。"]',
-      'hierarchical_reasoning-1':
-        '[{"requirement":"FR-001","module":"登录认证"},{"requirement":"FR-002","module":"课程管理"},{"requirement":"FR-003","module":"选课管理"},{"requirement":"FR-004","module":"选课管理"},{"requirement":"FR-006","module":"系统管理"},{"requirement":"FR-007","module":"系统管理"},{"requirement":"FR-009","module":"课程管理"},{"requirement":"FR-011","module":"系统管理"}]',
-      'logical_reasoning-1':
-        '[{"source":"R-B","target":"R-A","relation":"DEPENDS_ON"},{"source":"R-C","target":"R-B","relation":"DEPENDS_ON"}]',
-      'creative_reasoning-1':
-        '{"derived_statement":"系统需要验证选课资格。","derived_from":["R1","R2"],"reasoning":"容量和选课限制需要资格验证"}',
-    };
+    const genResult = await main(['--mode', 'generate']);
+    const probes = genResult.data as TestProbeItem[];
+    const partialAnswers = buildPartialAnswers(probes);
 
     const answerFile = path.join(TMP, 'partial-answers.json');
     fs.writeFileSync(answerFile, JSON.stringify({ answers: partialAnswers }), 'utf-8');
@@ -173,60 +327,39 @@ describe('capability-probe command', () => {
     assert.equal(result.status, 'ok');
 
     const data = result.data as Record<string, unknown>;
-    const profile = data.capability_profile as { [key: string]: number };
+    const profile = data.capability_profile as Record<string, number>;
 
-    // instruction_following: 2/3 correct id_format → ~66, 3/3 category → 100, 3/3 metadata → 100 → avg ~89
-    assert.ok((profile['instruction_following'] ?? 0) > 0 && (profile['instruction_following'] ?? 0) < 100, `instruction_following should be partial, got ${profile['instruction_following']}`);
-
-    // precision: 2/3 real extracted, no fabricated → recall=66, precision=100 → avg ~83
-    assert.ok((profile['precision'] ?? 0) > 0 && (profile['precision'] ?? 0) < 100, `precision should be partial, got ${profile['precision']}`);
-
-    // estimated_tier should be medium or high (not low)
-    const validTiers = ['low', 'medium', 'high'];
-    assert.ok(validTiers.includes(data.estimated_tier as string), `Invalid tier: ${data.estimated_tier}`);
+    // All dimensions should have intermediate scores (between 0 and 100 exclusive)
+    for (const dim of ['instruction_following', 'structured_output', 'precision', 'hierarchical_reasoning', 'logical_reasoning', 'creative_reasoning']) {
+      const s = profile[dim] ?? 0;
+      assert.ok(s > 0 && s < 100, `${dim} should be between 0 and 100, got ${s}`);
+    }
 
     assert.ok(Array.isArray(data.recommendations));
   });
 
   // ========== T5: tier inference ==========
-  it('T5: tier inference logic — all low scores produce low tier, all high produce high tier', async () => {
+  it('T5: tier inference logic — all zero → low, all perfect → high', async () => {
     const { main } = await import('../commands/capability-probe.js');
 
-    // All wrong → low tier (already tested in T3, but let's verify explicitly)
+    const genResult = await main(['--mode', 'generate']);
+    const probes = genResult.data as TestProbeItem[];
+
+    // Zero answers → low tier
     const zeroPath = path.join(TMP, 'tier-low.json');
-    fs.writeFileSync(zeroPath, JSON.stringify({
-      answers: {
-        'instruction_following-1': '',
-        'structured_output-1': '',
-        'precision-1': '[]',
-        'hierarchical_reasoning-1': '[]',
-        'logical_reasoning-1': '[]',
-        'creative_reasoning-1': '{}',
-      },
-    }), 'utf-8');
+    fs.writeFileSync(zeroPath, JSON.stringify({ answers: buildZeroAnswers(probes) }), 'utf-8');
     const lowResult = await main(['--mode', 'score', '--file', zeroPath]);
     assert.equal(lowResult.status, 'ok');
     const lowData = lowResult.data as Record<string, unknown>;
     assert.equal(lowData.estimated_tier, 'low');
 
-    // All perfect → high tier (already tested in T2, but let's verify medium is possible)
-    // For medium tier we use the partial answers from T4
-    const partialPath = path.join(TMP, 'tier-medium.json');
-    fs.writeFileSync(partialPath, JSON.stringify({
-      answers: {
-        'instruction_following-1': '{"id":"R1-LOGIN-0001","category":"explicit","statement":"登录","source_file":"srs.md","confidence":"high","metadata":{}}',
-        'structured_output-1': '{"id":"R1-LOGIN-0001","category":"explicit","statement":"登录","source_file":"srs.md","confidence":"high","metadata":{}}',
-        'precision-1': '["系统必须支持学生通过学号和密码登录。"]',
-        'hierarchical_reasoning-1': '[{"requirement":"FR-001","module":"登录认证"}]',
-        'logical_reasoning-1': '[{"source":"R-B","target":"R-A","relation":"DEPENDS_ON"}]',
-        'creative_reasoning-1': '{"derived_statement":"测试","derived_from":["R1"],"reasoning":"测试"}',
-      },
-    }), 'utf-8');
-    const medResult = await main(['--mode', 'score', '--file', partialPath]);
-    assert.equal(medResult.status, 'ok');
-    const medData = medResult.data as Record<string, unknown>;
-    // Medium has 1 record per probe, not all minimal - should still be something
-    assert.ok(['low', 'medium', 'high'].includes(medData.estimated_tier as string));
+    // Perfect answers → high tier
+    const highPath = path.join(TMP, 'tier-high.json');
+    fs.writeFileSync(highPath, JSON.stringify({ answers: buildPerfectAnswers(probes) }), 'utf-8');
+    const highResult = await main(['--mode', 'score', '--file', highPath]);
+    assert.equal(highResult.status, 'ok');
+    const highData = highResult.data as Record<string, unknown>;
+    assert.equal(highData.estimated_tier, 'high');
   });
 
   // ========== T6: invalid answer file ==========
@@ -236,7 +369,11 @@ describe('capability-probe command', () => {
     // File does not exist
     const noFile = await main(['--mode', 'score', '--file', path.join(TMP, 'nonexistent.json')]);
     assert.equal(noFile.status, 'error');
-    assert.ok((noFile.message ?? '').includes('not found') || (noFile.message ?? '').includes('exist') || (noFile.message ?? '').includes('ENOENT'));
+    assert.ok(
+      (noFile.message ?? '').includes('not found') ||
+      (noFile.message ?? '').includes('exist') ||
+      (noFile.message ?? '').includes('ENOENT'),
+    );
 
     // File has invalid JSON content
     const badJsonPath = path.join(TMP, 'bad-json.json');
@@ -259,6 +396,9 @@ describe('capability-probe command', () => {
     const { main } = await import('../commands/capability-probe.js');
     const result = await main([]);
     assert.equal(result.status, 'error');
-    assert.ok((result.message ?? '').includes('mode') || (result.message ?? '').includes('--mode'));
+    assert.ok(
+      (result.message ?? '').includes('mode') ||
+      (result.message ?? '').includes('--mode'),
+    );
   });
 });
