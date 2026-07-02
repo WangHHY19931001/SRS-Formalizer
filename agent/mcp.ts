@@ -197,7 +197,7 @@ export class McpClient {
 
 // ===================== Registry =====================
 
-const mcpClients = new Map<string, McpClient>();
+const mcpClients = new Map<string, { client: McpClient; config: McpServerConfig }>();
 
 /**
  * Register an MCP server from a config file or URL.
@@ -207,20 +207,48 @@ export async function registerMcpServer(config: McpServerConfig): Promise<string
   const key = config.url || config.command || `mcp-${mcpClients.size}`;
   const client = new McpClient(config);
   const tools = await client.connect();
-  mcpClients.set(key, client);
+  mcpClients.set(key, { client, config });
   return tools.map(t => t.name);
 }
 
 /**
  * Call a tool on any registered MCP server.
+ * Automatically reconnects if the client has disconnected.
  */
 export async function callMcpTool(toolName: string, args: Record<string, unknown>): Promise<string> {
-  for (const [, client] of mcpClients) {
+  // Try existing connections first
+  for (const [key, { client, config }] of mcpClients) {
     const tools = client.getTools();
     if (tools.some(t => t.name === toolName)) {
-      return client.callTool(toolName, args);
+      try {
+        return await client.callTool(toolName, args);
+      } catch (e) {
+        // Client may have disconnected — reconnect and retry once
+        try {
+          client.disconnect();
+          const newClient = new McpClient(config);
+          await newClient.connect();
+          mcpClients.set(key, { client: newClient, config });
+          return await newClient.callTool(toolName, args);
+        } catch (e2) {
+          throw new Error(`MCP tool "${toolName}" failed (reconnect also failed): ${(e2 as Error).message}`);
+        }
+      }
     }
   }
+
+  // Tool not found — maybe a server needs reconnecting
+  for (const [key, { config }] of mcpClients) {
+    try {
+      const newClient = new McpClient(config);
+      const newTools = await newClient.connect();
+      mcpClients.set(key, { client: newClient, config });
+      if (newTools.some(t => t.name === toolName)) {
+        return await newClient.callTool(toolName, args);
+      }
+    } catch { /* try next */ }
+  }
+
   throw new Error(`MCP tool "${toolName}" not found on any registered server`);
 }
 
@@ -228,6 +256,6 @@ export async function callMcpTool(toolName: string, args: Record<string, unknown
  * Cleanup all MCP connections.
  */
 export function disconnectAllMcp() {
-  for (const [, client] of mcpClients) client.disconnect();
+  for (const [, { client }] of mcpClients) client.disconnect();
   mcpClients.clear();
 }

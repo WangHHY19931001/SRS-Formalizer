@@ -109,36 +109,58 @@ export async function createAgent(config: AgentConfig): Promise<{
   const mcpServerConfigs = llmConfig.mcp_servers || [];
   const autoRegisteredMcpTools: string[] = [];
 
-  for (const mcpEntry of mcpServerConfigs) {
-    try {
-      const toolNames = await registerMcpServer({
+  // Register all MCP servers in parallel with a per-server timeout
+  const mcpResults = await Promise.allSettled(
+    mcpServerConfigs.map(async (mcpEntry) => {
+      const timeoutMs = 15000; // 15s per server
+      const connectPromise = registerMcpServer({
         transport: "stdio",
         command: mcpEntry.command,
         args: mcpEntry.args,
       });
-      writeLog("mcp_auto_register", { server: mcpEntry.name, tools: toolNames });
 
-      // Register each MCP tool with mcp_ prefix in the ToolRegistry
-      for (const name of toolNames) {
-        const mcpToolName = `mcp_${name}`;
-        registry.addLazy(mcpToolName, async () => {
-          const { tool: langchainTool } = await import("@langchain/core/tools");
-          return langchainTool(
-            async (args: Record<string, unknown>) => callMcpTool(name, args),
-            {
-              name: mcpToolName,
-              description: `[${mcpEntry.name}] MCP tool: ${name}`,
-              schema: z.object({}).passthrough(),
-            },
-          );
-        });
-        autoRegisteredMcpTools.push(mcpToolName);
-      }
-      // Auto-register for immediate use
-      await registry.register(toolNames.map(n => `mcp_${n}`));
-    } catch (e) {
-      writeLog("mcp_auto_register_error", { server: mcpEntry.name, error: (e as Error).message });
+      const result = await Promise.race([
+        connectPromise.then(tools => ({ ok: true as const, tools })),
+        new Promise<{ ok: false; tools: string[] }>((resolve) =>
+          setTimeout(() => resolve({ ok: false, tools: [] }), timeoutMs)
+        ),
+      ]);
+
+      return { entry: mcpEntry, ...result };
+    })
+  );
+
+  for (const r of mcpResults) {
+    if (r.status === "rejected") {
+      writeLog("mcp_auto_register_error", { server: "unknown", error: String(r.reason) });
+      continue;
     }
+    const { entry, ok, tools: toolNames } = r.value;
+    if (!ok) {
+      writeLog("mcp_auto_register_timeout", { server: entry.name });
+      continue;
+    }
+
+    writeLog("mcp_auto_register", { server: entry.name, tools: toolNames });
+
+    // Register each MCP tool with mcp_ prefix in the ToolRegistry
+    for (const name of toolNames) {
+      const mcpToolName = `mcp_${name}`;
+      registry.addLazy(mcpToolName, async () => {
+        const { tool: langchainTool } = await import("@langchain/core/tools");
+        return langchainTool(
+          async (args: Record<string, unknown>) => callMcpTool(name, args),
+          {
+            name: mcpToolName,
+            description: `[${entry.name}] MCP tool: ${name}`,
+            schema: z.object({}).passthrough(),
+          },
+        );
+      });
+      autoRegisteredMcpTools.push(mcpToolName);
+    }
+    // Auto-register for immediate use
+    await registry.register(toolNames.map(n => `mcp_${n}`));
   }
 
   // Context manager
