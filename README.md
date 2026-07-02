@@ -177,17 +177,42 @@ S5（形式化）阶段在触发条件满足时自动启用，依赖 **确定性
 
 ## 致谢
 
+### Agent 框架
+
+| 项目 | 使用方 | 说明 |
+|------|:----:|------|
+| **LangChain.js** ([github.com/langchain-ai/langchainjs](https://github.com/langchain-ai/langchainjs)) | Agent | Agent 框架核心——提供 Zod schema 工具定义（`tool()`）、消息系统及 LangChain Core 运行时 |
+| **LangGraph.js** ([github.com/langchain-ai/langgraphjs](https://github.com/langchain-ai/langgraphjs)) | Agent | Agent 运行时引擎——StateGraph ReAct 循环、ToolNode 工具执行、条件路由及递归控制 |
+| **OpenAI Node.js SDK** ([github.com/openai/openai-node](https://github.com/openai/openai-node)) | 两者 | 技能（v6.x）和 Agent（v4.x）均通过 OpenAI 兼容 API 调用 LLM |
+| **Zod** ([github.com/colinhacks/zod](https://github.com/colinhacks/zod)) | Agent | TypeScript-first schema 验证——v4.4+ 用于所有 LangChain 工具参数定义 |
+
+### 开发工具链
+
+| 项目 | 使用方 | 说明 |
+|------|:----:|------|
+| **TypeScript** ([github.com/microsoft/TypeScript](https://github.com/microsoft/TypeScript)) | 两者 | 技能 strict 模式（v5.5）· Agent strict 模式（v6.0）——全项目 TypeScript |
+| **Node.js** ([github.com/nodejs/node](https://github.com/nodejs/node)) | 两者 | ≥20 ESM，技能和 Agent 的运行时环境 |
+| **tsx** ([github.com/privatenumber/tsx](https://github.com/privatenumber/tsx)) | 两者 | TypeScript 执行器——运行 CLI 命令和测试（基于 esbuild 即时编译） |
+| **esbuild** ([github.com/evanw/esbuild](https://github.com/evanw/esbuild)) | tsx 依赖 | tsx 底层编译器——Go 编写，10-100× 快于传统打包器 |
+| **Prettier** ([github.com/prettier/prettier](https://github.com/prettier/prettier)) | 两者 | 代码格式化——统一全项目风格 |
+| **DefinitelyTyped** ([github.com/DefinitelyTyped/DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped)) | 两者 | `@types/node` 类型定义——技能 v20.x · Agent v26.x |
+
+### 方法论与设计
+
 | 项目 | 说明 |
 |------|------|
-| **Superpowers-ZH** ([github.com/jnMetaCode/superpowers-zh](https://github.com/jnMetaCode/superpowers-zh)) | 本项目的 20 个 Superpowers 技能包（brainstorming、writing-plans、systematic-debugging、verification-before-completion 等）加速了 srs-formalizer 的设计流程、代码审阅和开发迭代，特此致谢 |
-| **Trae CN + GLM 5.2** | 本技能需求文档使用 Trae CN + GLM 5.2 辅助编写 |
-| **Claude Code + DeepSeek V4** | 本技能实际开发使用 Claude Code + DeepSeek V4 进行开发 |
-| **grill-me / grill-with-docs** | 本技能部分方法论参考了 grill-me 和 grill-with-docs |
-| **SkCC 论文与实现** | 本技能参考了中山大学团队 SkCC 论文 (arXiv:2605.03353) 及 Nexa-Language/Skill-Compiler 开源实现 |
-| **LangChain.js** ([github.com/langchain-ai/langchainjs](https://github.com/langchain-ai/langchainjs)) | Agent 框架核心——提供 Zod schema 工具定义（`tool()`）、消息系统及 LangChain Core 运行时基础 |
-| **LangGraph.js** ([github.com/langchain-ai/langgraphjs](https://github.com/langchain-ai/langgraphjs)) | Agent 运行时引擎——StateGraph ReAct 循环、ToolNode 工具执行、条件路由及递归控制 |
-| **LangChain (Python)** ([github.com/langchain-ai/langchain](https://github.com/langchain-ai/langchain)) | 生态系统的 Python 实现（~140k stars），供 Agent 联网搜索查阅技术文档 |
-| **LangGraph (Python)** ([github.com/langchain-ai/langgraph](https://github.com/langchain-ai/langgraph)) | Python 版图 Agent 框架（~35.7k stars），设计参考及跨语言概念对齐 |
+| **LangChain (Python)** ([github.com/langchain-ai/langchain](https://github.com/langchain-ai/langchain)) | 生态系统 Python 实现（~140k⭐），Agent 联网搜索查阅技术文档 |
+| **LangGraph (Python)** ([github.com/langchain-ai/langgraph](https://github.com/langchain-ai/langgraph)) | Python 版图 Agent 框架（~35.7k⭐），设计参考及跨语言概念对齐 |
+| **Superpowers-ZH** ([github.com/jnMetaCode/superpowers-zh](https://github.com/jnMetaCode/superpowers-zh)) | 20 个 Superpowers 技能包加速了本项目的设计流程、代码审阅和开发迭代 |
+| **SkCC 论文与实现** | 中山大学团队 SkCC 论文 (arXiv:2605.03353) 及 Nexa-Language/Skill-Compiler 开源实现——编译方法论基础 |
+| **grill-me / grill-with-docs** | 部分方法论参考 |
+
+### 开发工具
+
+| 项目 | 说明 |
+|------|------|
+| **Trae CN + GLM 5.2** | 技能需求文档辅助编写 |
+| **Claude Code + DeepSeek V4** | 技能实际开发环境 |
 
 ## 技能调测
 
