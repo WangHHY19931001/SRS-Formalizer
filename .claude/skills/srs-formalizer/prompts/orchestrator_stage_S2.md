@@ -20,31 +20,31 @@ S2.7 R3 关系推导-2   ──→ 2_extract/r3-relational/ (最终)
 ### S2.1：R1 显式需求提取
 对 `_ctx/shard_index.json` 中每个分片：
 ```bash
-inject-prompt --template prompts/executor-R1.md --shard-id <shard_id> --workdir .srs_formalizer
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-R1.md --shard-id <shard_id> --workdir .srs_formalizer
 ```
 输出写入 `2_extract/r1-explicit/<shard_id>.jsonl`。
 ```bash
-validate-jsonl --file <path> --workdir .srs_formalizer
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-jsonl --file <path> --workdir .srs_formalizer
 ```
 
 ### S2.2：初步架构分解
 ```bash
-inject-prompt --template prompts/executor-arch-1.md → 分派 LLM 子代理
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-arch-1.md → 分派 LLM 子代理
 ```
 从 R1 需求中识别 Module/Actor/Constraint 层次。
 输出写入 `2_extract/architecture/arch-1.jsonl`。
 ```bash
 # 校验者审核
-inject-prompt --template prompts/verifier-arch.md → 新会话 LLM 子代理
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/verifier-arch.md → 新会话 LLM 子代理
 # 构建架构节点到图谱
-build-architecture --workdir .srs_formalizer
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-architecture --workdir .srs_formalizer
 ```
 
 ### S2.3：R2 隐式需求推导
 基于 R1 + **架构（Arch-1）**，对每个分片：
 ```bash
 # 关键：将 Arch-1 作为 ARCHITECTURE 参数传入
-inject-prompt --template prompts/executor-R2.md --shard-id <shard_id> --workdir .srs_formalizer
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-R2.md --shard-id <shard_id> --workdir .srs_formalizer
 → 分派 LLM 子代理
 ```
 输出写入 `2_extract/r2-implicit/<shard_id>.jsonl`。
@@ -52,21 +52,21 @@ inject-prompt --template prompts/executor-R2.md --shard-id <shard_id> --workdir 
 
 ### S2.4：架构精化（基于 R2 + Arch-1）
 ```bash
-inject-prompt --template prompts/executor-arch-2.md \
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-arch-2.md \
   --params '{"ARCH_1":"<arch-1内容>","R1_R2_OUTPUT":"<全部R1+R2>"}'
 → 分派 LLM 子代理
 ```
 从 R2 隐式需求中发现遗漏模块/约束/层次修正。
 输出写入 `2_extract/architecture/arch-2.jsonl`。
 ```bash
-build-architecture --workdir .srs_formalizer  # 重新构建含增量
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-architecture --workdir .srs_formalizer  # 重新构建含增量
 ```
 
 ### S2.5：R3 关系推导-1
 基于 R1 + R2 + **架构（Arch-2）**：
 ```bash
 # 关键：将 Arch-2 作为 ARCHITECTURE 参数传入
-inject-prompt --template prompts/executor-R3.md \
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-R3.md \
   --params '{"ARCHITECTURE":"<arch-2.jsonl内容>","ALL_REQUIREMENTS":"<全部R1+R2>"}'
 → 分派 LLM 子代理
 ```
@@ -75,21 +75,21 @@ inject-prompt --template prompts/executor-R3.md \
 
 ### S2.6：架构终核（基于 R3-1 + Arch-2）
 ```bash
-inject-prompt --template prompts/executor-arch-3.md \
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-arch-3.md \
   --params '{"ARCH_2":"<arch-2内容>","R3_OUTPUT":"<R3-1全部记录>"}'
 → 分派 LLM 子代理
 ```
 基于 R3 初步关系发现结构矛盾，输出最终修正。
 输出写入 `2_extract/architecture/arch-3.jsonl`。
 ```bash
-build-architecture --workdir .srs_formalizer  # 终核修正
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-architecture --workdir .srs_formalizer  # 终核修正
 ```
 
 ### S2.7：R3 关系推导-2（完备架构下的最终关系）
 在**完整架构（Arch-3）**约束下重新推导：
 ```bash
 # 关键：将 Arch-3 作为 ARCHITECTURE 参数传入
-inject-prompt --template prompts/executor-R3.md \
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-R3.md \
   --params '{"ARCHITECTURE":"<arch-3.jsonl内容>","ALL_REQUIREMENTS":"<全部R1+R2>"}'
 → 分派 LLM 子代理
 ```
@@ -97,7 +97,7 @@ inject-prompt --template prompts/executor-R3.md \
 
 ### 最终验证
 ```bash
-verify-gate --workdir .srs_formalizer --stage R3
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts verify-gate --workdir .srs_formalizer --stage R3
 ```
 确认全部 JSONL 文件存在、ID 唯一、图谱可加载。
 

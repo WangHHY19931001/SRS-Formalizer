@@ -190,12 +190,15 @@ S2 子阶段:
 | `manifest --src <path> --lang zh\|en --workdir .srs_formalizer` | 索引化分片 + 章节识别 (不创建物理文件) | S1 |
 | `inject-prompt --template <path> --shard-id <id> --workdir .srs_formalizer` | 填充子代理提示词模板（按分片ID查找） | S2 |
 | `validate-jsonl --file <path> --workdir .srs_formalizer` | JSONL 格式校验（6 项） | S2 |
+| `validate-architecture --file <path> --workdir .srs_formalizer` | 架构 JSONL 校验（6 项 + 循环检测） | S2 |
 | `build-graph --workdir .srs_formalizer` | JSONL → 需求图谱 | S3 |
+| `build-architecture --workdir .srs_formalizer` | 架构 JSONL → 架构图节点 | S3 |
 | `analyze-structure --workdir .srs_formalizer` | 孤立/悬挂/孤岛检测 | S3 |
 | `merge-structure --workdir .srs_formalizer` | 结构补全合并 | S3 |
 | `analyze-graph --workdir .srs_formalizer` | Jaccard 去重 + 反义检测 | S3 |
 | `merge-analysis --workdir .srs_formalizer` | 语义判定合并 | S3 |
 | `export-cypher --workdir .srs_formalizer` | 图谱 → Cypher 脚本 | S3 |
+| `validate-cypher --file <path> --workdir .srs_formalizer` | Cypher 脚本校验（4 项） | S3 |
 | `generate-bdd --workdir .srs_formalizer` | 图谱 → BDD 骨架 | S4 |
 | `validate-bdd --workdir .srs_formalizer` | Gherkin 格式校验 | S4 |
 | `build-behavior-graph --workdir .srs_formalizer` | BDD → 系统行为图谱 JSON + Cypher | S4 |
@@ -205,6 +208,7 @@ S2 子阶段:
 | `validate-glossary --file <path> [--min-high N]` | 术语表批次 JSON 校验（8 项 + 门禁） | S1 |
 | `query-graph --workdir .srs_formalizer --query <type> --params '<json>'` | 图谱只读查询 | S6 |
 | `verify-gate --workdir .srs_formalizer --stage S1\|R3\|FINAL` | 硬门禁检查 | S1/S3/S6 |
+| `validate-checklist --file <path> --workdir .srs_formalizer` | CHECKLIST 完成度校验 | S1/S3/S6 |
 | `capability-probe --mode generate\|score [--file <path>]` | LLM 能力探测（出题+判分） | S0 |
 | `compile --skill-dir <path> --workdir .srs_formalizer` | 编译 SKILL.md → SkIR + 安全注入 + 平台发射 | 技能加载时 |
 
