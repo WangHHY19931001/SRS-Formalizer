@@ -2290,13 +2290,13 @@ function calculateProfile(results: ProbeResult[]): {
     }
   }
 
-  // Tier estimation
+  // Tier estimation — weakest dimension determines overall tier
   const allScores = Object.values(profile);
-  const avgAll = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+  const minScore = Math.min(...allScores);
   let tier: Tier;
-  if (avgAll >= 80) {
+  if (minScore >= 80) {
     tier = 'high';
-  } else if (avgAll >= 50) {
+  } else if (minScore >= 50) {
     tier = 'medium';
   } else {
     tier = 'low';
