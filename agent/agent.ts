@@ -15,7 +15,7 @@
  *   - Custom system prompt with workDir, WORK_TABOOS, and WORK_RULES
  */
 
-import { createDeepAgent } from "deepagents";
+import { createDeepAgent, FilesystemBackend } from "deepagents";
 import { ChatOpenAI } from "@langchain/openai";
 import { BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
@@ -204,9 +204,14 @@ export async function createAgent(config: AgentConfig): Promise<{
     config.workDir || process.env.WORK_DIR,
   );
 
+  // Restrict filesystem access to project root
+  const projectRoot = config.projectRoot || process.env.PROJECT_ROOT || process.cwd();
+  const backend = new FilesystemBackend({ rootDir: projectRoot });
+
   const agent = createDeepAgent({
     model: llm,
     systemPrompt,
+    backend,
     tools: [
       runCommandTool,
       webSearchTool,
