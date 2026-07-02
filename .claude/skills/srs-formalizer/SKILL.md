@@ -190,7 +190,7 @@ S2 子阶段:
 | `npx tsx index.ts init --output .srs_formalizer` | 初始化工作目录（注意：用 `--output` 不是 `--workdir`） | S1 |
 | `npx tsx index.ts manifest --src <path> --lang zh\|en --workdir .srs_formalizer` | 索引化分片 + 章节识别 (不创建物理文件) | S1 |
 | `npx tsx index.ts inject-prompt --template <path> --shard-id <id> --workdir .srs_formalizer` | 填充子代理提示词模板（按分片ID查找） | S2 |
-| `npx tsx index.ts guided-extract --template <path> --shard-id <id> --workdir .srs_formalizer` | 逐行交互式 JSONL 提取（LLM 每次输出一行，脚本校验反馈） | S2 |
+| `npx tsx index.ts guided-extract --template <path> --shard-id <id> --type r1\|r2\|r3\|arch --workdir .srs_formalizer` | 逐行交互式提取（r1/r2/r3/arch JSONL），LLM 每次一行，脚本校验反馈 | S2 |
 | `npx tsx index.ts validate-jsonl --file <path> --workdir .srs_formalizer` | JSONL 格式校验（6 项） | S2 |
 | `npx tsx index.ts validate-architecture --file <path> --workdir .srs_formalizer` | 架构 JSONL 校验（6 项 + 循环检测） | S2 |
 | `npx tsx index.ts build-graph --workdir .srs_formalizer` | JSONL → 需求图谱 | S3 |

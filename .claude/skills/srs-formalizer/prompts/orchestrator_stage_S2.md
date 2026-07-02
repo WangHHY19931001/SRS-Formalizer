@@ -46,11 +46,13 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-architecture --work
 ```
 
 ### S2.3：R2 隐式需求推导
-基于 R1 + **架构（Arch-1）**，对每个分片：
+基于 R1 + **架构（Arch-1）**，对每个分片（推荐逐行提取）：
 ```bash
-# 关键：将 Arch-1 作为 ARCHITECTURE 参数传入
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract --template prompts/executor-R2.md --shard-id <shard_id> --type r2 --workdir .srs_formalizer
+```
+备选一次性注入：
+```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-R2.md --shard-id <shard_id> --workdir .srs_formalizer
-→ 分派 LLM 子代理
 ```
 输出写入 `2_extract/r2-implicit/<shard_id>.jsonl`。
 校验循环：verifier-R2 → REJECTED → ≤3 次重试。
@@ -68,12 +70,14 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-architecture --work
 ```
 
 ### S2.5：R3 关系推导-1
-基于 R1 + R2 + **架构（Arch-2）**：
+基于 R1 + R2 + **架构（Arch-2）**（推荐逐行提取）：
 ```bash
-# 关键：将 Arch-2 作为 ARCHITECTURE 参数传入
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract --template prompts/executor-R3.md --shard-id <shard_id> --type r3 --workdir .srs_formalizer
+```
+备选一次性注入：
+```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-R3.md \
   --params '{"ARCHITECTURE":"<arch-2.jsonl内容>","ALL_REQUIREMENTS":"<全部R1+R2>"}'
-→ 分派 LLM 子代理
 ```
 输出写入 `2_extract/r3-relational/<shard_id>.jsonl`。
 校验循环：verifier-R3。

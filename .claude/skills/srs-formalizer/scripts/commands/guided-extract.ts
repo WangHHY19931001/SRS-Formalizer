@@ -26,67 +26,78 @@ import { execSync } from 'node:child_process';
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 
-// ===================== Validator =====================
+// ===================== Validators (3 types) =====================
 
-const VALID_ID_RE = /^R[123]-[A-Z]+-\d{4}$/;
+type ExtractType = 'r1' | 'r2' | 'r3' | 'arch';
+const VALID_ID_RE = /^[R]\d-[A-Z]+-\d{4}$/;
 const VALID_CATEGORIES = ['explicit', 'implicit', 'relational'];
 
-function validateJsonlLine(line: string): { valid: boolean; errors: string[] } {
+function validateRequirementLine(line: string, expectedPrefix: string): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
   const trimmed = line.trim();
   if (!trimmed) return { valid: false, errors: ['空行'] };
-
   let record: Record<string, unknown>;
-  try {
-    record = JSON.parse(trimmed);
-  } catch {
-    return { valid: false, errors: [`JSON 解析失败: ${trimmed.slice(0, 80)}`] };
+  try { record = JSON.parse(trimmed); } catch { return { valid: false, errors: [`JSON 解析失败: ${trimmed.slice(0, 80)}`] }; }
+  if (typeof record !== 'object' || record === null || Array.isArray(record)) return { valid: false, errors: ['不是 JSON 对象'] };
+  if (!record.id || !VALID_ID_RE.test(String(record.id)) || !String(record.id).startsWith(expectedPrefix)) {
+    errors.push(`id 格式: ${String(record.id ?? '缺失')}（须为 ${expectedPrefix}-<TOPIC>-NNNN）`);
   }
-
-  if (typeof record !== 'object' || record === null || Array.isArray(record)) {
-    return { valid: false, errors: ['不是 JSON 对象'] };
-  }
-
-  if (!record.id || !VALID_ID_RE.test(String(record.id))) {
-    errors.push(`id 格式错误: ${String(record.id ?? '缺失')}（须匹配 ${VALID_ID_RE.source}）`);
-  }
-  if (!VALID_CATEGORIES.includes(String(record.category ?? ''))) {
-    errors.push(`category 非法: ${String(record.category ?? '缺失')}（须为 ${VALID_CATEGORIES.join('|')}）`);
-  }
-  if (!record.statement || String(record.statement).trim() === '') {
-    errors.push('statement 缺失');
-  }
-  if (!record.source_file || String(record.source_file).trim() === '') {
-    errors.push('source_file 缺失');
-  }
-  if (!record.confidence || !['high', 'medium', 'low'].includes(String(record.confidence))) {
-    errors.push('confidence 缺失/非法（须为 high|medium|low）');
-  }
-
+  if (!VALID_CATEGORIES.includes(String(record.category ?? ''))) errors.push(`category: ${String(record.category ?? '缺失')}`);
+  if (!record.statement || String(record.statement).trim() === '') errors.push('statement 缺失');
+  if (!record.source_file) errors.push('source_file 缺失');
+  if (!['high', 'medium', 'low'].includes(String(record.confidence ?? ''))) errors.push('confidence 非法');
   return { valid: errors.length === 0, errors };
 }
 
-// ===================== Interactive Protocol =====================
+function validateArchitectureLine(line: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  const trimmed = line.trim();
+  if (!trimmed) return { valid: false, errors: ['空行'] };
+  let record: Record<string, unknown>;
+  try { record = JSON.parse(trimmed); } catch { return { valid: false, errors: [`JSON 解析失败: ${trimmed.slice(0, 80)}`] }; }
+  if (typeof record !== 'object' || record === null || Array.isArray(record)) return { valid: false, errors: ['不是 JSON 对象'] };
+  if (!record.name || String(record.name).trim() === '') errors.push('name 缺失');
+  if (!record.type || !['Module', 'Actor', 'Constraint', 'Component', 'Interface'].includes(String(record.type))) {
+    errors.push(`type 非法: ${String(record.type ?? '缺失')}（须为 Module|Actor|Constraint|Component|Interface）`);
+  }
+  if (!record.description || String(record.description).trim() === '') errors.push('description 缺失');
+  return { valid: errors.length === 0, errors };
+}
 
-const GUIDED_SYSTEM_PROMPT = `你是一个需求提取器。逐行输出 JSONL 格式的需求，每次只输出一行。
+function validateLine(line: string, type: ExtractType): { valid: boolean; errors: string[] } {
+  switch (type) {
+    case 'r1': return validateRequirementLine(line, 'R1');
+    case 'r2': return validateRequirementLine(line, 'R2');
+    case 'r3': return validateRequirementLine(line, 'R3');
+    case 'arch': return validateArchitectureLine(line);
+  }
+}
 
-规则：
-1. 每次只输出一条 JSON 记录（一行，不要换行，不要思考过程）
-2. 记录格式：{"id":"R1-TOPIC-0001","category":"explicit","statement":"需求描述","source_file":"srs.md","confidence":"high","metadata":{}}
-3. id 格式：R1-<TOPIC>-NNNN（只用大写英文字母和数字）
-4. category 必须是 explicit、implicit 或 relational
-5. confidence 必须是 high、medium 或 low
-6. 系统会回复 OK（已接受）或 ERR: ...（需要修正）
-7. 所有需求提取完成后，输出 DONE（单独一行，不要 JSON）
+// ===================== System Prompts per Type =====================
 
-现在开始。每次输出一条 JSON 记录。`;
+function guidedSystemPrompt(type: ExtractType): string {
+  const reqFormat = (prefix: string) =>
+    `{"id":"${prefix}-TOPIC-0001","category":"explicit","statement":"需求描述","source_file":"srs.md","confidence":"high","metadata":{}}`;
+
+  if (type === 'arch') {
+    return `你是架构分解器。逐行输出 JSONL，每次一行。
+格式: {"name":"模块名","type":"Module|Actor|Constraint|Component|Interface","description":"描述","source_file":"srs.md","metadata":{}}
+系统回复 OK(已接受) 或 ERR:...(需修正)。完成后输出 DONE。`;
+  }
+  const prefix = type === 'r1' ? 'R1' : type === 'r2' ? 'R2' : 'R3';
+  return `你是需求提取器。逐行输出 JSONL，每次一行。
+格式: ${reqFormat(prefix)}
+id: ${prefix}-<TOPIC>-NNNN。category: explicit|implicit|relational。confidence: high|medium|low。
+系统回复 OK 或 ERR。完成后输出 DONE。`;
+}
+
 
 /**
  * Generate the guided extraction prompt for the LLM.
  * Returns the filled template wrapped with guided protocol instructions.
  */
-export function generateGuidedPrompt(filledTemplate: string): string {
-  return `${GUIDED_SYSTEM_PROMPT}\n\n---\n${filledTemplate}\n---\n\n现在开始逐行输出。只输出 JSON 行，不要思考过程。`;
+export function generateGuidedPrompt(filledTemplate: string, type: ExtractType = 'r1'): string {
+  return `${guidedSystemPrompt(type)}\n\n---\n${filledTemplate}\n---\n\n现在开始逐行输出。只输出 JSON 行，不要思考过程。`;
 }
 
 // ===================== Main (used by agent, not standalone) =====================
@@ -96,14 +107,14 @@ export function generateGuidedPrompt(filledTemplate: string): string {
  * If valid, appends to output file and returns "OK".
  * If invalid, returns "ERR: ..." for LLM to retry.
  */
-function processLine(line: string, outputPath: string): string {
+function processLine(line: string, outputPath: string, type: ExtractType = 'r1'): string {
   const trimmed = line.trim();
 
   // Check for DONE
   if (trimmed.toUpperCase() === 'DONE') return 'DONE';
 
   // Validate
-  const result = validateJsonlLine(trimmed);
+  const result = validateLine(trimmed, type);
   if (result.valid) {
     // Ensure directory
     const dir = path.dirname(outputPath);
@@ -124,11 +135,13 @@ export async function main(args: string[]): Promise<CliResult> {
   let templatePath: string | null;
   let shardId: string | null;
   let workDirArg: string | null;
+  let extractType: string | null;
 
   try {
     templatePath = safeParseArg(args, '--template');
     shardId = safeParseArg(args, '--shard-id');
     workDirArg = safeParseArg(args, '--workdir');
+    extractType = safeParseArg(args, '--type') || 'r1';
   } catch (err) {
     return { status: 'error', message: (err as Error).message };
   }
@@ -136,6 +149,10 @@ export async function main(args: string[]): Promise<CliResult> {
   if (!templatePath) return { status: 'error', message: 'Missing --template' };
   if (!shardId) return { status: 'error', message: 'Missing --shard-id' };
   if (!workDirArg) return { status: 'error', message: 'Missing --workdir' };
+  if (!['r1', 'r2', 'r3', 'arch'].includes(extractType)) {
+    return { status: 'error', message: `Invalid --type: ${extractType}. Must be r1|r2|r3|arch` };
+  }
+  const etype = extractType as ExtractType;
 
   let workDir: string;
   try { workDir = validateWorkDir(workDirArg); } catch (err) { return { status: 'error', message: (err as Error).message }; }
@@ -153,8 +170,14 @@ export async function main(args: string[]): Promise<CliResult> {
   } catch (err) { return { status: 'error', message: `inject-prompt error: ${(err as Error).message}` }; }
 
   // 2. Generate guided prompt
-  const guidedPrompt = generateGuidedPrompt(filled);
-  const outputPath = path.join(workDir, '2_extract', 'r1-explicit', `${shardId}.jsonl`);
+  const guidedPrompt = generateGuidedPrompt(filled, etype);
+
+  // Map type to output directory
+  const outSubdir = etype === 'arch' ? 'architecture'
+    : etype === 'r2' ? 'r2-implicit'
+    : etype === 'r3' ? 'r3-relational'
+    : 'r1-explicit';
+  const outputPath = path.join(workDir, '2_extract', outSubdir, `${shardId}.jsonl`);
 
   // 3. Return the guided prompt + output path for the agent to use
   return {
@@ -170,7 +193,7 @@ export async function main(args: string[]): Promise<CliResult> {
 }
 
 // Exported for agent use
-export { processLine, validateJsonlLine, GUIDED_SYSTEM_PROMPT };
+export { processLine, validateLine, guidedSystemPrompt };
 
 // Guard
 import { refuseDirectInvocation } from '../lib/cli.js';
