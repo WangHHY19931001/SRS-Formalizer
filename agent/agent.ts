@@ -105,6 +105,42 @@ export async function createAgent(config: AgentConfig): Promise<{
   const registry = config.registry || new ToolRegistry();
   const directory = config.directory || new AgentDirectory();
 
+  // ===================== Auto-register configured MCP servers =====================
+  const mcpServerConfigs = llmConfig.mcp_servers || [];
+  const autoRegisteredMcpTools: string[] = [];
+
+  for (const mcpEntry of mcpServerConfigs) {
+    try {
+      const toolNames = await registerMcpServer({
+        transport: "stdio",
+        command: mcpEntry.command,
+        args: mcpEntry.args,
+      });
+      writeLog("mcp_auto_register", { server: mcpEntry.name, tools: toolNames });
+
+      // Register each MCP tool with mcp_ prefix in the ToolRegistry
+      for (const name of toolNames) {
+        const mcpToolName = `mcp_${name}`;
+        registry.addLazy(mcpToolName, async () => {
+          const { tool: langchainTool } = await import("@langchain/core/tools");
+          return langchainTool(
+            async (args: Record<string, unknown>) => callMcpTool(name, args),
+            {
+              name: mcpToolName,
+              description: `[${mcpEntry.name}] MCP tool: ${name}`,
+              schema: z.object({}).passthrough(),
+            },
+          );
+        });
+        autoRegisteredMcpTools.push(mcpToolName);
+      }
+      // Auto-register for immediate use
+      await registry.register(toolNames.map(n => `mcp_${n}`));
+    } catch (e) {
+      writeLog("mcp_auto_register_error", { server: mcpEntry.name, error: (e as Error).message });
+    }
+  }
+
   // Context manager
   const openaiClient = new (await import("openai")).default({
     baseURL: llmConfig.baseURL,
@@ -190,24 +226,27 @@ export async function createAgent(config: AgentConfig): Promise<{
   // MCP tools
   const mcpRegisterTool = createMcpRegisterTool(async (mcpConfig) => {
     const toolNames = await registerMcpServer(mcpConfig);
-    // Register each MCP tool in the ToolRegistry as lazy-loadable
+    // Register each MCP tool in the ToolRegistry with mcp_ prefix
     for (const name of toolNames) {
       const mcpToolName = `mcp_${name}`;
       registry.addLazy(mcpToolName, async () => {
         const { tool: langchainTool } = await import("@langchain/core/tools");
         return langchainTool(
-          async (args: Record<string, unknown>) => callMcpTool("mcp_server", name, args),
+          async (args: Record<string, unknown>) => callMcpTool(name, args),
           { name: mcpToolName, description: `MCP tool: ${name}`, schema: z.object({}).passthrough() },
         );
       });
     }
-    // Auto-register them
-    await registry.register(toolNames.map(n => `mcp_${n}`));
-    return toolNames;
+    // Auto-register them for immediate use
+    const prefixed = toolNames.map(n => `mcp_${n}`);
+    await registry.register(prefixed);
+    return [...toolNames, ...prefixed];
   });
 
-  const mcpCallTool = createMcpCallTool(async (serverName, toolName, args) => {
-    return callMcpTool(serverName, toolName, args);
+  const mcpCallTool = createMcpCallTool(async (toolName, args) => {
+    // Strip mcp_ prefix if present, then call MCP
+    const actualName = toolName.startsWith("mcp_") ? toolName.slice(4) : toolName;
+    return callMcpTool(actualName, args);
   });
 
   // Register all tools

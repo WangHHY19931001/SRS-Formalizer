@@ -7,6 +7,12 @@
 
 import * as fs from 'node:fs';
 
+export interface McpServerEntry {
+  name: string;
+  command: string;
+  args: string[];
+}
+
 export interface LlmConfig {
   name: string;
   api_type: 'openai-compatible';
@@ -14,6 +20,7 @@ export interface LlmConfig {
   key: string;
   'max-model-len': number;
   description?: string;
+  mcp_servers?: McpServerEntry[];
 }
 
 export function loadLlmConfig(configPath: string): LlmConfig {

@@ -365,24 +365,23 @@ export function createMcpRegisterTool(
 }
 
 export function createMcpCallTool(
-  mcpCall: (serverName: string, toolName: string, args: Record<string, unknown>) => Promise<string>,
+  mcpCall: (toolName: string, args: Record<string, unknown>) => Promise<string>,
 ) {
   return tool(
-    async ({ serverName, toolName, args }) => {
+    async ({ toolName, args }) => {
       try {
-        const result = await mcpCall(serverName, toolName, args || {});
+        const result = await mcpCall(toolName, args || {});
         return result;
       } catch (e) {
-        return `MCP 调用失败 [${serverName}/${toolName}]: ${(e as Error).message}`;
+        return `MCP 调用失败 [${toolName}]: ${(e as Error).message}`;
       }
     },
     {
       name: "call_mcp_tool",
-      description: "调用已注册的 MCP 服务器上的工具。先使用 register_mcp_server 注册服务器，再使用此工具调用其功能。",
+      description: "调用已注册 MCP 服务器上的工具。用 register_mcp_server 注册后，直接用工具名调用（工具名以 mcp_ 前缀开头）。",
       schema: z.object({
-        serverName: z.string().describe("MCP 服务器名称"),
-        toolName: z.string().describe("要调用的工具名称"),
-        args: z.record(z.string(), z.unknown()).optional().describe("工具参数"),
+        toolName: z.string().describe("MCP 工具名称（如 mcp_search-tickets），从 register_mcp_server 返回结果中获取"),
+        args: z.record(z.string(), z.unknown()).optional().describe("工具参数 JSON 对象"),
       }),
     }
   );
