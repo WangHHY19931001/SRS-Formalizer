@@ -535,6 +535,27 @@ function checkLeanGraphExists(workDir: string): CheckResult {
   return { name: 'Lean proof graph exists', passed: false, detail: `Missing: ${missing.join(', ')}` };
 }
 
+function checkSystemArchitectureExists(workDir: string): CheckResult {
+  const graphPath = path.join(workDir, '6_outputs', 'system-architecture.json');
+  if (!fs.existsSync(graphPath)) {
+    return { name: 'System architecture graph exists', passed: false, detail: 'Not found — run build-system-architecture' };
+  }
+  try {
+    const g = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+    const nodes = g.nodes?.length ?? 0;
+    const edges = g.edges?.length ?? 0;
+    const cross = g.metadata?.total_cross_edges ?? 0;
+    const converged = g.consistency ? g.consistency.filter((c: {passed: boolean; severity: string}) => c.severity === 'error' && !c.passed).length === 0 : false;
+    return {
+      name: 'System architecture graph exists',
+      passed: converged,
+      detail: `${nodes} nodes, ${edges} edges, ${cross} cross-layer${converged ? ' ✓ converged' : ' ✗ not converged'}`,
+    };
+  } catch {
+    return { name: 'System architecture graph exists', passed: false, detail: 'Corrupt JSON' };
+  }
+}
+
 /** R3: 验证架构 JSONL 文件存在且非空 */
 function checkArchitectureExists(workDir: string): CheckResult {
   try {
@@ -668,6 +689,7 @@ export async function main(args: string[]): Promise<CliResult> {
     allChecks.push(checkBehaviorGraphExists(workDir));
     allChecks.push(checkTlaGraphExists(workDir));
     allChecks.push(checkLeanGraphExists(workDir));
+    allChecks.push(checkSystemArchitectureExists(workDir));
   }
 
   const errors = allChecks.filter(c => !c.passed).map(c => c.detail ?? c.name);

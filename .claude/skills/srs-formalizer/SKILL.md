@@ -201,6 +201,7 @@ S2 子阶段:
 | `build-behavior-graph --workdir .srs_formalizer` | BDD → 系统行为图谱 JSON + Cypher | S4 |
 | `build-tla-graph --workdir .srs_formalizer` | TLA+ → 系统交互图谱 JSON + Cypher | S5 |
 | `build-lean-graph --workdir .srs_formalizer` | Lean 4 → 证明依赖图谱 JSON + Cypher | S5 |
+| `build-system-architecture --workdir .srs_formalizer [--iteration N]` | 四层合成 → 系统架构图谱 + 一致性报告 | S6 |
 | `validate-glossary --file <path> [--min-high N]` | 术语表批次 JSON 校验（8 项 + 门禁） | S1 |
 | `query-graph --workdir .srs_formalizer --query <type> --params '<json>'` | 图谱只读查询 | S6 |
 | `verify-gate --workdir .srs_formalizer --stage S1\|R3\|FINAL` | 硬门禁检查 | S1/S3/S6 |
