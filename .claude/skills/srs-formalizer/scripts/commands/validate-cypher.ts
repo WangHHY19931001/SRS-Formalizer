@@ -14,16 +14,11 @@
 
 import * as fs from 'node:fs';
 import type { CliResult } from '../types/index.js';
+import { safeParseArg } from '../lib/cli.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
 
 // ---------------------------------------------------------------------------
 // Validation logic
@@ -182,7 +177,12 @@ function validateCypher(content: string): string[] {
 // ---------------------------------------------------------------------------
 
 export async function main(args: string[]): Promise<CliResult> {
-  const filePath = parseArg(args, '--file');
+  let filePath: string | null;
+  try {
+    filePath = safeParseArg(args, '--file');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
 
   if (!filePath) {
     return { status: 'error', message: 'Missing required argument: --file' };

@@ -24,6 +24,7 @@ import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import * as zlib from 'node:zlib';
 import type { CliResult } from '../types/index.js';
+import { safeParseArg } from '../lib/cli.js';
 
 /** AES-256-GCM 密钥（必须与 pack-skill.ts 一致） */
 const ENCRYPTION_KEY = crypto
@@ -71,12 +72,6 @@ function classifyRisk(relPath: string): 'high' | 'low' {
     if (pattern.test(relPath)) return 'high';
   }
   return 'low';
-}
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
 }
 
 function hasFlag(args: string[], name: string): boolean {
@@ -298,7 +293,12 @@ function performRepair(
 }
 
 export async function main(args: string[]): Promise<CliResult> {
-  const skillDirArg = parseArg(args, '--skill-dir');
+  let skillDirArg: string | null;
+  try {
+    skillDirArg = safeParseArg(args, '--skill-dir');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
   const repairMode = hasFlag(args, '--repair');
 
   if (!skillDirArg) {

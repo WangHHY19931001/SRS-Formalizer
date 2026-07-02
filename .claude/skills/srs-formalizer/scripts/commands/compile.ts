@@ -18,18 +18,12 @@ import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import type { CliResult } from '../types/index.js';
 import type { SkillIR } from '../types/skir.js';
-import { validateWorkDir } from '../lib/security.js';
+import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 import { parseRawSkillMd, buildSkIR } from '../lib/skir-builder.js';
 import { inject, getViolationsByLevel } from '../lib/anti-skill.js';
 import { validateSkIR, hasBlockingViolations } from '../lib/compile-validator.js';
 import { ClaudeXmlEmitter } from '../lib/emitter-claude-xml.js';
 import { GenericMarkdownEmitter } from '../lib/emitter-generic-md.js';
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
 
 interface CompileData {
   skir_path: string;
@@ -44,9 +38,16 @@ interface CompileData {
 
 export async function main(args: string[]): Promise<CliResult> {
   // ── Parse CLI arguments ──────────────────────────────────────────────
-  const skillDirArg = parseArg(args, '--skill-dir');
-  const workDirArg = parseArg(args, '--workdir');
-  const targetFilter = parseArg(args, '--target');
+  let skillDirArg: string | null;
+  let workDirArg: string | null;
+  let targetFilter: string | null;
+  try {
+    skillDirArg = safeParseArg(args, '--skill-dir');
+    workDirArg = safeParseArg(args, '--workdir');
+    targetFilter = safeParseArg(args, '--target');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
 
   if (!skillDirArg) {
     return { status: 'error', message: 'Missing required argument: --skill-dir' };

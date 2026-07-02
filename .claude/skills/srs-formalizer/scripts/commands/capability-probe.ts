@@ -20,6 +20,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execSync } from 'node:child_process';
 import type { CliResult } from '../types/index.js';
+import { safeParseArg } from '../lib/cli.js';
 
 // ===================== Type Definitions =====================
 
@@ -102,14 +103,6 @@ interface CapabilityProfile {
 }
 
 type Tier = 'low' | 'medium' | 'high';
-
-// ===================== Argument Parsing =====================
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
 
 // ===================== Probe Generation =====================
 
@@ -2392,7 +2385,16 @@ function scoreAllProbes(probes: ProbeItem[], answers: Record<string, string>, te
 // ===================== Main Entry Point =====================
 
 export async function main(args: string[]): Promise<CliResult> {
-  const mode = parseArg(args, '--mode');
+  let mode: string | null;
+  let filePath: string | null;
+  let tempDir: string | undefined;
+  try {
+    mode = safeParseArg(args, '--mode');
+    filePath = safeParseArg(args, '--file');
+    tempDir = safeParseArg(args, '--temp-dir') ?? undefined;
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
 
   if (!mode) {
     return { status: 'error', message: 'Missing required argument: --mode (generate|score)' };
@@ -2404,12 +2406,11 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   if (mode === 'score') {
-    const filePath = parseArg(args, '--file');
     if (!filePath) {
       return { status: 'error', message: 'Missing required argument: --file <path> (required for score mode)' };
     }
 
-    const tempDir = parseArg(args, '--temp-dir') ?? fs.mkdtempSync('capability-probe-');
+    const workDir = tempDir ?? fs.mkdtempSync('capability-probe-');
 
     // Read answer file
     let raw: string;
@@ -2428,7 +2429,7 @@ export async function main(args: string[]): Promise<CliResult> {
 
     const answers = answerData.answers ?? {};
     const probes = generateProbes();
-    const probeResults = scoreAllProbes(probes, answers, tempDir);
+    const probeResults = scoreAllProbes(probes, answers, workDir);
     const { profile, tier, recommendations } = calculateProfile(probeResults);
 
     return {

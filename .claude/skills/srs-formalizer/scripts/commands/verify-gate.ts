@@ -15,7 +15,7 @@ import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { readJsonl, listJsonlFiles } from '../lib/jsonl.js';
 import { Graph, type GraphData } from '../lib/graph.js';
-import { validateWorkDir } from '../lib/security.js';
+import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,12 +41,6 @@ interface VerifyOutput {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
 
 const VALID_STAGES = ['S1', 'R3', 'FINAL'] as const;
 
@@ -623,8 +617,14 @@ function checkGraphEdgeIntegrity(workDir: string): CheckResult {
 // ---------------------------------------------------------------------------
 
 export async function main(args: string[]): Promise<CliResult> {
-  const workDirArg = parseArg(args, '--workdir');
-  const stageArg = parseArg(args, '--stage');
+  let workDirArg: string | null;
+  let stageArg: string | null;
+  try {
+    workDirArg = safeParseArg(args, '--workdir');
+    stageArg = safeParseArg(args, '--stage');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
 
   if (!workDirArg) {
     return { status: 'error', message: 'Missing required argument: --workdir' };

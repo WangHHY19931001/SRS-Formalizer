@@ -20,7 +20,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { Graph, type GraphData, type GraphNode, type GraphEdge } from '../lib/graph.js';
-import { validateWorkDir } from '../lib/security.js';
+import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,12 +48,6 @@ const VALID_QUERIES: QueryType[] = [
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
 
 /**
  * Load the graph from the workdir, trying files in priority order:
@@ -342,9 +336,16 @@ function handleExportBrainstorm(graph: Graph, workDir: string): Record<string, u
 // ---------------------------------------------------------------------------
 
 export async function main(args: string[]): Promise<CliResult> {
-  const workDirArg = parseArg(args, '--workdir');
-  const queryArg = parseArg(args, '--query');
-  const paramsArg = parseArg(args, '--params');
+  let workDirArg: string | null;
+  let queryArg: string | null;
+  let paramsArg: string | null;
+  try {
+    workDirArg = safeParseArg(args, '--workdir');
+    queryArg = safeParseArg(args, '--query');
+    paramsArg = safeParseArg(args, '--params');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
 
   if (!workDirArg) {
     return { status: 'error', message: 'Missing required argument: --workdir' };

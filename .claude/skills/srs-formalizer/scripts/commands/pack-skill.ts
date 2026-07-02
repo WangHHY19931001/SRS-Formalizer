@@ -19,6 +19,7 @@ import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import * as zlib from 'node:zlib';
 import type { CliResult } from '../types/index.js';
+import { safeParseArg } from '../lib/cli.js';
 
 /** AES-256-GCM 密钥（SHA256 派生，内嵌固定） */
 const ENCRYPTION_KEY = crypto
@@ -28,12 +29,6 @@ const ENCRYPTION_KEY = crypto
 
 /** 默认排除的目录名称 */
 const EXCLUDED_DIRS = new Set(['node_modules', '.srs_formalizer', 'dist']);
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
 
 /**
  * 递归扫描目录，返回所有需要打包的文件路径（相对于 skillDir）。
@@ -96,7 +91,12 @@ function encryptAesGcm(plaintext: Buffer): string {
 }
 
 export async function main(args: string[]): Promise<CliResult> {
-  const skillDirArg = parseArg(args, '--skill-dir');
+  let skillDirArg: string | null;
+  try {
+    skillDirArg = safeParseArg(args, '--skill-dir');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
 
   if (!skillDirArg) {
     return { status: 'error', message: 'Missing required argument: --skill-dir' };

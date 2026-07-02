@@ -11,17 +11,18 @@
 
 import type { CliResult, JsonlRecord } from '../types/index.js';
 import { readJsonl, validateJsonlRecord } from '../lib/jsonl.js';
+import { safeParseArg } from '../lib/cli.js';
 import { isPathSafe, validateWorkDir } from '../lib/security.js';
 
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
-
 export async function main(args: string[]): Promise<CliResult> {
-  const filePath = parseArg(args, '--file');
-  const workDirArg = parseArg(args, '--workdir');
+  let filePath: string | null;
+  let workDirArg: string | null;
+  try {
+    filePath = safeParseArg(args, '--file');
+    workDirArg = safeParseArg(args, '--workdir');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
 
   if (!filePath) {
     return { status: 'error', message: 'Missing required argument: --file' };

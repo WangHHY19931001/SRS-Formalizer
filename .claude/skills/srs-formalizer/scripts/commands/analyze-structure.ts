@@ -12,17 +12,11 @@ import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { Graph, type GraphData } from '../lib/graph.js';
 import { findOrphans, findDanglingEdges, findConceptIslands } from '../lib/traversal.js';
-import { validateWorkDir } from '../lib/security.js';
+import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
 
 /**
  * Ensure a directory exists, creating it recursively if needed.
@@ -110,7 +104,12 @@ function generateGapAnalysisMd(
 // ---------------------------------------------------------------------------
 
 export async function main(args: string[]): Promise<CliResult> {
-  const workDirArg = parseArg(args, '--workdir');
+  let workDirArg: string | null;
+  try {
+    workDirArg = safeParseArg(args, '--workdir');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
 
   if (!workDirArg) {
     return { status: 'error', message: 'Missing required argument: --workdir' };

@@ -10,6 +10,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { CANONICAL, repairChecklist, inferStage } from '../lib/checklists.js';
+import { safeParseArg } from '../lib/cli.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,12 +30,6 @@ export interface ChecklistData {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
 
 function hasFlag(args: string[], name: string): boolean {
   return args.includes(name);
@@ -82,7 +77,12 @@ function getWorkDir(filePath: string): string | null {
 // ---------------------------------------------------------------------------
 
 export async function main(args: string[]): Promise<CliResult> {
-  const filePath = parseArg(args, '--file');
+  let filePath: string | null;
+  try {
+    filePath = safeParseArg(args, '--file');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
   const doRepair = hasFlag(args, '--repair');
 
   if (!filePath) {

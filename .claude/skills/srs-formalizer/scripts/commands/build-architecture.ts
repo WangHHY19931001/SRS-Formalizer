@@ -13,7 +13,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { Graph, type GraphData } from '../lib/graph.js';
-import { validateWorkDir } from '../lib/security.js';
+import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,12 +56,6 @@ interface ArchMetrics {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function parseArg(args: string[], name: string): string | null {
-  const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1]!;
-}
 
 /**
  * Read lines from a JSONL file and return parsed objects.
@@ -476,7 +470,12 @@ function processArch3(graph: Graph, records: Arch3Record[]): void {
 // ---------------------------------------------------------------------------
 
 export async function main(args: string[]): Promise<CliResult> {
-  const workDirArg = parseArg(args, '--workdir');
+  let workDirArg: string | null;
+  try {
+    workDirArg = safeParseArg(args, '--workdir');
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message };
+  }
 
   if (!workDirArg) {
     return { status: 'error', message: 'Missing required argument: --workdir' };
