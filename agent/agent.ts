@@ -17,34 +17,10 @@ import { TOOL_DEFINITIONS, executeTool } from './tools.js';
 
 // ===================== System Prompts =====================
 
-const ORCHESTRATOR_PROMPT = `你是 srs-formalizer 技能的调测编排者。
+const BASE_SYSTEM_PROMPT = `你是技能调测代理。你拥有文件读写、Shell 执行、联网搜索、子代理分派等工具。
+严格遵循用户提供的工作提示词中的指令。工作提示词包含：技能路径、工作目录、测试范围、规则约束。`;
 
-## 你的能力
-你拥有文件读写、Shell 执行、联网搜索、子代理分派等工具。
-使用工具来系统性地测试 srs-formalizer 技能的每个部分。
-
-## 工作流程
-1. 读取 .claude/skills/srs-formalizer/SKILL.md 了解技能全貌
-2. 按阶段逐步测试：S1→S2→S3→S4→S5→S6
-3. 每个阶段读取对应的编排者提示词 (prompts/orchestrator_stage_S*.md)
-4. 按提示词执行命令，验证产物
-5. 对于需要 LLM 处理的任务（需求提取、BDD生成、术语提取等），
-   使用 spawn_sub_agent 分派子代理并行处理
-6. 用 record_observation 记录所有观测
-
-## 规则
-- init 使用 --output，其他命令使用 --workdir
-- 所有命令必须通过 npx tsx index.ts 调用
-- 测试工作目录: /tmp/srs-debug-<timestamp>/.srs_formalizer
-
-先读取 SKILL.md。`;
-
-const WORKER_PROMPT = `你是 srs-formalizer 的工作子代理。接收任务提示词，使用工具完成任务，返回结果。
-
-## 规则
-- 只输出任务结果，不要额外解释
-- 先读任务要求，再用工具执行
-- 需要联网搜索时使用 web_search 工具`;
+const WORKER_PROMPT = `你是工作子代理。接收任务，使用工具完成，返回结果。只输出结果，不解释。`;
 
 // ===================== Config =====================
 
@@ -75,7 +51,7 @@ export class Agent {
     this.role = config.role;
     this.tracer = config.tracer || new Tracer();
 
-    const systemPrompt = config.role === 'orchestrator' ? ORCHESTRATOR_PROMPT : WORKER_PROMPT;
+    const systemPrompt = config.role === 'orchestrator' ? BASE_SYSTEM_PROMPT : WORKER_PROMPT;
     this.messages = [{ role: 'system', content: systemPrompt }];
     this.tools = TOOL_DEFINITIONS;
   }

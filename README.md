@@ -200,20 +200,29 @@ cp llm-config.template.json test-llm-config.json
 ### 运行
 
 ```bash
-npx tsx agent/index.ts --llm-config test-llm-config.json
+npx tsx agent/index.ts --llm-config test-llm-config.json --task agent/task-srs-formalizer.md
 ```
+
+### 工作原理
+
+代理通过 `--task` 文件接收工作提示词（技能路径、工作目录、测试范围、规则），然后：
+1. 读取 SKILL.md 了解技能结构
+2. 按阶段使用工具执行命令、验证产物
+3. 通过 `spawn_sub_agent` 递归分派子代理处理 LLM 任务
+4. 用 Tracer 记录每一步操作
 
 ### 架构
 
 ```
 agent/
-├── index.ts           # 入口
-├── orchestrator.ts    # LLM 驱动编排者（读取 SKILL.md，按阶段测试）
-├── tools.ts           # 工具集（read_file, run_command, validate_output...）
-└── tracer.ts          # 观测记录（每步操作写 JSONL 追踪日志）
+├── index.ts           # 入口（--llm-config + --task）
+├── agent.ts           # 统一代理（编排者+工作者，递归子代理）
+├── tools.ts           # 8 工具（read/write/edit/search/file + shell + web + spawn）
+├── tracer.ts          # 观测记录（JSONL 追踪日志）
+└── task-srs-formalizer.md  # srs-formalizer 调测任务模板
 ```
 
-代理**不硬编码流程**——它通过工具读取 SKILL.md 和编排者提示词，由 LLM 自主决定每步操作。追踪日志写入 `/tmp/srs-agent-traces/`。
+代理**不硬编码任何技能路径或流程**——全部通过 `--task` 工作提示词动态配置，可调测任意技能。
 
 ## 许可
 
