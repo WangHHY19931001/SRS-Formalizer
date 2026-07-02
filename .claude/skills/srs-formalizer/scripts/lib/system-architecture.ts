@@ -234,7 +234,7 @@ export function buildSystemArchitecture(workDir: string, iteration: number): Sys
         : uncovered === 0
           ? `✓ All ${reqScenarioNodes.length} requirements have behavior coverage`
           : `${uncovered}/${reqScenarioNodes.length} requirements lack behavior coverage`,
-      severity: uncovered > 0 ? 'warning' : 'error',
+      severity: uncovered > 0 ? 'error' : 'error',
     });
   } else {
     checks.push({ name: 'requirement_coverage', passed: true, detail: 'N/A (missing req or behavior graph)', severity: 'error' });
@@ -289,7 +289,7 @@ export function buildSystemArchitecture(workDir: string, iteration: number): Sys
     detail: totalCrossEdges > 0
       ? `✓ ${totalCrossEdges} cross-layer edges established`
       : 'No cross-layer edges — graphs may be disconnected',
-    severity: totalCrossEdges > 0 ? 'error' : 'warning',
+    severity: totalCrossEdges > 0 ? 'warning' : 'error',
   });
 
   return {
