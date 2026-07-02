@@ -212,8 +212,6 @@ S2 子阶段:
 | `npx tsx index.ts validate-checklist --file <path> --workdir .srs_formalizer` | CHECKLIST 完成度校验 | S1/S3/S6 |
 | `npx tsx index.ts pack-skill --skill-dir <path> [--force]` | 技能打包 + 加密备份 | 维护 |
 | `npx tsx index.ts verify-skill-integrity --skill-dir <path> [--repair]` | 技能完整性校验 + 自动修复 | 维护 |
-| `npx tsx index.ts test-probes --llm-config <path> [--limit N]` | 能力探测 → LLM → 评分报告（需外部 LLM） | 调测 |
-| `npx tsx index.ts debug-skill --llm-config <path> [--stage S0-S6\|ALL]` | 编排者+工作者完整技能调试（需外部 LLM） | 调测 |
 | `npx tsx index.ts capability-probe --mode generate\|score [--file <path>] [--workdir .srs_formalizer]` | LLM 能力探测（8 维度 50 题） | S0 |
 | `npx tsx index.ts compile --skill-dir <path> --workdir .srs_formalizer` | 编译 SKILL.md → SkIR + 安全注入 + 平台发射 | 技能加载时 |
 

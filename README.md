@@ -186,58 +186,34 @@ S5（形式化）阶段在触发条件满足时自动启用，依赖 **确定性
 
 ## 技能调测
 
-srs-formalizer 内置 **编排者 + 工作者** 双代理调测框架，可使用外部 LLM 完整测试技能流水线。
+项目根目录 `agent/` 包含 **LLM 驱动的调测代理**，可完整测试技能的指令遵从、脚本正确性、状态机和门限。
 
-### 配置测试 LLM
+调测代理独立于技能本身，使用工具调用（function calling）动态读取 SKILL.md、执行命令、验证产物，所有操作通过 tracer 记录。
+
+### 配置
 
 ```bash
-# 从模板创建配置文件
 cp llm-config.template.json test-llm-config.json
-# 编辑 test-llm-config.json，填入你的 LLM 服务信息
+# 编辑 test-llm-config.json，填入 OpenAI 兼容的 LLM 服务
 ```
 
-`test-llm-config.json` 已被 `.gitignore` 排除，不会提交到版本控制。
-
-### 运行调测
+### 运行
 
 ```bash
-# 能力探测（50 题 → LLM → 评分报告）
-npx tsx index.ts test-probes --llm-config test-llm-config.json
-
-# 完整技能调试（S0 → S6，编排者分派工作者）
-npx tsx index.ts debug-skill --llm-config test-llm-config.json
-
-# 仅调试指定阶段
-npx tsx index.ts debug-skill --llm-config test-llm-config.json --stage S2
+npx tsx agent/index.ts --llm-config test-llm-config.json
 ```
 
-### 调测架构
+### 架构
 
 ```
-debug-skill (编排者 Agent)
-  ├── S0: 探测 LLM 基础响应能力
-  ├── S1: init → manifest → 验证产物（确定性脚本，无需 LLM）
-  ├── S2: inject-prompt → DebugWorker(LLM) → validate-jsonl
-  │       编排者读取 shard_index，对每个分片：
-  │         1. inject-prompt 填充模板
-  │         2. 分派 DebugWorker 发送到测试 LLM
-  │         3. 写入 2_extract/r1-explicit/<shard>.jsonl
-  │         4. validate-jsonl 校验
-  ├── S3: build-graph → analyze → export-cypher → 验证
-  ├── S4: generate-bdd → validate-bdd → build-behavior-graph
-  ├── S5: TLA+/Lean 条件触发检查
-  └── S6: verify-gate FINAL → build-system-architecture → 一致性报告
-
-DebugWorker (工作者 Agent)
-  ├── 接收提示词 → 发送到 OpenAI 兼容 API → 返回结果
-  ├── 推理模型适配（提取 reasoning_content 中的答案）
-  ├── 输出格式校验（JSONL / TLA+ / Lean / JSON）
-  └── 自动重试（默认 2 次）
+agent/
+├── index.ts           # 入口
+├── orchestrator.ts    # LLM 驱动编排者（读取 SKILL.md，按阶段测试）
+├── tools.ts           # 工具集（read_file, run_command, validate_output...）
+└── tracer.ts          # 观测记录（每步操作写 JSONL 追踪日志）
 ```
 
-### 调测报告
-
-每次运行生成 JSON 报告到 `/tmp/srs-debug-report-<timestamp>.json`，包含每阶段检查项和通过/失败状态。
+代理**不硬编码流程**——它通过工具读取 SKILL.md 和编排者提示词，由 LLM 自主决定每步操作。追踪日志写入 `/tmp/srs-agent-traces/`。
 
 ## 许可
 
