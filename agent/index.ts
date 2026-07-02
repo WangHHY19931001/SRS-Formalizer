@@ -89,12 +89,32 @@ async function main() {
 
   console.log(`Agent ID: ${id}`);
 
-  const result = await agent.invoke(
-    { messages: [{ role: "user", content: task }] },
-    { recursionLimit: 500 },
-  );
+  let result: { messages?: Array<{ content: unknown }> } | null = null;
+  let attempt = 0;
+  const maxAttempts = 2;
 
-  const msgs = result.messages || [];
+  while (attempt < maxAttempts) {
+    attempt++;
+    try {
+      result = await agent.invoke(
+        { messages: [{ role: "user", content: task }] },
+        { recursionLimit: 500 },
+      );
+      break; // success
+    } catch (err) {
+      const msg = (err as Error).message || "";
+      console.error(`Agent error (attempt ${attempt}/${maxAttempts}): ${msg.slice(0, 300)}`);
+      if (attempt >= maxAttempts) throw err;
+      // AggregateError / MiddlewareError from parallel sub-agents — retry
+      if (msg.includes("AggregateError") || msg.includes("MiddlewareError")) {
+        console.error("Retrying after parallel sub-agent error...");
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  const msgs = result!.messages || [];
   const lastMsg = msgs[msgs.length - 1];
   const finalContent = lastMsg ? (lastMsg.content as string) || "" : "";
 
