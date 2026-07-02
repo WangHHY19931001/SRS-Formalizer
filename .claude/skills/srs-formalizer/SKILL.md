@@ -65,6 +65,8 @@ metadata:
     - validate-architecture
     - validate-cypher
     - validate-bdd
+    - validate-tla
+    - validate-lean
     - validate-checklist
     - validate-glossary
     - verify-gate
@@ -182,6 +184,38 @@ S2 子阶段:
   3. 若校验通过 → 继续阶段转换
 ```
 
+## S4 / S5 严格模式
+
+### S4 BDD 严格模式（gherkin-lint）
+
+BDD 校验使用 `gherkin-lint`（[GitHub](https://github.com/vsiakka/gherkin-lint)）。默认启用严格模式：
+
+- **禁止 GAP**：检测 `GAP`、`TODO`、`FIXME`、`TBD` 标记
+- **禁止 PLACEHOLDER**：检测 `<THEN_PLACEHOLDER>`、`<GIVEN_PLACEHOLDER>` 等占位符
+- **禁止未定义**：检测 `UNDEFINED`、`待定`、`未定义`、`待实现`
+- **禁止未使用变量**：Scenario Outline 变量必须全部使用
+- **强制逻辑顺序**：Given → When → Then → And
+
+配置文件：`templates/.gherkin-lintrc-strict`（全部 20 条规则）
+
+### S5 TLA+ 严格模式
+
+TLA+ 使用内置 `tla2tools-1.7.4.jar`（`tools/` 目录）。仅需 Java（不限 OS）。
+
+- **禁止死锁（黑洞）**：`-deadlock` 标志
+- **禁止无限状态**：状态空间必须有限
+- **禁止奇迹**：不允许不可能的状态转换
+- **禁止未定义**：TypeOK 不变式强制执行
+- **禁止活锁（停滞）**：Stuttering 检测
+
+### S5 Lean 4 平台限制
+
+| 平台 | 支持 |
+|------|:----:|
+| Linux x86_64 | ✅ |
+| macOS ARM64 | ✅ |
+| Windows | ❌ 禁止（使用 WSL2） |
+
 ## 核心原则
 
 - **TS 脚本只做确定性转换**，不调用 LLM、不产生随机性、不依赖外部 API
@@ -189,7 +223,7 @@ S2 子阶段:
 - **子代理输出必须通过 JSONL 格式校验**（硬门禁）
 - **子代理 ID 必须 ASCII-only**（`validate-jsonl` 拒绝中文 ID）
 - **SRS 回写必须经用户确认**，禁止自动修改原始 SRS
-- **仅依赖 `typescript` + `@types/node`**，无外部 npm 包
+- **技能工程零运行时 npm 依赖**（`typescript` + `@types/node` 仅为 devDeps）
 
 ## 依赖技能
 
@@ -217,10 +251,12 @@ S2 子阶段:
 | `npx tsx index.ts export-cypher --workdir .srs_formalizer` | 图谱 → Cypher 脚本 | S3 |
 | `npx tsx index.ts validate-cypher --file <path> --workdir .srs_formalizer` | Cypher 脚本校验（4 项） | S3 |
 | `npx tsx index.ts generate-bdd --workdir .srs_formalizer` | 图谱 → BDD 骨架 | S4 |
-| `npx tsx index.ts validate-bdd --workdir .srs_formalizer` | Gherkin 格式校验 | S4 |
+| `npx tsx index.ts validate-bdd --workdir .srs_formalizer` | Gherkin 格式校验（严格模式: gherkin-lint 全部规则 + 禁止 GAP/PLACEHOLDER） | S4 |
 | `npx tsx index.ts build-behavior-graph --workdir .srs_formalizer` | BDD → 系统行为图谱 JSON + Cypher | S4 |
 | `npx tsx index.ts build-tla-graph --workdir .srs_formalizer` | TLA+ → 系统交互图谱 JSON + Cypher | S5 |
 | `npx tsx index.ts build-lean-graph --workdir .srs_formalizer` | Lean 4 → 证明依赖图谱 JSON + Cypher | S5 |
+| `npx tsx index.ts validate-tla --file <path> --workdir .srs_formalizer` | SANY 语法解析 + TLC 模型检测（严格模式: -deadlock, 禁止黑洞/奇迹/无限状态/死锁） | S5 |
+| `npx tsx index.ts validate-lean --file <path>` | lake build 编译验证（❌ Windows 不支持） | S5 |
 | `npx tsx index.ts build-system-architecture --workdir .srs_formalizer [--iteration N]` | 四层合成 → 系统架构图谱 + 一致性报告 | S6 |
 | `npx tsx index.ts validate-glossary --file <path> [--min-high N]` | 术语表批次 JSON 校验（8 项 + 门禁） | S1 |
 | `npx tsx index.ts query-graph --workdir .srs_formalizer --query <type> --params '<json>'` | 图谱只读查询 | S6 |
@@ -256,6 +292,7 @@ S2 子阶段:
 | `references/capability-adaptation.md` | capability-probe 判分后 | 编排者 |
 | `references/tlaplus-coding-guide.md` | S5 TLA+ 触发时 | 子代理 |
 | `references/lean4-coding-guide.md` | S5 Lean 4 触发时 | 子代理 |
+| `references/gherkin-lint-guide.md` | S4 BDD 校验时 | 子代理 |
 | `references/hooks-integration.md` | 技能安装/配置时 | 编排者 |
 | `references/auto-setup.md` | 编码智能体自配置时 | 子代理 |
 | `references/agent-integration-guide.md` | 多平台集成时 | 编排者 |

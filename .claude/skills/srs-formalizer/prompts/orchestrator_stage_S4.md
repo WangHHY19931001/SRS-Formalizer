@@ -10,10 +10,24 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts generate-bdd --workdir .s
 ### 步骤 2：子代理充实
 对每个 .feature 文件：inject-prompt --template prompts/executor-R5.md → 分派 LLM 子代理 → 填充 Then 步骤。
 
-### 步骤 3：格式校验
+### 步骤 3：格式校验（严格模式）
+
+#### 3.1 内置校验
 ```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-bdd --workdir .srs_formalizer
 ```
+
+#### 3.2 gherkin-lint 严格模式（如果可用）
+```bash
+# 安装（首次）
+npm install -g gherkin-lint 2>/dev/null || npm install -g gplint 2>/dev/null
+
+# 严格模式校验（禁止 GAP/PLACEHOLDER/未定义）
+cd .srs_formalizer/4_bdd && gherkin-lint -c ../../.claude/skills/srs-formalizer/templates/.gherkin-lintrc-strict
+```
+严格模式规则详见 `references/gherkin-lint-guide.md`。
+
+若检测到 GAP、PLACEHOLDER、未定义等违规 → 回到步骤 2 重新充实。
 
 ### 步骤 4：校验者审核
 inject-prompt --template prompts/verifier-R5.md → 分派新会话 LLM 子代理 → APPROVED/REJECTED 循环。
@@ -32,6 +46,8 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-behavior-graph --wo
 
 ## 约束
 - 每个 .feature 文件独立（SRS §8.2）
-- Then 步骤全部充实，无占位符残留
-- 每个 Then 含 verification_method
+- **严格模式**：无 GAP / PLACEHOLDER / UNDEFINED / 待定 / 未定义
+- Then 步骤全部充实，无占位符残留（gherkin-lint `no-restricted-patterns`）
+- 每个 Then 含 `# verification_method:` 标注
 - 行为图谱必须成功构建（含 Feature/Scenario/Action 节点）
+- gherkin-lint 严格模式全部通过（全部 20 条可配置规则）
