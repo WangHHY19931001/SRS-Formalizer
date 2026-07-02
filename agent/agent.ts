@@ -1,208 +1,221 @@
 /**
- * agent.ts — Unified LLM-driven agent with recursive sub-agent spawning
+ * agent.ts — LangGraph-based agent factory
  *
- * A single Agent class that can:
- *   1. Act as ORCHESTRATOR: read SKILL.md, follow prompts, dispatch sub-agents
- *   2. Act as WORKER: receive a task prompt, execute with tools, return result
- *   3. Spawn SUB-AGENTS: recursively create child agents for parallel work
+ * Uses a custom StateGraph with ReAct pattern for full control over:
+ * - Tool execution (special handling for spawn_sub_agent, register/unregister)
+ * - Termination conditions (LLM can stop by producing text without tool calls)
+ * - Context management (auto-compress at thresholds)
  *
- * Tools: read_file, write_file, edit_file, search_in_file, run_command,
- *        web_search, spawn_sub_agent, validate_output, list_directory,
- *        check_file_exists, record_observation
+ * Dynamic tool registry, A2A agent directory, and context-aware tools.
  */
 
-import OpenAI from 'openai';
-import { Tracer } from './tracer.js';
-import { TOOL_DEFINITIONS, executeTool } from './tools.js';
-import { ContextManager } from './context.js';
-import { loadLlmConfig } from './llm-config.js';
+import { StateGraph, MessagesAnnotation } from "@langchain/langgraph";
+import { ToolNode } from "@langchain/langgraph/prebuilt";
+import { ChatOpenAI } from "@langchain/openai";
+import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+import type { StructuredTool } from "@langchain/core/tools";
+import { ToolRegistry } from "./tool-registry.js";
+import { AgentDirectory, type AgentHandle } from "./agent-directory.js";
+import { ContextManager, createContextTools } from "./context.js";
+import { ALL_TOOLS } from "./tools.js";
+import { loadLlmConfig } from "./llm-config.js";
+import * as fs from "node:fs";
 
-// ===================== System Prompts =====================
+let agentIdCounter = 0;
 
-const BASE_SYSTEM_PROMPT = `你是技能调测代理。你拥有文件读写、Shell 执行、联网搜索、子代理分派等工具。
-严格遵循用户提供的工作提示词中的指令。工作提示词包含：技能路径、工作目录、测试范围、规则约束。`;
+// ===================== Dynamic System Prompt =====================
 
-const WORKER_PROMPT = `你是工作子代理。你拥有与主代理完全相同的工具能力（文件读写、Shell 执行、联网搜索、HTTP 请求、MCP 注册、子代理分派、上下文压缩等）。接收主代理的任务提示词，使用工具完成任务，返回结果。只输出结果，不解释。`;
+const WORK_TABOOS = [
+  "禁止修改 .git 目录和已提交的代码文件（除非任务明确要求修改 agent 自己的产物）",
+  "禁止执行 rm -rf、fork bomb 等危险命令",
+  "禁止在超过 5 次工具调用后仍未取得进展时继续循环——应停止并总结当前状态",
+  "禁止输出非中文或非英文的无关内容",
+  "禁止在任务完成后继续调用工具——必须直接输出文本总结",
+];
+
+function buildSystemPrompt(toolNames: string[], skillsDir: string, projectRoot: string): string {
+  const toolList = toolNames.map(n => `  - ${n}`).join("\n");
+  const taboos = WORK_TABOOS.map((t, i) => `  ${i + 1}. ${t}`).join("\n");
+  return `你是一个工作 agent，你拥有如下工具：
+${toolList}
+
+你被设计为在实际环境中执行工作任务，任务信息由用户提示词说明。
+当前技能所在目录：${skillsDir}
+当前项目目录：${projectRoot}
+
+你将尽可能完成用户任务。
+
+工作禁忌如下：
+${taboos}`;
+}
 
 // ===================== Config =====================
 
 export interface AgentConfig {
   configPath: string;
+  role: "orchestrator" | "worker";
+  registry?: ToolRegistry;
+  directory?: AgentDirectory;
   maxTurns?: number;
   maxContextTokens?: number;
-  role: 'orchestrator' | 'worker';
   logDir?: string;
-  parentTracer?: Tracer;
+  skillsDir?: string;
+  projectRoot?: string;
 }
 
-// ===================== Agent =====================
+// ===================== createAgent =====================
 
-export class Agent {
-  private client: OpenAI;
-  private model: string;
-  private configPath: string;
-  private maxTurns: number;
-  private maxContextTokens: number;
-  private role: 'orchestrator' | 'worker';
-  private ctx: ContextManager;
-  tracer: Tracer;
-  private messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-  private tools: typeof TOOL_DEFINITIONS;
+export async function createAgent(config: AgentConfig): Promise<{
+  agent: ReturnType<typeof StateGraph.prototype.compile>;
+  id: string;
+  handle: AgentHandle;
+}> {
+  const id = `${config.role}-${Date.now()}-${++agentIdCounter}`;
+  const llmConfig = loadLlmConfig(config.configPath);
+  const maxTokens = config.maxContextTokens || llmConfig["max-model-len"] || 131072;
+  const maxTurns = config.maxTurns || 50;
+  const logDir = config.logDir || "/tmp/srs-agent-logs";
 
-  constructor(config: AgentConfig) {
-    this.configPath = config.configPath;
-    const llmConfig = loadLlmConfig(this.configPath);
-    this.maxContextTokens = config.maxContextTokens || llmConfig['max-model-len'] || 131072;
-    this.model = llmConfig.name;
-    this.client = new OpenAI({ baseURL: llmConfig.baseURL, apiKey: llmConfig.key });
-    this.maxTurns = config.maxTurns || 50;
-    this.role = config.role;
-    this.tracer = config.parentTracer || new Tracer(config.role, config.logDir);
-    this.ctx = new ContextManager(this.client, this.model, this.maxContextTokens, 2);
+  // Ensure log dir exists
+  fs.mkdirSync(logDir, { recursive: true });
+  const logPath = `${logDir}/${id}.jsonl`;
 
-    const systemPrompt = config.role === 'orchestrator' ? BASE_SYSTEM_PROMPT : WORKER_PROMPT;
-    this.messages = [{ role: 'system', content: systemPrompt }];
-    this.tools = TOOL_DEFINITIONS;
+  function writeLog(type: string, data: Record<string, unknown>) {
+    const line = JSON.stringify({ ts: new Date().toISOString(), type, agentId: id, ...data });
+    try { fs.appendFileSync(logPath, line + "\n", "utf-8"); } catch { /* silent */ }
   }
 
-  /**
-   * Spawn a sub-agent with a custom task prompt and return its final output.
-   * This is called internally by the spawn_sub_agent tool.
-   */
-  private async spawnSubAgent(taskPrompt: string): Promise<string> {
-    const subAgent = new Agent({
-      configPath: this.configPath,
-      maxTurns: 30,
-      maxContextTokens: this.maxContextTokens,
-      role: 'worker',
-      logDir: this.tracer.logDir,
-    });
+  const llm = new ChatOpenAI({
+    model: llmConfig.name,
+    temperature: 0.1,
+    configuration: { baseURL: llmConfig.baseURL, apiKey: llmConfig.key },
+  });
 
-    // Override messages for worker (tools already set to full TOOL_DEFINITIONS by constructor)
-    subAgent.messages = [
-      { role: 'system', content: WORKER_PROMPT },
-      { role: 'user', content: taskPrompt },
-    ];
+  // Tool registry & agent directory
+  const registry = config.registry || new ToolRegistry();
+  const directory = config.directory || new AgentDirectory();
 
-    this.tracer.log('agent_start', 'worker', { task: taskPrompt.slice(0, 200) });
-    const result = await subAgent.run();
-    this.tracer.log('agent_end', 'worker', { output_length: result.length });
-    return result;
+  // Context manager
+  const openaiClient = new (await import("openai")).default({
+    baseURL: llmConfig.baseURL,
+    apiKey: llmConfig.key,
+  });
+  const ctxManager = new ContextManager(openaiClient, llmConfig.name, maxTokens, 2);
+
+  // Context tracking
+  const messageBox: { current: Array<{ role: string; content: unknown }> } = { current: [] };
+
+  const { contextInfoTool, compressContextTool } = createContextTools(
+    ctxManager,
+    () => messageBox.current as any,
+  );
+
+  // Complete task tool — signals the agent to stop
+  const completeTaskTool = tool(
+    async ({ summary }) => `TASK_COMPLETE: ${summary}`,
+    {
+      name: "complete_task",
+      description: "任务完成时调用此工具。调用后必须直接输出文本结果，不要再调用其他工具。传入任务摘要。",
+      schema: z.object({ summary: z.string().describe("任务完成摘要") }),
+    },
+  );
+
+  // Register all tools
+  const allTools: StructuredTool[] = [...ALL_TOOLS, contextInfoTool, compressContextTool, completeTaskTool];
+  for (const t of allTools) {
+    registry.addActive(t);
   }
 
-  /**
-   * Main agent loop: LLM thinks → calls tools → loop until done.
-   * Returns the agent's final text output.
-   */
-  async run(initialPrompt?: string): Promise<string> {
-    if (initialPrompt) {
-      this.messages.push({ role: 'user', content: initialPrompt });
-    }
+  // Build tool node
+  const toolNode = new ToolNode(registry.getActiveTools());
 
-    let turn = 0;
-    let suggestedCompress = false;
-    const observations: string[] = [];
+  // Custom agent node with context check
+  async function agentNode(state: typeof MessagesAnnotation.State) {
+    const messages = state.messages;
+    messageBox.current = messages.map(m => ({
+      role: m.getType?.() ?? "unknown",
+      content: "content" in m ? (m as any).content : "",
+    }));
 
-    while (turn < this.maxTurns) {
-      turn++;
-      const agentId = this.role;
+    writeLog("agent_turn", { msgCount: messages.length });
 
-      // Context window management
-      const ctxState = this.ctx.check(this.messages);
-      if (ctxState.level === 'force') {
-        this.tracer.log('compress_context', agentId, { level: 'force', before_pct: ctxState.usage_pct, tokens: ctxState.total_tokens });
-        this.messages = await this.ctx.compress(this.messages);
-        const afterState = this.ctx.check(this.messages);
-        this.tracer.log('compress_context', agentId, { level: 'force', after_pct: afterState.usage_pct, tokens: afterState.total_tokens });
-      } else if (ctxState.level === 'suggest' && !suggestedCompress) {
-        suggestedCompress = true;
-        this.messages.push({
-          role: 'user',
-          content: `[系统提示] 上下文使用率已达 ${ctxState.usage_pct}%（${ctxState.total_tokens}/${ctxState.maxTokens} tokens）。如果当前任务已完成，请记录观测并继续。如果上下文过长，你可以调用 compress_context 工具来压缩上下文。`,
-        });
-      }
-      // 'allow' level: LLM can voluntarily call compress_context placeholder (handled in tool execution)
+    // Bind tools dynamically (supports register/unregister at runtime)
+    const currentTools = registry.getActiveTools();
+    const llmWithTools = llm.bindTools(currentTools);
 
-      this.tracer.llmRequest(agentId, this.messages, this.tools);
+    // Build dynamic system prompt
+    const skillsDir = config.skillsDir || process.env.SKILL_SCRIPTS_DIR || process.cwd();
+    const projectRoot = config.projectRoot || process.env.PROJECT_ROOT || process.cwd();
+    const systemPrompt = buildSystemPrompt(
+      currentTools.map(t => t.name),
+      skillsDir,
+      projectRoot,
+    );
 
-      const resp = await this.client.chat.completions.create({
-        model: this.model,
-        messages: this.messages,
-        tools: this.tools as OpenAI.Chat.Completions.ChatCompletionTool[],
-        tool_choice: 'auto',
-        max_tokens: 4096,
-        temperature: 0.1,
+    const systemMsg = new SystemMessage(systemPrompt);
+    const allMessages = [systemMsg, ...messages];
+
+    try {
+      const response = await llmWithTools.invoke(allMessages);
+
+      // Check if LLM returned tool calls
+      const toolCalls = (response as any).tool_calls;
+      writeLog("llm_response", {
+        content: (response.content as string)?.slice(0, 200) || "",
+        toolCalls: toolCalls?.length || 0,
+        toolNames: toolCalls?.map((tc: any) => tc.name) || [],
       });
 
-      const choice = resp.choices[0]!;
-      const msg = choice.message;
-      const content = msg.content || '';
-
-      this.tracer.llmResponse(agentId, content,
-        msg.tool_calls?.map(t => ({ name: t.function.name, args: t.function.arguments.slice(0, 100) })),
-      );
-
-      // No tool calls → agent is done
-      if (!msg.tool_calls || msg.tool_calls.length === 0) {
-        // If orchestrator has more to say, prompt continuation
-        if (this.role === 'orchestrator' && turn < 5 && !content.includes('DONE')) {
-          this.messages.push({ role: 'assistant', content });
-          this.messages.push({ role: 'user', content: '继续测试。完成后输出 DONE。' });
-          continue;
-        }
-        return content;
-      }
-
-      // Execute tool calls (including spawn_sub_agent which may be recursive)
-      const toolResults: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = [];
-
-      for (const tc of msg.tool_calls) {
-        const toolName = tc.function.name;
-        let toolArgs: Record<string, unknown> = {};
-        try { toolArgs = JSON.parse(tc.function.arguments); } catch { /* keep empty */ }
-
-        this.tracer.toolCall(agentId, toolName, toolArgs);
-        const t0 = Date.now();
-
-        let result: string;
-
-        // Special handling: tools that need Agent context
-        if (toolName === 'spawn_sub_agent') {
-          const subPrompt = (toolArgs.task as string) || (toolArgs.prompt as string) || '';
-          result = await this.spawnSubAgent(subPrompt);
-        } else if (toolName === 'compress_context') {
-          // LLM-triggered compression
-          this.tracer.toolCall(agentId, 'compress_context', { trigger: 'llm' });
-          this.messages = await this.ctx.compress(this.messages);
-          const cs = this.ctx.check(this.messages);
-          result = `上下文已压缩。使用率: ${cs.usage_pct}% (${cs.total_tokens}/${cs.maxTokens})`;
-        } else {
-          result = await executeTool(toolName, toolArgs);
-        }
-
-        const duration = Date.now() - t0;
-        this.tracer.toolResult(agentId, toolName, result, duration);
-
-        if (toolName === 'record_observation') {
-          observations.push(result);
-        }
-
-        toolResults.push({
-          role: 'tool',
-          tool_call_id: tc.id,
-          content: result,
-        });
-      }
-
-      // Add assistant message + tool results to conversation
-      this.messages.push({
-        role: 'assistant',
-        content: msg.content || '',
-        tool_calls: msg.tool_calls,
-      });
-      this.messages.push(...toolResults);
+      return { messages: [response] };
+    } catch (e) {
+      writeLog("llm_error", { error: (e as Error).message });
+      return { messages: [new AIMessage(`Error: ${(e as Error).message}. Please try a different approach or report the issue.`)] };
     }
-
-    return `Agent stopped after ${this.maxTurns} turns. Observations: ${observations.length}`;
   }
+
+  // Route: if last message has tool_calls → tools, otherwise → END
+  function shouldContinue(state: typeof MessagesAnnotation.State): "tools" | "__end__" {
+    const lastMsg = state.messages[state.messages.length - 1];
+    const toolCalls = (lastMsg as any).tool_calls;
+    if (toolCalls && toolCalls.length > 0) {
+      return "tools";
+    }
+    // No tool calls → agent is done
+    writeLog("agent_done", { content: ((lastMsg as any).content as string)?.slice(0, 200) || "" });
+    return "__end__";
+  }
+
+  // Build graph
+  const graph = new StateGraph(MessagesAnnotation)
+    .addNode("agent", agentNode)
+    .addNode("tools", toolNode)
+    .addEdge("__start__", "agent")
+    .addConditionalEdges("agent", shouldContinue)
+    .addEdge("tools", "agent");
+
+  const compiledAgent = graph.compile();
+
+  // AgentHandle for A2A communication
+  const handle: AgentHandle = {
+    id,
+    role: config.role,
+    async receive(message: string, _fromId: string): Promise<string> {
+      try {
+        const result = await compiledAgent.invoke(
+          { messages: [new HumanMessage(message)] },
+          { recursionLimit: maxTurns },
+        );
+        const msgs = result.messages || [];
+        const last = msgs[msgs.length - 1];
+        return last ? (last.content as string) || "" : "";
+      } catch (e) {
+        return `ERROR: ${(e as Error).message}`;
+      }
+    },
+  };
+
+  directory.register(handle, config.role);
+  return { agent: compiledAgent, id, handle };
 }

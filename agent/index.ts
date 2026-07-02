@@ -6,12 +6,13 @@
  *   npx tsx agent/index.ts --llm-config <path> --task <path>
  *                  [--project-root <path>] [--skills-dir <path>] [--work-dir <path>]
  *
- * The agent is completely generic — no hardcoded skill paths.
- * Skill name, stages, rules, etc. come from the --task file.
- * Paths come from CLI args, env vars, or sensible defaults.
+ * Rewrite: uses createAgent() factory with LangGraph createReactAgent,
+ * ToolRegistry, and AgentDirectory for A2A communication.
  */
 
-import { Agent } from './agent.js';
+import { createAgent } from './agent.js';
+import { ToolRegistry } from './tool-registry.js';
+import { AgentDirectory } from './agent-directory.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -59,14 +60,41 @@ async function main() {
 
   const task = taskPath ? fs.readFileSync(taskPath, 'utf-8') : taskPrompt!;
 
-  const agent = new Agent({ configPath: llmConfig, role: 'orchestrator', logDir });
+  const registry = new ToolRegistry();
+  const directory = new AgentDirectory();
 
-  const result = await agent.run(task);
+  console.log(`Agent starting...`);
+  console.log(`  LLM config: ${llmConfig}`);
+  console.log(`  Project root: ${projectRoot}`);
+  console.log(`  Skills dir: ${skillsDir}`);
+  console.log(`  Work dir: ${workDir}`);
+  console.log(`  Log dir: ${logDir}`);
 
-  const report = agent.tracer.report();
-  console.log(result.slice(0, 800));
-  console.log(`\n📊 AgentId: ${report.agentId} | ${report.summary.total_events} events`);
-  console.log(`   Log: ${report.logFile}`);
+  const { agent, id } = await createAgent({
+    configPath: llmConfig,
+    role: 'orchestrator',
+    registry,
+    directory,
+    logDir,
+    skillsDir,
+    projectRoot,
+  });
+
+  console.log(`Agent ID: ${id}`);
+
+  const result = await agent.invoke(
+    { messages: [{ role: 'user', content: task }] },
+    { recursionLimit: 50 },
+  );
+
+  const msgs = result.messages || [];
+  const lastMsg = msgs[msgs.length - 1];
+  const finalContent = lastMsg ? (lastMsg.content as string) || '' : '';
+
+  console.log('\n=== Agent Output ===');
+  console.log(finalContent.slice(0, 2000));
+  console.log(`\nAgents in directory: ${directory.size}`);
+  console.log(`Total messages: ${msgs.length}`);
 }
 
 main().catch(err => { console.error('Fatal:', err); process.exit(1); });

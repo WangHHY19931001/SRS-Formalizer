@@ -11,6 +11,8 @@
  */
 
 import OpenAI from 'openai';
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
 
 // ===================== Token Estimation =====================
 
@@ -108,6 +110,15 @@ export class ContextManager {
   }
 
   /**
+   * Get current context info in a display-friendly format.
+   * Used by the context_info tool.
+   */
+  getInfo(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): ContextState & { current_tokens: number } {
+    const state = this.check(messages);
+    return { ...state, current_tokens: state.total_tokens };
+  }
+
+  /**
    * Compress messages: keep pinned messages + last N exchanges, compress the rest.
    * Returns compressed messages array.
    */
@@ -129,4 +140,42 @@ export class ContextManager {
 
     return [toKeep[0]!, compressedMsg, ...toKeep.slice(1)];
   }
+}
+
+// ===================== Context Tools (LangChain format) =====================
+
+/**
+ * Create context_info and compress_context tools bound to a ContextManager instance.
+ * Used by the LangGraph agent to expose context management to the LLM.
+ */
+export function createContextTools(
+  ctxManager: ContextManager,
+  getMessages: () => OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+) {
+  const contextInfoTool = tool(
+    async () => {
+      const info = ctxManager.getInfo(getMessages());
+      return `Context: ${info.usage_pct}% used (${info.current_tokens}/${info.max_tokens} tokens), level: ${info.level}`;
+    },
+    {
+      name: "context_info",
+      description: "查询当前上下文使用率",
+      schema: z.object({}),
+    }
+  );
+
+  const compressContextTool = tool(
+    async () => {
+      const msgs = getMessages();
+      const before = ctxManager.getInfo(msgs);
+      return `压缩请求已接收。压缩前: ${before.usage_pct}%。请等待系统执行压缩。`;
+    },
+    {
+      name: "compress_context",
+      description: "请求压缩上下文",
+      schema: z.object({}),
+    }
+  );
+
+  return { contextInfoTool, compressContextTool };
 }

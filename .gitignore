@@ -50,3 +50,6 @@ __pycache__/
 
 # Test LLM configuration (contains credentials)
 test-llm-config.json
+
+# Agent dependencies
+agent/node_modules/
