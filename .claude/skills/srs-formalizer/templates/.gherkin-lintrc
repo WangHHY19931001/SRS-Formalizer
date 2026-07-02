@@ -1,0 +1,28 @@
+{
+  "no-unnamed-features": "on",
+  "no-unnamed-scenarios": "on",
+  "no-trailing-spaces": "on",
+  "no-dupe-feature-names": "on",
+  "no-dupe-scenario-names": ["on", "anywhere"],
+  "no-scenario-outlines-without-examples": "on",
+  "no-unused-variables": "on",
+  "no-empty-file": "on",
+  "one-feature-per-file": "on",
+  "indentation": ["on", {
+    "Feature": 0,
+    "Scenario": 0,
+    "Step": 2,
+    "Examples": 0,
+    "example": 2,
+    "given": 2,
+    "when": 2,
+    "then": 2,
+    "and": 2,
+    "but": 2
+  }],
+  "new-line-at-eof": ["on", "yes"],
+  "max-scenarios-per-file": ["on", { "maxScenarios": 20 }],
+  "scenario-size": ["on", { "stepsPerScenario": 15 }],
+  "use-and": "on",
+  "keywords-in-logical-order": "on"
+}
