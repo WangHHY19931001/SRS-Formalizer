@@ -6,7 +6,6 @@
   "max-model-len": 131072,
   "description": "Copy to test-llm-config.json and fill in your LLM details. This file is gitignored.",
   "mcp_servers": [
-    { "name": "bing-search", "command": "npx", "args": ["-y", "bing-cn-mcp"] },
-    { "name": "sequential-thinking", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"] }
+    { "name": "bing-search", "command": "npx", "args": ["-y", "bing-cn-mcp"] }
   ]
 }
