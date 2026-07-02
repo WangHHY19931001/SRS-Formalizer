@@ -78,13 +78,18 @@ const FUNDAMENTAL_QUESTIONS: QuestionDef[] = [
   {
     id: "Q3",
     question: "它能做什么？（具体能力、可覆盖的应用场景）",
-    expected_graphs: ["requirement_graph.json", "behavior_graph.json", "tla-interaction-graph.json"],
+    expected_graphs: [
+      "requirement_graph.json",
+      "behavior_graph.json",
+      "tla-interaction-graph.json",
+    ],
     min_evidence: 2,
     min_relevant_nodes: 4,
   },
   {
     id: "Q4",
-    question: "它为什么可以这样？（技术原理、实现逻辑、底层支撑、业内实践、理论支撑、论文url、可参考开源实现url，涉及算法的部分通过Lean 4建模分析）",
+    question:
+      "它为什么可以这样？（技术原理、实现逻辑、底层支撑、业内实践、理论支撑、论文url、可参考开源实现url，涉及算法的部分通过Lean 4建模分析）",
     expected_graphs: ["lean-proof-graph.json", "requirement_graph.json"],
     min_evidence: 1,
     min_relevant_nodes: 2,
@@ -115,21 +120,34 @@ const FUNDAMENTAL_QUESTIONS: QuestionDef[] = [
   {
     id: "Q8",
     question: "它与外部如何交互（BDD、TLA+联合建模分析）",
-    expected_graphs: ["behavior_graph.json", "tla-interaction-graph.json", "system-architecture.json"],
+    expected_graphs: [
+      "behavior_graph.json",
+      "tla-interaction-graph.json",
+      "system-architecture.json",
+    ],
     min_evidence: 2,
     min_relevant_nodes: 3,
   },
   {
     id: "Q9",
     question: "它的工作边界是什么（BDD、TLA+联合建模+边界条件联合分析）",
-    expected_graphs: ["behavior_graph.json", "tla-interaction-graph.json", "system-architecture.json"],
+    expected_graphs: [
+      "behavior_graph.json",
+      "tla-interaction-graph.json",
+      "system-architecture.json",
+    ],
     min_evidence: 2,
     min_relevant_nodes: 4,
   },
   {
     id: "Q10",
-    question: "它的兜底方案是什么（是否存在兜底方案，是否存在降级方案，是否可以在没有这个系统情况下运行，出现问题后如何回滚、降级、恢复）",
-    expected_graphs: ["requirement_graph.json", "behavior_graph.json", "system-architecture.json"],
+    question:
+      "它的兜底方案是什么（是否存在兜底方案，是否存在降级方案，是否可以在没有这个系统情况下运行，出现问题后如何回滚、降级、恢复）",
+    expected_graphs: [
+      "requirement_graph.json",
+      "behavior_graph.json",
+      "system-architecture.json",
+    ],
     min_evidence: 1,
     min_relevant_nodes: 3,
   },
@@ -150,48 +168,144 @@ interface GraphLabelReq {
 
 const QUESTION_LABEL_REQUIREMENTS: Record<string, GraphLabelReq[]> = {
   Q1: [
-    { graph: "requirement_graph.json", labels: ["requirement", "functionalrequirement", "feature"], min_nodes: 2 },
-    { graph: "system-architecture.json", labels: ["module", "component", "interface", "layer", "synthesisnode"], min_nodes: 1 },
+    {
+      graph: "requirement_graph.json",
+      labels: ["requirement", "functionalrequirement", "feature"],
+      min_nodes: 2,
+    },
+    {
+      graph: "system-architecture.json",
+      labels: ["module", "component", "interface", "layer", "synthesisnode"],
+      min_nodes: 1,
+    },
   ],
   Q2: [
-    { graph: "requirement_graph.json", labels: ["requirement", "functionalrequirement", "feature"], min_nodes: 1 },
-    { graph: "behavior_graph.json", labels: ["scenario", "feature", "step", "action"], min_nodes: 1 },
+    {
+      graph: "requirement_graph.json",
+      labels: ["requirement", "functionalrequirement", "feature"],
+      min_nodes: 1,
+    },
+    {
+      graph: "behavior_graph.json",
+      labels: ["scenario", "feature", "step", "action"],
+      min_nodes: 1,
+    },
   ],
   Q3: [
-    { graph: "requirement_graph.json", labels: ["requirement", "functionalrequirement", "feature"], min_nodes: 1 },
-    { graph: "behavior_graph.json", labels: ["scenario", "feature", "step", "action"], min_nodes: 1 },
-    { graph: "tla-interaction-graph.json", labels: ["system", "action", "state", "invariant", "spec", "module"], min_nodes: 1 },
+    {
+      graph: "requirement_graph.json",
+      labels: ["requirement", "functionalrequirement", "feature"],
+      min_nodes: 1,
+    },
+    {
+      graph: "behavior_graph.json",
+      labels: ["scenario", "feature", "step", "action"],
+      min_nodes: 1,
+    },
+    {
+      graph: "tla-interaction-graph.json",
+      labels: ["system", "action", "state", "invariant", "spec", "module"],
+      min_nodes: 1,
+    },
   ],
   Q4: [
-    { graph: "lean-proof-graph.json", labels: ["theorem", "proof", "lemma", "axiom", "file"], min_nodes: 1 },
-    { graph: "requirement_graph.json", labels: ["requirement", "functionalrequirement", "feature"], min_nodes: 1 },
+    {
+      graph: "lean-proof-graph.json",
+      labels: ["theorem", "proof", "lemma", "axiom", "file"],
+      min_nodes: 1,
+    },
+    {
+      graph: "requirement_graph.json",
+      labels: ["requirement", "functionalrequirement", "feature"],
+      min_nodes: 1,
+    },
   ],
   Q5: [
-    { graph: "system-architecture.json", labels: ["module", "component", "interface", "layer", "synthesisnode"], min_nodes: 1 },
-    { graph: "tla-interaction-graph.json", labels: ["system", "action", "state", "invariant", "spec", "module"], min_nodes: 1 },
+    {
+      graph: "system-architecture.json",
+      labels: ["module", "component", "interface", "layer", "synthesisnode"],
+      min_nodes: 1,
+    },
+    {
+      graph: "tla-interaction-graph.json",
+      labels: ["system", "action", "state", "invariant", "spec", "module"],
+      min_nodes: 1,
+    },
   ],
   Q6: [
-    { graph: "tla-interaction-graph.json", labels: ["system", "action", "state", "invariant", "spec", "module"], min_nodes: 5 },
-    { graph: "system-architecture.json", labels: ["module", "component", "interface", "layer", "synthesisnode"], min_nodes: 1 },
+    {
+      graph: "tla-interaction-graph.json",
+      labels: ["system", "action", "state", "invariant", "spec", "module"],
+      min_nodes: 5,
+    },
+    {
+      graph: "system-architecture.json",
+      labels: ["module", "component", "interface", "layer", "synthesisnode"],
+      min_nodes: 1,
+    },
   ],
   Q7: [
-    { graph: "behavior_graph.json", labels: ["scenario", "feature", "step", "action"], min_nodes: 2 },
-    { graph: "tla-interaction-graph.json", labels: ["system", "action", "state", "invariant", "spec", "module"], min_nodes: 2 },
+    {
+      graph: "behavior_graph.json",
+      labels: ["scenario", "feature", "step", "action"],
+      min_nodes: 2,
+    },
+    {
+      graph: "tla-interaction-graph.json",
+      labels: ["system", "action", "state", "invariant", "spec", "module"],
+      min_nodes: 2,
+    },
   ],
   Q8: [
-    { graph: "behavior_graph.json", labels: ["scenario", "feature", "step", "action"], min_nodes: 1 },
-    { graph: "tla-interaction-graph.json", labels: ["system", "action", "state", "invariant", "spec", "module"], min_nodes: 1 },
-    { graph: "system-architecture.json", labels: ["module", "component", "interface", "layer", "synthesisnode"], min_nodes: 1 },
+    {
+      graph: "behavior_graph.json",
+      labels: ["scenario", "feature", "step", "action"],
+      min_nodes: 1,
+    },
+    {
+      graph: "tla-interaction-graph.json",
+      labels: ["system", "action", "state", "invariant", "spec", "module"],
+      min_nodes: 1,
+    },
+    {
+      graph: "system-architecture.json",
+      labels: ["module", "component", "interface", "layer", "synthesisnode"],
+      min_nodes: 1,
+    },
   ],
   Q9: [
-    { graph: "behavior_graph.json", labels: ["scenario", "feature", "step", "action"], min_nodes: 1 },
-    { graph: "tla-interaction-graph.json", labels: ["system", "action", "state", "invariant", "spec", "module"], min_nodes: 1 },
-    { graph: "system-architecture.json", labels: ["module", "component", "interface", "layer", "synthesisnode"], min_nodes: 1 },
+    {
+      graph: "behavior_graph.json",
+      labels: ["scenario", "feature", "step", "action"],
+      min_nodes: 1,
+    },
+    {
+      graph: "tla-interaction-graph.json",
+      labels: ["system", "action", "state", "invariant", "spec", "module"],
+      min_nodes: 1,
+    },
+    {
+      graph: "system-architecture.json",
+      labels: ["module", "component", "interface", "layer", "synthesisnode"],
+      min_nodes: 1,
+    },
   ],
   Q10: [
-    { graph: "requirement_graph.json", labels: ["requirement", "functionalrequirement", "feature"], min_nodes: 1 },
-    { graph: "behavior_graph.json", labels: ["scenario", "feature", "step", "action"], min_nodes: 1 },
-    { graph: "system-architecture.json", labels: ["module", "component", "interface", "layer", "synthesisnode"], min_nodes: 1 },
+    {
+      graph: "requirement_graph.json",
+      labels: ["requirement", "functionalrequirement", "feature"],
+      min_nodes: 1,
+    },
+    {
+      graph: "behavior_graph.json",
+      labels: ["scenario", "feature", "step", "action"],
+      min_nodes: 1,
+    },
+    {
+      graph: "system-architecture.json",
+      labels: ["module", "component", "interface", "layer", "synthesisnode"],
+      min_nodes: 1,
+    },
   ],
 };
 
@@ -317,7 +431,9 @@ function loadGraphMeta(workDir: string, graphFile: string): GraphMeta | null {
         labelCounts: {},
         edgeTypes: {},
       };
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   return null;
@@ -369,11 +485,17 @@ function scoreQuestion(
         gaps.push(
           `${g}: no relevant node types (expected: ${labelStr}; found: ${foundLabels.length > 0 ? foundLabels.join(", ") : "none"})`,
         );
-        recommendations.push(`Add nodes with relevant labels to ${g}: ${labelStr}`);
+        recommendations.push(
+          `Add nodes with relevant labels to ${g}: ${labelStr}`,
+        );
       } else if (relevantNodeCount < req.min_nodes) {
         // Some relevant nodes exist but not enough
-        gaps.push(`${g}: ${relevantNodeCount}/${req.min_nodes} relevant nodes only`);
-        recommendations.push(`Add more relevant nodes to ${g} (need >= ${req.min_nodes})`);
+        gaps.push(
+          `${g}: ${relevantNodeCount}/${req.min_nodes} relevant nodes only`,
+        );
+        recommendations.push(
+          `Add more relevant nodes to ${g} (need >= ${req.min_nodes})`,
+        );
       } else {
         // Sufficient relevant content found
         evidence.push(g);
@@ -401,7 +523,11 @@ function scoreQuestion(
   // cross-layer edge types (IMPLEMENTS, FORMALIZES, PROVES, REFINES).
 
   const requiredEdgeTypes = CROSS_GRAPH_EDGE_TYPES[question.id];
-  if (requiredEdgeTypes && requiredEdgeTypes.length > 0 && evidence.length >= 2) {
+  if (
+    requiredEdgeTypes &&
+    requiredEdgeTypes.length > 0 &&
+    evidence.length >= 2
+  ) {
     const archMeta = graphs.get("system-architecture.json");
     if (archMeta?.exists) {
       const foundTypes = requiredEdgeTypes.filter(
@@ -426,9 +552,18 @@ function scoreQuestion(
   const anyOptionalFound = question.optional_graphs?.some(
     (g: string) => graphs.get(g)?.exists,
   );
-  if (!anyOptionalFound && question.optional_graphs && question.optional_graphs.length > 0 && graphsWithRelevantContent < question.min_evidence) {
-    gaps.push("Optional formal verification graph not found (TLA+/Lean) — consider running S5");
-    recommendations.push("If the system involves algorithms/state machines, trigger S5");
+  if (
+    !anyOptionalFound &&
+    question.optional_graphs &&
+    question.optional_graphs.length > 0 &&
+    graphsWithRelevantContent < question.min_evidence
+  ) {
+    gaps.push(
+      "Optional formal verification graph not found (TLA+/Lean) — consider running S5",
+    );
+    recommendations.push(
+      "If the system involves algorithms/state machines, trigger S5",
+    );
   }
 
   // ===================== Confidence =====================
@@ -500,18 +635,19 @@ function generateSocraticQuestions(unanswerable: QuestionResult[]): string[] {
     }
 
     // Include specific gap details in Socratic guidance
-    const gapDetails = r.gaps.length > 0
-      ? `缺失详情:\n  - ${r.gaps.join("\n  - ")}`
-      : "缺失详情: 暂无具体信息";
+    const gapDetails =
+      r.gaps.length > 0
+        ? `缺失详情:\n  - ${r.gaps.join("\n  - ")}`
+        : "缺失详情: 暂无具体信息";
 
     const recommendation = r.recommendations[0] || "需要进一步分析";
 
     questions.push(
       `【${q}】\n` +
-      `置信度: ${r.confidence}\n` +
-      `${gapDetails}\n` +
-      `推荐操作: ${recommendation}\n` +
-      `请选择: ${options.join(" | ")}`,
+        `置信度: ${r.confidence}\n` +
+        `${gapDetails}\n` +
+        `推荐操作: ${recommendation}\n` +
+        `请选择: ${options.join(" | ")}`,
     );
   }
 

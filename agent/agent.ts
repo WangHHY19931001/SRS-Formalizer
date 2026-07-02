@@ -12,7 +12,12 @@
 import { StateGraph, MessagesAnnotation } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
-import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import {
+  HumanMessage,
+  SystemMessage,
+  AIMessage,
+  ToolMessage,
+} from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { StructuredTool } from "@langchain/core/tools";
@@ -44,8 +49,12 @@ const WORK_TABOOS = [
   "如果命令失败，最多重试 1 次，然后报告错误继续下一步",
 ];
 
-function buildSystemPrompt(toolNames: string[], skillsDir: string, projectRoot: string): string {
-  const toolList = toolNames.map(n => `  - ${n}`).join("\n");
+function buildSystemPrompt(
+  toolNames: string[],
+  skillsDir: string,
+  projectRoot: string,
+): string {
+  const toolList = toolNames.map((n) => `  - ${n}`).join("\n");
   const taboos = WORK_TABOOS.map((t, i) => `  ${i + 1}. ${t}`).join("\n");
   return `你是一个工作 agent，你拥有如下工具：
 ${toolList}
@@ -78,13 +87,19 @@ export interface AgentConfig {
 // ===================== createAgent =====================
 
 export async function createAgent(config: AgentConfig): Promise<{
-  agent: any;
+  agent: {
+    invoke: (
+      input: Record<string, unknown>,
+      config?: Record<string, unknown>,
+    ) => Promise<{ messages?: Array<{ content: unknown }> }>;
+  };
   id: string;
   handle: AgentHandle;
 }> {
   const id = `${config.role}-${Date.now()}-${++agentIdCounter}`;
   const llmConfig = loadLlmConfig(config.configPath);
-  const maxTokens = config.maxContextTokens || llmConfig["max-model-len"] || 131072;
+  const maxTokens =
+    config.maxContextTokens || llmConfig["max-model-len"] || 131072;
   const maxTurns = config.maxTurns || 250;
   const logDir = config.logDir || "/tmp/srs-agent-logs";
 
@@ -93,8 +108,17 @@ export async function createAgent(config: AgentConfig): Promise<{
   const logPath = `${logDir}/${id}.jsonl`;
 
   function writeLog(type: string, data: Record<string, unknown>) {
-    const line = JSON.stringify({ ts: new Date().toISOString(), type, agentId: id, ...data });
-    try { fs.appendFileSync(logPath, line + "\n", "utf-8"); } catch { /* silent */ }
+    const line = JSON.stringify({
+      ts: new Date().toISOString(),
+      type,
+      agentId: id,
+      ...data,
+    });
+    try {
+      fs.appendFileSync(logPath, line + "\n", "utf-8");
+    } catch {
+      /* silent */
+    }
   }
 
   const llm = new ChatOpenAI({
@@ -113,61 +137,66 @@ export async function createAgent(config: AgentConfig): Promise<{
 
   // Check SKIP_MCP env var
   if (process.env.SKIP_MCP) {
-    writeLog("mcp_skip", { reason: `SKIP_MCP env var set: ${process.env.SKIP_MCP}` });
+    writeLog("mcp_skip", {
+      reason: `SKIP_MCP env var set: ${process.env.SKIP_MCP}`,
+    });
   } else {
-  // Register all MCP servers in parallel with a per-server timeout
-  const mcpResults = await Promise.allSettled(
-    mcpServerConfigs.map(async (mcpEntry) => {
-      const timeoutMs = 5000; // 5s per server (reduced from 15s)
-      const connectPromise = registerMcpServer({
-        transport: "stdio",
-        command: mcpEntry.command,
-        args: mcpEntry.args,
-      });
+    // Register all MCP servers in parallel with a per-server timeout
+    const mcpResults = await Promise.allSettled(
+      mcpServerConfigs.map(async (mcpEntry) => {
+        const timeoutMs = 5000; // 5s per server (reduced from 15s)
+        const connectPromise = registerMcpServer({
+          transport: "stdio",
+          command: mcpEntry.command,
+          args: mcpEntry.args,
+        });
 
-      const result = await Promise.race([
-        connectPromise.then(tools => ({ ok: true as const, tools })),
-        new Promise<{ ok: false; tools: string[] }>((resolve) =>
-          setTimeout(() => resolve({ ok: false, tools: [] }), timeoutMs)
-        ),
-      ]);
+        const result = await Promise.race([
+          connectPromise.then((tools) => ({ ok: true as const, tools })),
+          new Promise<{ ok: false; tools: string[] }>((resolve) =>
+            setTimeout(() => resolve({ ok: false, tools: [] }), timeoutMs),
+          ),
+        ]);
 
-      return { entry: mcpEntry, ...result };
-    })
-  );
+        return { entry: mcpEntry, ...result };
+      }),
+    );
 
-  for (const r of mcpResults) {
-    if (r.status === "rejected") {
-      writeLog("mcp_auto_register_error", { server: "unknown", error: String(r.reason) });
-      continue;
+    for (const r of mcpResults) {
+      if (r.status === "rejected") {
+        writeLog("mcp_auto_register_error", {
+          server: "unknown",
+          error: String(r.reason),
+        });
+        continue;
+      }
+      const { entry, ok, tools: toolNames } = r.value;
+      if (!ok) {
+        writeLog("mcp_auto_register_timeout", { server: entry.name });
+        continue;
+      }
+
+      writeLog("mcp_auto_register", { server: entry.name, tools: toolNames });
+
+      // Register each MCP tool with mcp_ prefix in the ToolRegistry
+      for (const name of toolNames) {
+        const mcpToolName = `mcp_${name}`;
+        registry.addLazy(mcpToolName, async () => {
+          const { tool: langchainTool } = await import("@langchain/core/tools");
+          return langchainTool(
+            async (args: Record<string, unknown>) => callMcpTool(name, args),
+            {
+              name: mcpToolName,
+              description: `[${entry.name}] MCP tool: ${name}`,
+              schema: z.object({}).passthrough(),
+            },
+          );
+        });
+        autoRegisteredMcpTools.push(mcpToolName);
+      }
+      // Auto-register for immediate use
+      await registry.register(toolNames.map((n) => `mcp_${n}`));
     }
-    const { entry, ok, tools: toolNames } = r.value;
-    if (!ok) {
-      writeLog("mcp_auto_register_timeout", { server: entry.name });
-      continue;
-    }
-
-    writeLog("mcp_auto_register", { server: entry.name, tools: toolNames });
-
-    // Register each MCP tool with mcp_ prefix in the ToolRegistry
-    for (const name of toolNames) {
-      const mcpToolName = `mcp_${name}`;
-      registry.addLazy(mcpToolName, async () => {
-        const { tool: langchainTool } = await import("@langchain/core/tools");
-        return langchainTool(
-          async (args: Record<string, unknown>) => callMcpTool(name, args),
-          {
-            name: mcpToolName,
-            description: `[${entry.name}] MCP tool: ${name}`,
-            schema: z.object({}).passthrough(),
-          },
-        );
-      });
-      autoRegisteredMcpTools.push(mcpToolName);
-    }
-    // Auto-register for immediate use
-    await registry.register(toolNames.map(n => `mcp_${n}`));
-  }
   } // end else (skip MCP)
 
   // Context manager
@@ -175,10 +204,17 @@ export async function createAgent(config: AgentConfig): Promise<{
     baseURL: llmConfig.baseURL,
     apiKey: llmConfig.key,
   });
-  const ctxManager = new ContextManager(openaiClient, llmConfig.name, maxTokens, 2);
+  const ctxManager = new ContextManager(
+    openaiClient,
+    llmConfig.name,
+    maxTokens,
+    2,
+  );
 
   // Context tracking
-  const messageBox: { current: Array<{ role: string; content: unknown }> } = { current: [] };
+  const messageBox: { current: Array<{ role: string; content: unknown }> } = {
+    current: [],
+  };
 
   const { contextInfoTool, compressContextTool } = createContextTools(
     ctxManager,
@@ -192,7 +228,10 @@ export async function createAgent(config: AgentConfig): Promise<{
    * The sub-agent gets its own StateGraph, tool set, and message context.
    */
   async function spawnHandler(task: string): Promise<string> {
-    writeLog("spawn_sub_agent_start", { task: task.slice(0, 150), depth: config.depth || 0 });
+    writeLog("spawn_sub_agent_start", {
+      task: task.slice(0, 150),
+      depth: config.depth || 0,
+    });
 
     // Create a fresh ToolRegistry for the sub-agent (inherits from parent)
     const subRegistry = new ToolRegistry();
@@ -232,7 +271,11 @@ export async function createAgent(config: AgentConfig): Promise<{
     // Unregister from directory
     directory.unregister(subResult.id);
 
-    writeLog("spawn_sub_agent_end", { id: subResult.id, outputLen: output.length, depth: config.depth || 0 });
+    writeLog("spawn_sub_agent_end", {
+      id: subResult.id,
+      outputLen: output.length,
+      depth: config.depth || 0,
+    });
     return output;
   }
 
@@ -244,7 +287,8 @@ export async function createAgent(config: AgentConfig): Promise<{
     async ({ summary }) => `TASK_COMPLETE: ${summary}`,
     {
       name: "complete_task",
-      description: "任务完成时调用此工具。调用后必须直接输出文本结果，不要再调用其他工具。传入任务摘要。",
+      description:
+        "任务完成时调用此工具。调用后必须直接输出文本结果，不要再调用其他工具。传入任务摘要。",
       schema: z.object({ summary: z.string().describe("任务完成摘要") }),
     },
   );
@@ -263,19 +307,25 @@ export async function createAgent(config: AgentConfig): Promise<{
         const { tool: langchainTool } = await import("@langchain/core/tools");
         return langchainTool(
           async (args: Record<string, unknown>) => callMcpTool(name, args),
-          { name: mcpToolName, description: `MCP tool: ${name}`, schema: z.object({}).passthrough() },
+          {
+            name: mcpToolName,
+            description: `MCP tool: ${name}`,
+            schema: z.object({}).passthrough(),
+          },
         );
       });
     }
     // Auto-register them for immediate use
-    const prefixed = toolNames.map(n => `mcp_${n}`);
+    const prefixed = toolNames.map((n) => `mcp_${n}`);
     await registry.register(prefixed);
     return [...toolNames, ...prefixed];
   });
 
   const mcpCallTool = createMcpCallTool(async (toolName, args) => {
     // Strip mcp_ prefix if present, then call MCP
-    const actualName = toolName.startsWith("mcp_") ? toolName.slice(4) : toolName;
+    const actualName = toolName.startsWith("mcp_")
+      ? toolName.slice(4)
+      : toolName;
     return callMcpTool(actualName, args);
   });
 
@@ -302,22 +352,27 @@ export async function createAgent(config: AgentConfig): Promise<{
   // Custom agent node with context check
   async function agentNode(state: typeof MessagesAnnotation.State) {
     const messages = state.messages;
-    messageBox.current = messages.map(m => ({
+    messageBox.current = messages.map((m) => ({
       role: m.getType?.() ?? "unknown",
       content: "content" in m ? (m as any).content : "",
     }));
 
-    writeLog("agent_turn", { msgCount: messages.length, depth: config.depth || 0 });
+    writeLog("agent_turn", {
+      msgCount: messages.length,
+      depth: config.depth || 0,
+    });
 
     // Bind tools dynamically (supports register/unregister at runtime)
     const currentTools = registry.getActiveTools();
     const llmWithTools = llm.bindTools(currentTools);
 
     // Build dynamic system prompt
-    const skillsDir = config.skillsDir || process.env.SKILL_SCRIPTS_DIR || process.cwd();
-    const projectRoot = config.projectRoot || process.env.PROJECT_ROOT || process.cwd();
+    const skillsDir =
+      config.skillsDir || process.env.SKILL_SCRIPTS_DIR || process.cwd();
+    const projectRoot =
+      config.projectRoot || process.env.PROJECT_ROOT || process.cwd();
     const systemPrompt = buildSystemPrompt(
-      currentTools.map(t => t.name),
+      currentTools.map((t) => t.name),
       skillsDir,
       projectRoot,
     );
@@ -339,19 +394,29 @@ export async function createAgent(config: AgentConfig): Promise<{
       return { messages: [response] };
     } catch (e) {
       writeLog("llm_error", { error: (e as Error).message });
-      return { messages: [new AIMessage(`Error: ${(e as Error).message}. Please try a different approach or report the issue.`)] };
+      return {
+        messages: [
+          new AIMessage(
+            `Error: ${(e as Error).message}. Please try a different approach or report the issue.`,
+          ),
+        ],
+      };
     }
   }
 
   // Route: if last message has tool_calls → tools, otherwise → END
-  function shouldContinue(state: typeof MessagesAnnotation.State): "tools" | "__end__" {
+  function shouldContinue(
+    state: typeof MessagesAnnotation.State,
+  ): "tools" | "__end__" {
     const lastMsg = state.messages[state.messages.length - 1];
     const toolCalls = (lastMsg as any).tool_calls;
     if (toolCalls && toolCalls.length > 0) {
       return "tools";
     }
     // No tool calls → agent is done
-    writeLog("agent_done", { content: ((lastMsg as any).content as string)?.slice(0, 200) || "" });
+    writeLog("agent_done", {
+      content: ((lastMsg as any).content as string)?.slice(0, 200) || "",
+    });
     return "__end__";
   }
 

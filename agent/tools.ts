@@ -22,8 +22,15 @@ export const readFileTool = tool(
       const content = fs.readFileSync(filePath, "utf-8");
       const lines = content.split("\n");
       const shown = lines.slice(0, maxLines);
-      return shown.join("\n") + (lines.length > maxLines ? `\n... (${lines.length - maxLines} more lines)` : "");
-    } catch (e) { return `ERROR: ${(e as Error).message}`; }
+      return (
+        shown.join("\n") +
+        (lines.length > maxLines
+          ? `\n... (${lines.length - maxLines} more lines)`
+          : "")
+      );
+    } catch (e) {
+      return `ERROR: ${(e as Error).message}`;
+    }
   },
   {
     name: "read_file",
@@ -32,7 +39,7 @@ export const readFileTool = tool(
       filePath: z.string().describe("文件路径"),
       maxLines: z.number().optional().default(100).describe("最大行数"),
     }),
-  }
+  },
 );
 
 // ==================== 2. write_file ====================
@@ -44,7 +51,9 @@ export const writeFileTool = tool(
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(filePath, content, "utf-8");
       return `OK: wrote ${content.length} chars to ${filePath}`;
-    } catch (e) { return `ERROR: ${(e as Error).message}`; }
+    } catch (e) {
+      return `ERROR: ${(e as Error).message}`;
+    }
   },
   {
     name: "write_file",
@@ -53,7 +62,7 @@ export const writeFileTool = tool(
       filePath: z.string().describe("文件路径"),
       content: z.string().describe("文件内容"),
     }),
-  }
+  },
 );
 
 // ==================== 3. edit_file ====================
@@ -62,10 +71,17 @@ export const editFileTool = tool(
   async ({ filePath, oldString, newString }) => {
     try {
       const content = fs.readFileSync(filePath, "utf-8");
-      if (!content.includes(oldString)) return `ERROR: old_string not found in ${filePath}`;
-      fs.writeFileSync(filePath, content.replace(oldString, newString), "utf-8");
+      if (!content.includes(oldString))
+        return `ERROR: old_string not found in ${filePath}`;
+      fs.writeFileSync(
+        filePath,
+        content.replace(oldString, newString),
+        "utf-8",
+      );
       return `OK: replaced in ${filePath}`;
-    } catch (e) { return `ERROR: ${(e as Error).message}`; }
+    } catch (e) {
+      return `ERROR: ${(e as Error).message}`;
+    }
   },
   {
     name: "edit_file",
@@ -75,7 +91,7 @@ export const editFileTool = tool(
       oldString: z.string().describe("要替换的原字符串"),
       newString: z.string().describe("替换后的新字符串"),
     }),
-  }
+  },
 );
 
 // ==================== 4. search_in_file ====================
@@ -87,11 +103,17 @@ export const searchInFileTool = tool(
       const re = regex ? new RegExp(pattern, "gi") : null;
       const results: string[] = [];
       for (let i = 0; i < lines.length && results.length < maxResults; i++) {
-        const match = re ? re.test(lines[i]!) : lines[i]!.toLowerCase().includes(pattern.toLowerCase());
+        const match = re
+          ? re.test(lines[i]!)
+          : lines[i]!.toLowerCase().includes(pattern.toLowerCase());
         if (match) results.push(`${i + 1}: ${lines[i]!.slice(0, 200)}`);
       }
-      return results.length > 0 ? results.join("\n") : `No matches for "${pattern}"`;
-    } catch (e) { return `ERROR: ${(e as Error).message}`; }
+      return results.length > 0
+        ? results.join("\n")
+        : `No matches for "${pattern}"`;
+    } catch (e) {
+      return `ERROR: ${(e as Error).message}`;
+    }
   },
   {
     name: "search_in_file",
@@ -102,7 +124,7 @@ export const searchInFileTool = tool(
       regex: z.boolean().optional().default(false),
       maxResults: z.number().optional().default(20),
     }),
-  }
+  },
 );
 
 // ==================== 5. run_command ====================
@@ -112,17 +134,33 @@ export const runCommandTool = tool(
     const workDir = cwd || getScriptsDir();
     try {
       const stdout = execSync(command, {
-        cwd: workDir, stdio: "pipe", timeout: timeoutMs,
-        env: { ...process.env }, maxBuffer: 10 * 1024 * 1024,
-      }).toString().trim();
+        cwd: workDir,
+        stdio: "pipe",
+        timeout: timeoutMs,
+        env: { ...process.env },
+        maxBuffer: 10 * 1024 * 1024,
+      })
+        .toString()
+        .trim();
       return stdout || "(empty stdout)";
     } catch (e: unknown) {
-      const err = e as { stdout?: Buffer; stderr?: Buffer; message?: string; status?: number };
-      return [
-        err.stdout?.toString().trim(),
-        err.stderr?.toString().trim() ? `STDERR: ${err.stderr.toString().trim()}` : "",
-        `exit: ${err.status ?? 1}`,
-      ].filter(Boolean).join("\n") || `ERROR: ${err.message}`;
+      const err = e as {
+        stdout?: Buffer;
+        stderr?: Buffer;
+        message?: string;
+        status?: number;
+      };
+      return (
+        [
+          err.stdout?.toString().trim(),
+          err.stderr?.toString().trim()
+            ? `STDERR: ${err.stderr.toString().trim()}`
+            : "",
+          `exit: ${err.status ?? 1}`,
+        ]
+          .filter(Boolean)
+          .join("\n") || `ERROR: ${err.message}`
+      );
     }
   },
   {
@@ -133,7 +171,7 @@ export const runCommandTool = tool(
       cwd: z.string().optional().describe("工作目录"),
       timeoutMs: z.number().optional().default(120000).describe("超时毫秒"),
     }),
-  }
+  },
 );
 
 // ==================== 6. web_search ====================
@@ -149,15 +187,20 @@ export const webSearchTool = tool(
       const html = await resp.text();
 
       const links: { title: string; url: string }[] = [];
-      const linkRe = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi;
+      const linkRe =
+        /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi;
       let m: RegExpExecArray | null;
       while ((m = linkRe.exec(html)) && links.length < maxResults) {
         links.push({ url: m[1]!, title: m[2]!.replace(/<[^>]+>/g, "").trim() });
       }
 
       if (links.length === 0) return `No results for "${query}"`;
-      return links.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}`).join("\n\n");
-    } catch (e) { return `Search failed: ${(e as Error).message}`; }
+      return links
+        .map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}`)
+        .join("\n\n");
+    } catch (e) {
+      return `Search failed: ${(e as Error).message}`;
+    }
   },
   {
     name: "web_search",
@@ -166,7 +209,7 @@ export const webSearchTool = tool(
       query: z.string().describe("搜索查询"),
       maxResults: z.number().optional().default(5),
     }),
-  }
+  },
 );
 
 // ==================== 7. http_request ====================
@@ -176,11 +219,17 @@ export const httpRequestTool = tool(
     try {
       let headers: Record<string, string> = { "User-Agent": "debug-agent/1.0" };
       if (hdrStr) headers = { ...headers, ...JSON.parse(hdrStr) };
-      const opts: RequestInit = { method, headers, signal: AbortSignal.timeout(30000) };
+      const opts: RequestInit = {
+        method,
+        headers,
+        signal: AbortSignal.timeout(30000),
+      };
       if (method === "POST" && body) opts.body = body;
       const resp = await fetch(url, opts);
       return `HTTP ${resp.status}: ${(await resp.text()).slice(0, 2000)}`;
-    } catch (e) { return `ERROR: ${(e as Error).message}`; }
+    } catch (e) {
+      return `ERROR: ${(e as Error).message}`;
+    }
   },
   {
     name: "http_request",
@@ -191,7 +240,7 @@ export const httpRequestTool = tool(
       headers: z.string().optional().describe("JSON 格式的请求头"),
       body: z.string().optional().describe("请求体"),
     }),
-  }
+  },
 );
 
 // ==================== 8. list_directory ====================
@@ -199,15 +248,19 @@ export const httpRequestTool = tool(
 export const listDirTool = tool(
   async ({ dirPath }) => {
     try {
-      return fs.readdirSync(dirPath, { withFileTypes: true })
-        .map(e => `${e.isDirectory() ? "📁" : "📄"} ${e.name}`).join("\n");
-    } catch (e) { return `ERROR: ${(e as Error).message}`; }
+      return fs
+        .readdirSync(dirPath, { withFileTypes: true })
+        .map((e) => `${e.isDirectory() ? "📁" : "📄"} ${e.name}`)
+        .join("\n");
+    } catch (e) {
+      return `ERROR: ${(e as Error).message}`;
+    }
   },
   {
     name: "list_directory",
     description: "列出目录内容",
     schema: z.object({ dirPath: z.string().describe("目录路径") }),
-  }
+  },
 );
 
 // ==================== 9. check_file_exists ====================
@@ -218,13 +271,15 @@ export const checkFileTool = tool(
       if (!fs.existsSync(filePath)) return "NOT FOUND";
       const stat = fs.statSync(filePath);
       return `EXISTS (${stat.isDirectory() ? "directory" : "file"}, ${stat.size} bytes)`;
-    } catch (e) { return `ERROR: ${(e as Error).message}`; }
+    } catch (e) {
+      return `ERROR: ${(e as Error).message}`;
+    }
   },
   {
     name: "check_file_exists",
     description: "检查文件或目录是否存在",
     schema: z.object({ filePath: z.string().describe("路径") }),
-  }
+  },
 );
 
 // ==================== 10. spawn_sub_agent (factory) ====================
@@ -249,19 +304,25 @@ export function createSpawnSubAgentTool(
     },
     {
       name: "spawn_sub_agent",
-      description: "分派子代理执行 LLM 任务并接收返回结果。子代理拥有独立的工具集和上下文，可并行执行。传入详细的任务提示词。",
+      description:
+        "分派子代理执行 LLM 任务并接收返回结果。子代理拥有独立的工具集和上下文，可并行执行。传入详细的任务提示词。",
       schema: z.object({
-        task: z.string().describe("子代理的任务提示词，应包含完整的任务描述、期望输出格式和约束条件"),
+        task: z
+          .string()
+          .describe(
+            "子代理的任务提示词，应包含完整的任务描述、期望输出格式和约束条件",
+          ),
       }),
-    }
+    },
   );
 }
 
 // ==================== 12. register_tools (factory) ====================
 
-export function createRegisterToolsTool(
-  registry: { register: (names: string[]) => Promise<string[]>; getActiveToolNames: () => string[] },
-) {
+export function createRegisterToolsTool(registry: {
+  register: (names: string[]) => Promise<string[]>;
+  getActiveToolNames: () => string[];
+}) {
   return tool(
     async ({ toolNames }) => {
       const registered = await registry.register(toolNames);
@@ -273,19 +334,21 @@ export function createRegisterToolsTool(
     },
     {
       name: "register_tools",
-      description: "动态注册新工具。传入工具名称列表，从懒加载池中激活对应工具。注册后立即可用。",
+      description:
+        "动态注册新工具。传入工具名称列表，从懒加载池中激活对应工具。注册后立即可用。",
       schema: z.object({
         toolNames: z.array(z.string()).describe("要注册的工具名称列表"),
       }),
-    }
+    },
   );
 }
 
 // ==================== 13. unregister_tools (factory) ====================
 
-export function createUnregisterToolsTool(
-  registry: { unregister: (names: string[]) => string[]; getActiveToolNames: () => string[] },
-) {
+export function createUnregisterToolsTool(registry: {
+  unregister: (names: string[]) => string[];
+  getActiveToolNames: () => string[];
+}) {
   return tool(
     async ({ toolNames }) => {
       const removed = registry.unregister(toolNames);
@@ -297,18 +360,24 @@ export function createUnregisterToolsTool(
     },
     {
       name: "unregister_tools",
-      description: "卸载工具。传入工具名称列表，从活跃池中移除对应工具。卸载后 LLM 无法再调用它们。",
+      description:
+        "卸载工具。传入工具名称列表，从活跃池中移除对应工具。卸载后 LLM 无法再调用它们。",
       schema: z.object({
         toolNames: z.array(z.string()).describe("要卸载的工具名称列表"),
       }),
-    }
+    },
   );
 }
 
 // ==================== 14. MCP tools (factories) ====================
 
 export function createMcpRegisterTool(
-  mcpRegister: (config: { transport: "stdio" | "http"; command?: string; args?: string[]; url?: string }) => Promise<string[]>,
+  mcpRegister: (config: {
+    transport: "stdio" | "http";
+    command?: string;
+    args?: string[];
+    url?: string;
+  }) => Promise<string[]>,
 ) {
   return tool(
     async ({ transport, command, args, url }) => {
@@ -321,14 +390,15 @@ export function createMcpRegisterTool(
     },
     {
       name: "register_mcp_server",
-      description: "动态注册 MCP (Model Context Protocol) 服务器。支持 stdio（本地进程）和 HTTP 两种传输方式。注册后该服务器提供的工具即可使用。",
+      description:
+        "动态注册 MCP (Model Context Protocol) 服务器。支持 stdio（本地进程）和 HTTP 两种传输方式。注册后该服务器提供的工具即可使用。",
       schema: z.object({
         transport: z.enum(["stdio", "http"]).describe("传输方式"),
         command: z.string().optional().describe("stdio: 启动命令"),
         args: z.array(z.string()).optional().describe("stdio: 命令行参数"),
         url: z.string().optional().describe("http: MCP 服务器 URL"),
       }),
-    }
+    },
   );
 }
 
@@ -346,12 +416,20 @@ export function createMcpCallTool(
     },
     {
       name: "call_mcp_tool",
-      description: "调用已注册 MCP 服务器上的工具。用 register_mcp_server 注册后，直接用工具名调用（工具名以 mcp_ 前缀开头）。",
+      description:
+        "调用已注册 MCP 服务器上的工具。用 register_mcp_server 注册后，直接用工具名调用（工具名以 mcp_ 前缀开头）。",
       schema: z.object({
-        toolName: z.string().describe("MCP 工具名称（如 mcp_search-tickets），从 register_mcp_server 返回结果中获取"),
-        args: z.record(z.string(), z.unknown()).optional().describe("工具参数 JSON 对象"),
+        toolName: z
+          .string()
+          .describe(
+            "MCP 工具名称（如 mcp_search-tickets），从 register_mcp_server 返回结果中获取",
+          ),
+        args: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe("工具参数 JSON 对象"),
       }),
-    }
+    },
   );
 }
 
@@ -359,9 +437,15 @@ export function createMcpCallTool(
 
 /** Base tools without dynamic factories (spawn, register, unregister, MCP are created by agent.ts). */
 export const BASE_TOOLS = [
-  readFileTool, writeFileTool, editFileTool, searchInFileTool,
-  runCommandTool, webSearchTool, httpRequestTool,
-  listDirTool, checkFileTool,
+  readFileTool,
+  writeFileTool,
+  editFileTool,
+  searchInFileTool,
+  runCommandTool,
+  webSearchTool,
+  httpRequestTool,
+  listDirTool,
+  checkFileTool,
 ];
 
 /** @deprecated Use BASE_TOOLS. Dynamic tools are created via factory functions. */
