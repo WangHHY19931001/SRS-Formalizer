@@ -22,7 +22,8 @@ import * as path from 'node:path';
 import { execSync } from 'node:child_process';
 import { registerMcpServer, callMcpTool } from './mcp.js';
 
-const SCRIPTS_DIR = path.resolve('.claude/skills/srs-formalizer/scripts');
+/** Default scripts directory — overridable via SKILL_SCRIPTS_DIR env var */
+const SCRIPTS_DIR = process.env.SKILL_SCRIPTS_DIR || path.resolve('.claude/skills/srs-formalizer/scripts');
 const WEB_SEARCH_URL = process.env.WEB_SEARCH_URL || 'http://localhost:3000';
 
 // ===================== Tool Definitions =====================
