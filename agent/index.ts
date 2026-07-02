@@ -87,9 +87,10 @@ async function main() {
 
   console.log(`Agent ID: ${id}`);
 
+  // High limit — let the agent iterate until task complete
   const result = await agent.invoke(
     { messages: [{ role: "user", content: task }] },
-    { recursionLimit: 500 },
+    { recursionLimit: 9999 },
   );
 
   const msgs = result.messages || [];
