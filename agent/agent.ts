@@ -192,16 +192,23 @@ export async function createAgent(config: AgentConfig): Promise<{
 
   // ===================== AgentHandle =====================
 
+  // deepagents invoke has a complex generic signature; bridge via unknown
+  const deepInvoke = agent.invoke as unknown as (
+    input: Record<string, unknown>,
+    config?: Record<string, unknown>,
+  ) => Promise<{ messages?: Array<{ content: unknown }> }>;
+
+  const invoke = (
+    input: Record<string, unknown>,
+    config?: Record<string, unknown>,
+  ): Promise<{ messages?: Array<{ content: unknown }> }> =>
+    deepInvoke(input, config);
+
   const handle: AgentHandle = {
     id,
     role: config.role,
     async receive(message: string, _fromId: string): Promise<string> {
       try {
-        // deepagents invoke has a complex generic signature; use unknown bridge
-        const invoke = agent.invoke as unknown as (
-          input: Record<string, unknown>,
-          config?: Record<string, unknown>,
-        ) => Promise<{ messages?: Array<{ content: unknown }> }>;
         const result = await invoke({
           messages: [new HumanMessage(message)],
         });
@@ -213,12 +220,6 @@ export async function createAgent(config: AgentConfig): Promise<{
       }
     },
   };
-
-  // deepagents invoke has a complex generic signature; use unknown bridge to keep our API simple
-  const invoke = agent.invoke as unknown as (
-    input: Record<string, unknown>,
-    config?: Record<string, unknown>,
-  ) => Promise<{ messages?: Array<{ content: unknown }> }>;
 
   return {
     agent: { invoke },
