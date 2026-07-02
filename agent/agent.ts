@@ -31,7 +31,8 @@ export interface AgentConfig {
   maxTurns?: number;
   maxContextTokens?: number;
   role: 'orchestrator' | 'worker';
-  tracer?: Tracer;
+  logDir?: string;
+  parentTracer?: Tracer;
 }
 
 // ===================== Agent =====================
@@ -56,7 +57,7 @@ export class Agent {
     this.client = new OpenAI({ baseURL: llmConfig.baseURL, apiKey: llmConfig.key });
     this.maxTurns = config.maxTurns || 50;
     this.role = config.role;
-    this.tracer = config.tracer || new Tracer();
+    this.tracer = config.parentTracer || new Tracer(config.role, config.logDir);
     this.ctx = new ContextManager(this.client, this.model, this.maxContextTokens, 2);
 
     const systemPrompt = config.role === 'orchestrator' ? BASE_SYSTEM_PROMPT : WORKER_PROMPT;
@@ -74,7 +75,7 @@ export class Agent {
       maxTurns: 30,
       maxContextTokens: this.maxContextTokens,
       role: 'worker',
-      tracer: this.tracer,
+      logDir: this.tracer.logDir,
     });
 
     // Override messages for worker (tools already set to full TOOL_DEFINITIONS by constructor)

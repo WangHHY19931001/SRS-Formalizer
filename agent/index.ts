@@ -12,7 +12,6 @@
  */
 
 import { Agent } from './agent.js';
-import { Tracer } from './tracer.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -32,13 +31,17 @@ async function main() {
     console.error('  --llm-config   LLM 配置文件路径（必填）');
     console.error('  --task         任务提示词文件路径（推荐）');
     console.error('  --task-prompt   直接传入任务提示词');
+    console.error('  --log-dir       日志存储目录（默认: /tmp/srs-agent-traces）');
     console.error('  --project-root  项目根目录（默认: CWD）');
     console.error('  --skills-dir    skills 目录（默认: <project-root>/.claude/skills）');
     console.error('  --work-dir      测试工作目录（默认: /tmp/srs-debug-<timestamp>/.srs_formalizer）');
     process.exit(1);
   }
 
-  // Paths from CLI args, env vars, or defaults
+  const logDir = parseArg(args, '--log-dir')
+    || process.env.AGENT_LOG_DIR
+    || '/tmp/srs-agent-traces';
+
   const projectRoot = parseArg(args, '--project-root')
     || process.env.PROJECT_ROOT
     || process.cwd();
@@ -51,28 +54,19 @@ async function main() {
     || process.env.WORK_DIR
     || path.join('/tmp', `srs-debug-${Date.now()}`, '.srs_formalizer');
 
-  // Export for tools.ts to pick up
   process.env.SKILL_SCRIPTS_DIR = skillsDir;
   process.env.WORK_DIR = workDir;
 
   const task = taskPath ? fs.readFileSync(taskPath, 'utf-8') : taskPrompt!;
 
-  const tracer = new Tracer();
-  const agent = new Agent({ configPath: llmConfig, role: 'orchestrator', tracer });
-
-  const cfg = JSON.parse(fs.readFileSync(llmConfig, 'utf-8'));
-  console.log(`🚀 Agent: ${cfg.name}`);
-  console.log(`   Project: ${projectRoot}`);
-  console.log(`   Skills:  ${skillsDir}`);
-  console.log(`   Workdir: ${workDir}`);
-  console.log();
+  const agent = new Agent({ configPath: llmConfig, role: 'orchestrator', logDir });
 
   const result = await agent.run(task);
-  console.log(result.slice(0, 800));
 
-  const report = tracer.report();
-  console.log(`\n📊 ${report.summary.total_events} events, ${report.summary.error_count} errors`);
-  console.log(`   Trace: /tmp/srs-agent-traces/`);
+  const report = agent.tracer.report();
+  console.log(result.slice(0, 800));
+  console.log(`\n📊 AgentId: ${report.agentId} | ${report.summary.total_events} events`);
+  console.log(`   Log: ${report.logFile}`);
 }
 
 main().catch(err => { console.error('Fatal:', err); process.exit(1); });
