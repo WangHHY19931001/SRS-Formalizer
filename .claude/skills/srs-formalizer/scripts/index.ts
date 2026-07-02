@@ -32,6 +32,7 @@ Commands:
   validate-checklist Validate CHECKLIST.md file
   capability-probe  LLM capability probe evaluation (--mode generate|score)
   test-probes       Auto-test: generate→LLM→score→report (needs --llm-config)
+  debug-skill       Full skill debug: S0-S6 pipeline test (needs --llm-config)
   compile           Compile SKILL.md into SkIR, inject safety constraints, emit artifacts
   pack-skill        Pack skill directory into hash manifest + tar.gz backup
   verify-skill-integrity Verify skill file integrity (--repair to auto-restore)
@@ -211,6 +212,12 @@ async function main(): Promise<void> {
     case 'test-probes': {
       const { main: testProbesMain } = await import('./commands/test-probes.js');
       const result = await testProbesMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'debug-skill': {
+      const { main: debugSkillMain } = await import('./commands/debug-skill.js');
+      const result = await debugSkillMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }

@@ -1,0 +1,8 @@
+{
+  "name": "your-model-name",
+  "api_type": "openai-compatible",
+  "baseURL": "http://your-llm-server:8000/v1",
+  "key": "your-api-key",
+  "max-model-len": 131072,
+  "description": "Copy to test-llm-config.json and fill in your LLM details. This file is gitignored."
+}

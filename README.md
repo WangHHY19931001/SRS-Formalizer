@@ -184,6 +184,61 @@ S5（形式化）阶段在触发条件满足时自动启用，依赖 **确定性
 | **grill-me / grill-with-docs** | 本技能部分方法论参考了 grill-me 和 grill-with-docs |
 | **SkCC 论文与实现** | 本技能参考了中山大学团队 SkCC 论文 (arXiv:2605.03353) 及 Nexa-Language/Skill-Compiler 开源实现 |
 
+## 技能调测
+
+srs-formalizer 内置 **编排者 + 工作者** 双代理调测框架，可使用外部 LLM 完整测试技能流水线。
+
+### 配置测试 LLM
+
+```bash
+# 从模板创建配置文件
+cp llm-config.template.json test-llm-config.json
+# 编辑 test-llm-config.json，填入你的 LLM 服务信息
+```
+
+`test-llm-config.json` 已被 `.gitignore` 排除，不会提交到版本控制。
+
+### 运行调测
+
+```bash
+# 能力探测（50 题 → LLM → 评分报告）
+npx tsx index.ts test-probes --llm-config test-llm-config.json
+
+# 完整技能调试（S0 → S6，编排者分派工作者）
+npx tsx index.ts debug-skill --llm-config test-llm-config.json
+
+# 仅调试指定阶段
+npx tsx index.ts debug-skill --llm-config test-llm-config.json --stage S2
+```
+
+### 调测架构
+
+```
+debug-skill (编排者 Agent)
+  ├── S0: 探测 LLM 基础响应能力
+  ├── S1: init → manifest → 验证产物（确定性脚本，无需 LLM）
+  ├── S2: inject-prompt → DebugWorker(LLM) → validate-jsonl
+  │       编排者读取 shard_index，对每个分片：
+  │         1. inject-prompt 填充模板
+  │         2. 分派 DebugWorker 发送到测试 LLM
+  │         3. 写入 2_extract/r1-explicit/<shard>.jsonl
+  │         4. validate-jsonl 校验
+  ├── S3: build-graph → analyze → export-cypher → 验证
+  ├── S4: generate-bdd → validate-bdd → build-behavior-graph
+  ├── S5: TLA+/Lean 条件触发检查
+  └── S6: verify-gate FINAL → build-system-architecture → 一致性报告
+
+DebugWorker (工作者 Agent)
+  ├── 接收提示词 → 发送到 OpenAI 兼容 API → 返回结果
+  ├── 推理模型适配（提取 reasoning_content 中的答案）
+  ├── 输出格式校验（JSONL / TLA+ / Lean / JSON）
+  └── 自动重试（默认 2 次）
+```
+
+### 调测报告
+
+每次运行生成 JSON 报告到 `/tmp/srs-debug-report-<timestamp>.json`，包含每阶段检查项和通过/失败状态。
+
 ## 许可
 
 本项目采用 [MIT 协议](LICENSE) 开源。
