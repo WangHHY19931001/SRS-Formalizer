@@ -22,6 +22,7 @@ Commands:
   validate-bdd       Validate .feature files in the workdir
   query-graph        Graph query and traversal interface (--query <type> --params '<json>')
   build-architecture Build architecture graph from architecture JSONL files
+  build-behavior-graph Build system behavior graph from BDD feature files
   validate-architecture Validate architecture JSONL records (6 checks)
   validate-cypher   Validate .cypher script file (4 checks)
   validate-glossary Validate glossary JSON file (8 checks + gate)
@@ -146,6 +147,12 @@ async function main(): Promise<void> {
     case 'build-architecture': {
       const { main: buildArchMain } = await import('./commands/build-architecture.js');
       const result = await buildArchMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'build-behavior-graph': {
+      const { main: buildBehaviorMain } = await import('./commands/build-behavior-graph.js');
+      const result = await buildBehaviorMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }

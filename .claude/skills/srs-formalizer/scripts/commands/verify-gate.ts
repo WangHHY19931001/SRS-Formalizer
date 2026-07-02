@@ -460,6 +460,26 @@ function checkGlossaryExists(workDir: string): CheckResult {
   return { name: 'GLOSSARY.md exists', passed: false, detail: 'Not found — run S1 step 4 glossary extraction' };
 }
 
+function checkBehaviorGraphExists(workDir: string): CheckResult {
+  const graphPath = path.join(workDir, '4_bdd', 'behavior-graph.json');
+  const cypherPath = path.join(workDir, '6_outputs', 'knowledge_graph', 'behavior.cypher');
+  const hasGraph = fs.existsSync(graphPath);
+  const hasCypher = fs.existsSync(cypherPath);
+
+  if (hasGraph && hasCypher) {
+    try {
+      const g = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+      const nodes = g.nodes?.length ?? 0;
+      const edges = g.edges?.length ?? 0;
+      return { name: 'Behavior graph exists', passed: true, detail: `${nodes} nodes, ${edges} edges` };
+    } catch {
+      return { name: 'Behavior graph exists', passed: false, detail: 'Corrupt JSON' };
+    }
+  }
+  const missing = [!hasGraph && 'behavior-graph.json', !hasCypher && 'behavior.cypher'].filter(Boolean);
+  return { name: 'Behavior graph exists', passed: false, detail: `Missing: ${missing.join(', ')}` };
+}
+
 /** R3: 验证架构 JSONL 文件存在且非空 */
 function checkArchitectureExists(workDir: string): CheckResult {
   try {
@@ -590,6 +610,7 @@ export async function main(args: string[]): Promise<CliResult> {
     allChecks.push(checkSchemaCypherExists(workDir));
     allChecks.push(checkBrainstormContextExists(workDir));
     allChecks.push(checkMindmapModules(workDir));
+    allChecks.push(checkBehaviorGraphExists(workDir));
   }
 
   const errors = allChecks.filter(c => !c.passed).map(c => c.detail ?? c.name);
