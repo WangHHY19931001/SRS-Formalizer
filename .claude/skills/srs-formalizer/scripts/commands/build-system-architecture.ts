@@ -11,6 +11,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { buildSystemArchitecture, exportSystemArchToCypher } from '../lib/system-architecture.js';
+import { verifyCrossGraphConsistency } from '../lib/cross-graph-verifier.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 
 export async function main(args: string[]): Promise<CliResult> {
@@ -49,6 +50,13 @@ export async function main(args: string[]): Promise<CliResult> {
   fs.writeFileSync(graphPath, JSON.stringify(graph, null, 2), 'utf-8');
   fs.writeFileSync(path.join(outDir, 'system-architecture.cypher'), exportSystemArchToCypher(graph), 'utf-8');
 
+  // Cross-graph consistency verification (10 fundamental questions)
+  const crossGraphReport = verifyCrossGraphConsistency(workDir, iteration);
+
+  // Write cross-graph report
+  const crossReportPath = path.join(workDir, '6_outputs', 'cross-graph-report.json');
+  fs.writeFileSync(crossReportPath, JSON.stringify(crossGraphReport, null, 2), 'utf-8');
+
   // Write iteration log
   const logPath = path.join(workDir, '6_outputs', 'convergence-log.jsonl');
   const logEntry = JSON.stringify({
@@ -56,11 +64,18 @@ export async function main(args: string[]): Promise<CliResult> {
     timestamp: graph.metadata.generated_at,
     total_cross_edges: graph.metadata.total_cross_edges,
     checks: graph.consistency.map(c => ({ name: c.name, passed: c.passed, severity: c.severity })),
+    cross_graph: {
+      total_questions: crossGraphReport.summary.total_questions,
+      answerable: crossGraphReport.summary.answerable,
+      unanswerable: crossGraphReport.summary.unanswerable,
+      needs_human: crossGraphReport.summary.needs_human,
+    },
   });
   fs.appendFileSync(logPath, logEntry + '\n', 'utf-8');
 
   const errorCount = graph.consistency.filter(c => c.severity === 'error' && !c.passed).length;
   const warningCount = graph.consistency.filter(c => c.severity === 'warning' && !c.passed).length;
+  const allAnswerable = crossGraphReport.overall_converged;
 
   return {
     status: errorCount === 0 ? 'ok' : 'error',
@@ -69,7 +84,8 @@ export async function main(args: string[]): Promise<CliResult> {
       total_cross_edges: graph.metadata.total_cross_edges,
       errors: errorCount,
       warnings: warningCount,
-      converged: errorCount === 0 && warningCount === 0,
+      converged: errorCount === 0 && warningCount === 0 && allAnswerable,
+      cross_graph_summary: crossGraphReport.summary,
       checks: graph.consistency,
     },
   };
