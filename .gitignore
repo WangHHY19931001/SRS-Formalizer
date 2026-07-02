@@ -47,3 +47,6 @@ __pycache__/
 .claude/settings.local.json
 .claude/plans/
 .claude/memory/
+
+# Test LLM configuration (contains credentials)
+test-llm-config.json
