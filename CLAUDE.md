@@ -113,11 +113,11 @@ S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱
 - **Poison value rejection** — `undefined`, `null`, `NaN`, `[object Object]` blocked at `index.ts` entry via `validateNoPoisonArgs`
 - **`init` uses `--output`**, all other commands use `--workdir`
 - **Workdir must be named `.srs_formalizer`** (enforced by `validateWorkDir`)
-- **Guided extraction preferred** — `guided-extract` for S2 JSONL stages (r1/r2/r3/arch)
+- **Guided extraction** — 两步模式：先 `--template` 获取 guided prompt 发给 LLM，再 `--line '<json>'` 逐行校验追加；agent 用 `run_command` 即可，无需交互式 I/O
 - **BDD 严格模式** — gherkin-lint 20 条规则, 禁止 GAP/PLACEHOLDER/UNDEFINED/待定
 - **TLA+ 严格模式** — 内置 tla2tools-1.7.4.jar, Java 即可, -deadlock 检测, 禁止黑洞/奇迹/无限状态/死锁/活锁
 - **Lean 4 拆分证明** — 骨架→拆分→递归至 0 sorry, 0 axiom, 0 warnings, ❌ Windows 禁止, 优先 `lake exe cache get` 避免编译 mathlib4
-- **S6 跨图验证** — 10 个根本问题 (Q1-Q10), 不可回答→回退修复, ≥3次→苏格拉底拷问+人类决策
+- **S6 跨图语义验证** — 10 个根本问题 (Q1-Q10)，节点标签匹配 + 跨图边检测 + 最小阈值检查，不可回答→回退修复, ≥3次→苏格拉底拷问+人类决策
 
 ### Agent framework (`agent/`)
 
@@ -136,14 +136,20 @@ S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱
 | `package.json`           | 独立依赖管理 — @langchain/core, @langchain/langgraph, @langchain/openai, openai, zod                        |
 | `task-srs-formalizer.md` | 最小任务提示词（一行），Agent 自行从 SKILL.md 发现流水线                                                    |
 
-Agent 通过 `--task` 文件接收工作提示词，**不硬编码任何技能路径或流程**。系统提示词按模板动态生成，填充当前工具列表、技能目录和项目目录。
+Agent 通过 `--task` 文件接收工作提示词，**不硬编码任何技能路径或流程**。系统提示词按模板动态生成，填充当前工具列表、技能目录、项目目录和工作目录。
 
-**Agent 设计原则**：Agent 是通用命令行任务代理，不应包含任何技能特定适配。所有 CLI 调用通过 `run_command` 完成，LLM 自行从 SKILL.md 学习命令签名。工具集中的 `execSync` 默认 cwd 为 `SKILL_SCRIPTS_DIR`（如有设置），确保命令在正确的技能目录上下文中执行。
+**Agent 设计原则**：Agent 是通用命令行任务代理，不应包含任何技能特定适配。所有 CLI 调用通过 `run_command` 完成，LLM 自行从 SKILL.md 学习命令签名。
+
+**工作目录传递**：`--work-dir` 通过 `AgentConfig.workDir` 传入 `createAgent()`，注入系统提示。LLM 被告知对所有 CLI 命令使用 `--workdir <dir>`（`init` 除外，用 `--output`）。
+
+**系统提示**：`buildSystemPrompt()` 动态生成，包含：当前工具列表、技能/项目/工作目录及 CLI 参数规则、`WORK_TABOOS`（6 条禁忌）、`WORK_RULES`（3 条规则：LLM 密集任务必须用 `spawn_sub_agent`、提取用 `guided-extract --line` 两步模式、严格流水线顺序）。
 
 **安全约束**：
 
 - 子代理递归深度 ≤3（达到上限自动移除 `spawn_sub_agent` 工具）
 - MCP 自动注册可通过 `SKIP_MCP` 环境变量跳过，单服务器超时 5 秒
+
+**JSONL 日志**（`--log-dir`）：`agent_turn`（轮次/深度）、`tool_results`（工具名/成功/截断输出）、`llm_response`、`spawn_sub_agent_start/end`、`agent_done`。
 
 ## Key conventions
 
