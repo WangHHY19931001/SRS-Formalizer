@@ -4,15 +4,17 @@
  *
  * Usage:
  *   npx tsx agent/index.ts --llm-config <path> --task <path>
- *   npx tsx agent/index.ts --llm-config <path> --task-prompt "..."
+ *                  [--project-root <path>] [--skills-dir <path>] [--work-dir <path>]
  *
- * The --task file contains the agent's work prompt (skill path, workdir, stages, rules).
- * This makes the agent portable — it can debug ANY skill, not just srs-formalizer.
+ * The agent is completely generic — no hardcoded skill paths.
+ * Skill name, stages, rules, etc. come from the --task file.
+ * Paths come from CLI args, env vars, or sensible defaults.
  */
 
 import { Agent } from './agent.js';
 import { Tracer } from './tracer.js';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 function parseArg(args: string[], name: string): string | null {
   const idx = args.indexOf(name);
@@ -21,31 +23,48 @@ function parseArg(args: string[], name: string): string | null {
 
 async function main() {
   const args = process.argv.slice(2);
-  const configPath = parseArg(args, '--llm-config');
+  const llmConfig = parseArg(args, '--llm-config');
   const taskPath = parseArg(args, '--task');
   const taskPrompt = parseArg(args, '--task-prompt');
 
-  if (!configPath || (!taskPath && !taskPrompt)) {
+  if (!llmConfig || (!taskPath && !taskPrompt)) {
     console.error('Usage: npx tsx agent/index.ts --llm-config <path> (--task <path> | --task-prompt "...")');
-    console.error('  --llm-config  LLM 配置文件路径');
-    console.error('  --task        任务提示词文件路径（推荐）');
-    console.error('  --task-prompt  直接传入任务提示词');
+    console.error('  --llm-config   LLM 配置文件路径（必填）');
+    console.error('  --task         任务提示词文件路径（推荐）');
+    console.error('  --task-prompt   直接传入任务提示词');
+    console.error('  --project-root  项目根目录（默认: CWD）');
+    console.error('  --skills-dir    skills 目录（默认: <project-root>/.claude/skills）');
+    console.error('  --work-dir      测试工作目录（默认: /tmp/srs-debug-<timestamp>/.srs_formalizer）');
     process.exit(1);
   }
+
+  // Paths from CLI args, env vars, or defaults
+  const projectRoot = parseArg(args, '--project-root')
+    || process.env.PROJECT_ROOT
+    || process.cwd();
+
+  const skillsDir = parseArg(args, '--skills-dir')
+    || process.env.SKILLS_DIR
+    || path.join(projectRoot, '.claude', 'skills');
+
+  const workDir = parseArg(args, '--work-dir')
+    || process.env.WORK_DIR
+    || path.join('/tmp', `srs-debug-${Date.now()}`, '.srs_formalizer');
+
+  // Export for tools.ts to pick up
+  process.env.SKILL_SCRIPTS_DIR = skillsDir;
+  process.env.WORK_DIR = workDir;
 
   const task = taskPath ? fs.readFileSync(taskPath, 'utf-8') : taskPrompt!;
 
   const tracer = new Tracer();
-  const agent = new Agent({
-    configPath,
-    role: 'orchestrator',
-    tracer,
-  });
+  const agent = new Agent({ configPath: llmConfig, role: 'orchestrator', tracer });
 
-  // Read config just for the log message
-  const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  console.log(`🚀 Agent starting (${cfg.name})`);
-  console.log(`   Task: ${task.slice(0, 100).replace(/\n/g, ' ')}...`);
+  const cfg = JSON.parse(fs.readFileSync(llmConfig, 'utf-8'));
+  console.log(`🚀 Agent: ${cfg.name}`);
+  console.log(`   Project: ${projectRoot}`);
+  console.log(`   Skills:  ${skillsDir}`);
+  console.log(`   Workdir: ${workDir}`);
   console.log();
 
   const result = await agent.run(task);

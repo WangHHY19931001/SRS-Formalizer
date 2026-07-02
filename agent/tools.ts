@@ -22,8 +22,10 @@ import * as path from 'node:path';
 import { execSync } from 'node:child_process';
 import { registerMcpServer, callMcpTool } from './mcp.js';
 
-/** Default scripts directory — overridable via SKILL_SCRIPTS_DIR env var */
-const SCRIPTS_DIR = process.env.SKILL_SCRIPTS_DIR || path.resolve('.claude/skills/srs-formalizer/scripts');
+/** Scripts directory for `run_command` — set by agent/index.ts via SKILL_SCRIPTS_DIR env */
+function getScriptsDir(): string {
+  return process.env.SKILL_SCRIPTS_DIR || process.cwd();
+}
 const WEB_SEARCH_URL = process.env.WEB_SEARCH_URL || 'http://localhost:3000';
 
 // ===================== Tool Definitions =====================
@@ -314,7 +316,7 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
     // 5. run_command (shell with stdout+stderr capture)
     case 'run_command': {
       const cmd = args.command as string;
-      const cwd = (args.cwd as string) || SCRIPTS_DIR;
+      const cwd = (args.cwd as string) || getScriptsDir();
       const timeout = (args.timeout_ms as number) || 120000;
       try {
         const stdout = execSync(cmd, { cwd, stdio: 'pipe', timeout, env: { ...process.env }, maxBuffer: 10 * 1024 * 1024 }).toString().trim();
@@ -431,7 +433,7 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         lean: `echo '{"status":"ok","message":"Lean 4 needs lake build (external)"}'`,
       };
       try {
-        return execSync(cmdMap[type] || 'echo error', { cwd: SCRIPTS_DIR, stdio: 'pipe', timeout: 30000, env: { ...process.env } }).toString().trim();
+        return execSync(cmdMap[type] || 'echo error', { cwd: getScriptsDir(), stdio: 'pipe', timeout: 30000, env: { ...process.env } }).toString().trim();
       } catch (e: unknown) {
         const err = e as { stdout?: Buffer; stderr?: Buffer };
         return err.stdout?.toString().trim() || err.stderr?.toString().trim() || 'ERROR';
