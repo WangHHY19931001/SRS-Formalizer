@@ -29,6 +29,25 @@ gherkin-lint -r ./my-rules/
 
 ## 3. srs-formalizer 推荐配置
 
+### 3.1 标准模式（`.gherkin-lintrc`）
+
+技能在 `init` 时生成到工作目录 `4_bdd/` 下。
+
+### 3.2 严格模式（`.gherkin-lintrc-strict`）
+
+严格模式启用所有 20 条可配置规则，**不允许 GAP、未定义、PLACEHOLDER**：
+
+- 禁止 `<THEN_PLACEHOLDER>`、`<GIVEN_PLACEHOLDER>`、`<WHEN_PLACEHOLDER>` 等占位符
+- 禁止 `GAP`、`TODO`、`FIXME`、`UNDEFINED`、`TBD`、`待定`、`未定义`、`待实现` 标记
+- 强制所有 Scenario 有完整的 Given → When → Then 步骤
+- 强制所有 Scenario Outline 的变量都被使用
+
+```bash
+gherkin-lint -c .claude/skills/srs-formalizer/templates/.gherkin-lintrc-strict .srs_formalizer/4_bdd/
+```
+
+### 3.3 srs-formalizer 标准配置
+
 技能在 `init` 时生成 `.gherkin-lintrc` 到工作目录 `4_bdd/` 下：
 
 ```json
