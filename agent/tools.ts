@@ -289,14 +289,113 @@ export function createSpawnSubAgentTool(
   );
 }
 
-// ==================== Base tools (without spawn_sub_agent) ====================
+// ==================== 12. register_tools (factory) ====================
 
-/** All tools except spawn_sub_agent (which is created dynamically by agent.ts). */
+export function createRegisterToolsTool(
+  registry: { register: (names: string[]) => Promise<string[]>; getActiveToolNames: () => string[] },
+) {
+  return tool(
+    async ({ toolNames }) => {
+      const registered = await registry.register(toolNames);
+      const allActive = registry.getActiveToolNames();
+      if (registered.length === 0) {
+        return `未找到可注册的工具: ${toolNames.join(", ")}。当前活跃: ${allActive.join(", ")}`;
+      }
+      return `已注册: ${registered.join(", ")}。当前活跃工具 (${allActive.length}): ${allActive.join(", ")}`;
+    },
+    {
+      name: "register_tools",
+      description: "动态注册新工具。传入工具名称列表，从懒加载池中激活对应工具。注册后立即可用。",
+      schema: z.object({
+        toolNames: z.array(z.string()).describe("要注册的工具名称列表"),
+      }),
+    }
+  );
+}
+
+// ==================== 13. unregister_tools (factory) ====================
+
+export function createUnregisterToolsTool(
+  registry: { unregister: (names: string[]) => string[]; getActiveToolNames: () => string[] },
+) {
+  return tool(
+    async ({ toolNames }) => {
+      const removed = registry.unregister(toolNames);
+      const allActive = registry.getActiveToolNames();
+      if (removed.length === 0) {
+        return `未找到可卸载的工具: ${toolNames.join(", ")}。当前活跃: ${allActive.join(", ")}`;
+      }
+      return `已卸载: ${removed.join(", ")}。当前活跃工具 (${allActive.length}): ${allActive.join(", ")}`;
+    },
+    {
+      name: "unregister_tools",
+      description: "卸载工具。传入工具名称列表，从活跃池中移除对应工具。卸载后 LLM 无法再调用它们。",
+      schema: z.object({
+        toolNames: z.array(z.string()).describe("要卸载的工具名称列表"),
+      }),
+    }
+  );
+}
+
+// ==================== 14. MCP tools (factories) ====================
+
+export function createMcpRegisterTool(
+  mcpRegister: (config: { transport: string; command?: string; args?: string[]; url?: string }) => Promise<string[]>,
+) {
+  return tool(
+    async ({ transport, command, args, url }) => {
+      try {
+        const toolNames = await mcpRegister({ transport, command, args, url });
+        return `MCP 服务器已注册。新增工具 (${toolNames.length}): ${toolNames.join(", ")}`;
+      } catch (e) {
+        return `MCP 注册失败: ${(e as Error).message}`;
+      }
+    },
+    {
+      name: "register_mcp_server",
+      description: "动态注册 MCP (Model Context Protocol) 服务器。支持 stdio（本地进程）和 HTTP 两种传输方式。注册后该服务器提供的工具即可使用。",
+      schema: z.object({
+        transport: z.enum(["stdio", "http"]).describe("传输方式"),
+        command: z.string().optional().describe("stdio: 启动命令"),
+        args: z.array(z.string()).optional().describe("stdio: 命令行参数"),
+        url: z.string().optional().describe("http: MCP 服务器 URL"),
+      }),
+    }
+  );
+}
+
+export function createMcpCallTool(
+  mcpCall: (serverName: string, toolName: string, args: Record<string, unknown>) => Promise<string>,
+) {
+  return tool(
+    async ({ serverName, toolName, args }) => {
+      try {
+        const result = await mcpCall(serverName, toolName, args || {});
+        return result;
+      } catch (e) {
+        return `MCP 调用失败 [${serverName}/${toolName}]: ${(e as Error).message}`;
+      }
+    },
+    {
+      name: "call_mcp_tool",
+      description: "调用已注册的 MCP 服务器上的工具。先使用 register_mcp_server 注册服务器，再使用此工具调用其功能。",
+      schema: z.object({
+        serverName: z.string().describe("MCP 服务器名称"),
+        toolName: z.string().describe("要调用的工具名称"),
+        args: z.record(z.string(), z.unknown()).optional().describe("工具参数"),
+      }),
+    }
+  );
+}
+
+// ==================== Base tools ====================
+
+/** Base tools without dynamic factories (spawn, register, unregister, MCP are created by agent.ts). */
 export const BASE_TOOLS = [
   readFileTool, writeFileTool, editFileTool, searchInFileTool,
   runCommandTool, webSearchTool, httpRequestTool,
   listDirTool, checkFileTool, validateOutputTool,
 ];
 
-/** @deprecated Use BASE_TOOLS. spawn_sub_agent is created dynamically via createSpawnSubAgentTool(). */
+/** @deprecated Use BASE_TOOLS. Dynamic tools are created via factory functions. */
 export const ALL_TOOLS = BASE_TOOLS;

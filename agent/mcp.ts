@@ -59,17 +59,34 @@ export class McpClient {
       const args = this.config.args || [];
       this.process = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'] });
 
+      // Prevent EPIPE crashes when process exits early
+      this.process.stdin!.on('error', () => {
+        // stdin closed (process exited) — ignore
+      });
+
       this.process.stdout!.on('data', (chunk: Buffer) => {
         this.buffer += chunk.toString();
         this.parseMessages();
       });
 
-      this.process.stderr!.on('data', (chunk: Buffer) => {
+      this.process.stderr!.on('data', (_chunk: Buffer) => {
         // MCP servers may log to stderr — not necessarily errors
       });
 
-      this.process.on('error', (err) => reject(err));
-      this.process.on('exit', () => { this.connected = false; });
+      this.process.on('error', (err) => {
+        this.connected = false;
+        reject(err);
+      });
+      this.process.on('exit', (code) => {
+        this.connected = false;
+        if (!this.connected) {
+          // Process exited before initialization — reject pending
+          for (const [_id, { reject: r }] of this.pending) {
+            r(new Error(`MCP process exited with code ${code} before response`));
+          }
+          this.pending.clear();
+        }
+      });
 
       // Initialize MCP session
       this.sendRequest('initialize', {
@@ -106,8 +123,18 @@ export class McpClient {
     const msg = JSON.stringify({ jsonrpc: '2.0', method, params, id }) + '\n';
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      if (this.process) {
-        this.process.stdin!.write(msg);
+      if (this.process && this.process.stdin) {
+        try {
+          this.process.stdin.write(msg);
+        } catch (e) {
+          this.pending.delete(id);
+          reject(new Error(`MCP process write failed (process may have exited): ${(e as Error).message}`));
+          return;
+        }
+      } else {
+        this.pending.delete(id);
+        reject(new Error('MCP process not available'));
+        return;
       }
       // Timeout after 30s
       setTimeout(() => {

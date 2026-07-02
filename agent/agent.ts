@@ -19,12 +19,17 @@ import type { StructuredTool } from "@langchain/core/tools";
 import { ToolRegistry } from "./tool-registry.js";
 import { AgentDirectory, type AgentHandle } from "./agent-directory.js";
 import { ContextManager, createContextTools } from "./context.js";
-import { BASE_TOOLS, createSpawnSubAgentTool } from "./tools.js";
+import {
+  BASE_TOOLS,
+  createSpawnSubAgentTool,
+  createRegisterToolsTool,
+  createUnregisterToolsTool,
+  createMcpRegisterTool,
+  createMcpCallTool,
+} from "./tools.js";
 import { loadLlmConfig } from "./llm-config.js";
+import { registerMcpServer, callMcpTool } from "./mcp.js";
 import * as fs from "node:fs";
-
-// Re-export for external use
-export { BASE_TOOLS, createSpawnSubAgentTool };
 
 let agentIdCounter = 0;
 
@@ -178,10 +183,41 @@ export async function createAgent(config: AgentConfig): Promise<{
     },
   );
 
-  // Register all tools (base tools + spawn + context + complete)
+  // Dynamic tool registration tools
+  const registerToolsTool = createRegisterToolsTool(registry);
+  const unregisterToolsTool = createUnregisterToolsTool(registry);
+
+  // MCP tools
+  const mcpRegisterTool = createMcpRegisterTool(async (mcpConfig) => {
+    const toolNames = await registerMcpServer(mcpConfig);
+    // Register each MCP tool in the ToolRegistry as lazy-loadable
+    for (const name of toolNames) {
+      const mcpToolName = `mcp_${name}`;
+      registry.addLazy(mcpToolName, async () => {
+        const { tool: langchainTool } = await import("@langchain/core/tools");
+        return langchainTool(
+          async (args: Record<string, unknown>) => callMcpTool("mcp_server", name, args),
+          { name: mcpToolName, description: `MCP tool: ${name}`, schema: z.object({}).passthrough() },
+        );
+      });
+    }
+    // Auto-register them
+    await registry.register(toolNames.map(n => `mcp_${n}`));
+    return toolNames;
+  });
+
+  const mcpCallTool = createMcpCallTool(async (serverName, toolName, args) => {
+    return callMcpTool(serverName, toolName, args);
+  });
+
+  // Register all tools
   const allTools: StructuredTool[] = [
     ...BASE_TOOLS,
     spawnSubAgentTool,
+    registerToolsTool,
+    unregisterToolsTool,
+    mcpRegisterTool,
+    mcpCallTool,
     contextInfoTool,
     compressContextTool,
     completeTaskTool,
