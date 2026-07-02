@@ -15,20 +15,19 @@ import OpenAI from 'openai';
 import { Tracer } from './tracer.js';
 import { TOOL_DEFINITIONS, executeTool } from './tools.js';
 import { ContextManager } from './context.js';
+import { loadLlmConfig } from './llm-config.js';
 
 // ===================== System Prompts =====================
 
 const BASE_SYSTEM_PROMPT = `你是技能调测代理。你拥有文件读写、Shell 执行、联网搜索、子代理分派等工具。
 严格遵循用户提供的工作提示词中的指令。工作提示词包含：技能路径、工作目录、测试范围、规则约束。`;
 
-const WORKER_PROMPT = `你是工作子代理。接收任务，使用工具完成，返回结果。只输出结果，不解释。`;
+const WORKER_PROMPT = `你是工作子代理。你拥有与主代理完全相同的工具能力（文件读写、Shell 执行、联网搜索、HTTP 请求、MCP 注册、子代理分派、上下文压缩等）。接收主代理的任务提示词，使用工具完成任务，返回结果。只输出结果，不解释。`;
 
 // ===================== Config =====================
 
 export interface AgentConfig {
-  model: string;
-  baseURL: string;
-  apiKey: string;
+  configPath: string;
   maxTurns?: number;
   maxContextTokens?: number;
   role: 'orchestrator' | 'worker';
@@ -40,9 +39,9 @@ export interface AgentConfig {
 export class Agent {
   private client: OpenAI;
   private model: string;
-  private baseURL: string;
-  private apiKey: string;
+  private configPath: string;
   private maxTurns: number;
+  private maxContextTokens: number;
   private role: 'orchestrator' | 'worker';
   private ctx: ContextManager;
   tracer: Tracer;
@@ -50,14 +49,15 @@ export class Agent {
   private tools: typeof TOOL_DEFINITIONS;
 
   constructor(config: AgentConfig) {
-    this.baseURL = config.baseURL;
-    this.apiKey = config.apiKey;
-    this.client = new OpenAI({ baseURL: config.baseURL, apiKey: config.apiKey });
-    this.model = config.model;
+    this.configPath = config.configPath;
+    const llmConfig = loadLlmConfig(this.configPath);
+    this.maxContextTokens = config.maxContextTokens || llmConfig['max-model-len'] || 131072;
+    this.model = llmConfig.name;
+    this.client = new OpenAI({ baseURL: llmConfig.baseURL, apiKey: llmConfig.key });
     this.maxTurns = config.maxTurns || 50;
     this.role = config.role;
     this.tracer = config.tracer || new Tracer();
-    this.ctx = new ContextManager(this.client, this.model, config.maxContextTokens || 131072, 2);
+    this.ctx = new ContextManager(this.client, this.model, this.maxContextTokens, 2);
 
     const systemPrompt = config.role === 'orchestrator' ? BASE_SYSTEM_PROMPT : WORKER_PROMPT;
     this.messages = [{ role: 'system', content: systemPrompt }];
@@ -70,15 +70,14 @@ export class Agent {
    */
   private async spawnSubAgent(taskPrompt: string): Promise<string> {
     const subAgent = new Agent({
-      model: this.model,
-      baseURL: this.baseURL,
-      apiKey: this.apiKey,
-      maxTurns: 15,
+      configPath: this.configPath,
+      maxTurns: 30,
+      maxContextTokens: this.maxContextTokens,
       role: 'worker',
       tracer: this.tracer,
     });
 
-    // Override system prompt for workers spawned by orchestrator
+    // Override messages for worker (tools already set to full TOOL_DEFINITIONS by constructor)
     subAgent.messages = [
       { role: 'system', content: WORKER_PROMPT },
       { role: 'user', content: taskPrompt },

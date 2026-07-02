@@ -33,19 +33,18 @@ async function main() {
     process.exit(1);
   }
 
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
   const task = taskPath ? fs.readFileSync(taskPath, 'utf-8') : taskPrompt!;
 
   const tracer = new Tracer();
   const agent = new Agent({
-    model: config.name,
-    baseURL: config.baseURL,
-    apiKey: config.key,
+    configPath,
     role: 'orchestrator',
     tracer,
   });
 
-  console.log(`🚀 Agent starting (${config.name})`);
+  // Read config just for the log message
+  const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  console.log(`🚀 Agent starting (${cfg.name})`);
   console.log(`   Task: ${task.slice(0, 100).replace(/\n/g, ' ')}...`);
   console.log();
 
