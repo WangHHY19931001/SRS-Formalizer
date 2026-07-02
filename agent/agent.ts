@@ -18,6 +18,7 @@
 import { createDeepAgent } from "deepagents";
 import { ChatOpenAI } from "@langchain/openai";
 import { BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { StructuredTool } from "@langchain/core/tools";
@@ -213,10 +214,33 @@ export async function createAgent(config: AgentConfig): Promise<{
     ],
   });
 
+  // ===================== Trace Callback =====================
+
+  let turnCount = 0;
+  const trace = new (class extends BaseCallbackHandler {
+    name = "console-tracer";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async handleToolStart(tool: any, input: string): Promise<void> {
+      turnCount++;
+      const preview = input.slice(0, 120).replace(/\n/g, "\\n");
+      console.error(`[${turnCount}] 🔧 ${tool.name || tool.id?.join(".") || "?"} ${preview}`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async handleToolEnd(output: string, _runId: string, _parentRunId?: string): Promise<void> {
+      const preview = output.slice(0, 150).replace(/\n/g, "\\n");
+      console.error(`     ✅ ${preview}`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async handleLLMStart(_llm: any, _prompts: string[]): Promise<void> {
+      console.error(`[${turnCount + 1}] 🤖 LLM`);
+    }
+  })();
+
   // ===================== AgentHandle =====================
 
   // deepagents invoke has a complex generic signature; bridge via unknown
-  const deepInvoke = agent.invoke as unknown as (
+  // Must .bind(agent) to preserve `this` (ReactAgent private fields like #defaultConfig)
+  const deepInvoke = agent.invoke.bind(agent) as unknown as (
     input: Record<string, unknown>,
     config?: Record<string, unknown>,
   ) => Promise<{ messages?: Array<{ content: unknown }> }>;
@@ -225,7 +249,7 @@ export async function createAgent(config: AgentConfig): Promise<{
     input: Record<string, unknown>,
     config?: Record<string, unknown>,
   ): Promise<{ messages?: Array<{ content: unknown }> }> =>
-    deepInvoke(input, config);
+    deepInvoke(input, { ...config, callbacks: [trace] });
 
   const handle: AgentHandle = {
     id,
