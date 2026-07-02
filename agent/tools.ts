@@ -236,8 +236,10 @@ export const validateOutputTool = tool(
       feature: `npx tsx index.ts validate-bdd --workdir ${workdir}`,
       cypher: `npx tsx index.ts validate-cypher --file ${filePath} --workdir ${workdir}`,
       glossary: `npx tsx index.ts validate-glossary --file ${filePath}`,
-      tla: `echo '{"status":"ok","message":"TLA+ needs SANY+TLC"}'`,
-      lean: `echo '{"status":"ok","message":"Lean 4 needs lake build"}'`,
+      tla: `npx tsx index.ts validate-tla --file ${filePath} --workdir ${workdir}`,
+      lean: `npx tsx index.ts validate-lean --file ${filePath}`,
+      checklist: `npx tsx index.ts validate-checklist --file ${filePath}`,
+      glossary: `npx tsx index.ts validate-glossary --file ${filePath}`,
     };
     try {
       return execSync(cmdMap[type] || "echo error", {

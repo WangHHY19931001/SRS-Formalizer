@@ -30,6 +30,8 @@ Commands:
   validate-architecture Validate architecture JSONL records (6 checks)
   validate-cypher   Validate .cypher script file (4 checks)
   validate-glossary Validate glossary JSON file (8 checks + gate)
+  validate-tla       Validate .tla file (SANY parse + TLC model check)
+  validate-lean      Validate .lean file (lake build)
   validate-checklist Validate CHECKLIST.md file
   capability-probe  LLM capability probe evaluation (--mode generate|score)
   compile           Compile SKILL.md into SkIR, inject safety constraints, emit artifacts
@@ -201,6 +203,16 @@ async function main(): Promise<void> {
       const result = await validateGlossaryMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'validate-tla': {
+      const { main: validateTlaMain } = await import('./commands/validate-tla.js');
+      result = await validateTlaMain(positional);
+      break;
+    }
+    case 'validate-lean': {
+      const { main: validateLeanMain } = await import('./commands/validate-lean.js');
+      result = await validateLeanMain(positional);
+      break;
     }
     case 'validate-checklist': {
       const { main: validateChecklistMain } = await import('./commands/validate-checklist.js');

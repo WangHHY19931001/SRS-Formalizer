@@ -4,6 +4,42 @@
 
 ---
 
+## 0. 前置条件
+
+### 0.1 环境要求
+
+TLA+ 仅需 Java 运行环境，**不限制操作系统**（Linux / macOS / Windows 均可）。
+
+```bash
+# 检查 Java 版本（需要 Java 11+）
+java -version
+```
+
+### 0.2 工具获取
+
+技能内置 `tla2tools-1.7.4.jar`（位于 `tools/` 目录）。首次使用时自动尝试下载最新版本；下载失败则使用内置版本。
+
+手动下载最新版：
+```bash
+# 从 GitHub Releases 获取
+curl -L "https://github.com/tlaplus/tlaplus/releases/latest/download/tla2tools.jar" -o tools/tla2tools.jar
+```
+
+### 0.3 验证（SANY + TLC）
+
+```bash
+# SANY 语法解析
+java -cp tools/tla2tools-1.7.4.jar tla2sany.SANY <file>.tla
+
+# TLC 模型检测
+java -cp tools/tla2tools-1.7.4.jar tlc2.TLC -config <file>.cfg <file>.tla
+
+# 或使用技能 CLI（自动选择 JAR 版本）
+npx tsx index.ts validate-tla --file <path> --workdir .srs_formalizer
+```
+
+---
+
 ## 1. 层次化建模方法论
 
 ### 1.1 层次定义

@@ -1,6 +1,70 @@
 # Lean 4 编码指南
 
-本指南为 srs-formalizer S5 阶段的 Lean 4 子代理提供编码规范。
+本指南为 srs-formalizer S5 阶段的 Lean 4 子代理提供编码规范和安装引导。
+
+---
+
+## 0. 安装 Lean 4 工具链
+
+### 0.1 Linux x86_64
+
+```bash
+# 安装 elan（Lean 版本管理器）+ Lake 构建系统
+curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
+source ~/.profile
+
+# 创建项目并获取最新 mathlib4
+mkdir ~/lean4-project && cd ~/lean4-project
+lake init
+echo 'require mathlib from git "https://github.com/leanprover-community/mathlib4.git"' >> lakefile.lean
+lake update
+```
+
+### 0.2 macOS ARM64 (Apple Silicon)
+
+```bash
+# 安装 elan + lake
+curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
+source ~/.zshrc
+
+# 创建项目并获取最新 mathlib4
+mkdir ~/lean4-project && cd ~/lean4-project
+lake init
+echo 'require mathlib from git "https://github.com/leanprover-community/mathlib4.git"' >> lakefile.lean
+lake update
+```
+
+### 0.3 验证安装
+
+```bash
+lean --version    # 应显示 Lean 4.x
+lake --version    # 应显示 Lake 4.x
+```
+
+### 0.4 平台限制
+
+| 平台 | 状态 | 说明 |
+|------|:----:|------|
+| Linux x86_64 | ✅ | 完整支持（elan + lake + mathlib4） |
+| macOS ARM64 (Apple Silicon) | ✅ | 完整支持（elan + lake + mathlib4） |
+| macOS x86_64 (Intel) | ⚠️ | 可用但非推荐配置 |
+| Windows | ❌ | **禁止使用**。Lean 4 没有 Windows 上便于使用的发行版。请使用 WSL2 (Linux x86_64) |
+
+### 0.5 离线 / 网络受限环境
+
+使用技能内置的 elan 离线安装包：
+
+```bash
+# Linux x86_64
+tar -xzf tools/lean-4-linux-x86_64.tar.gz -C ~/.elan/
+export PATH="$HOME/.elan/bin:$PATH"
+
+# macOS ARM64
+tar -xzf tools/lean-4-macos-arm64.tar.gz -C ~/.elan/
+export PATH="$HOME/.elan/bin:$PATH"
+```
+
+> **注意**: 预置离线包为基础工具链。首次使用 `lake update` 获取最新 mathlib4 仍需网络。
 
 ---
 
