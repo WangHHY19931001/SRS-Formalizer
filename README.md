@@ -337,12 +337,12 @@ npx tsx agent/index.ts --llm-config test-llm-config.json --task agent/task-srs-f
 
 代理通过 `--task` 文件接收最小工作提示词（如"使用 xxx 技能，基于 xxx 路径的 SRS 文档工作"），然后：
 
-1. 启动时自动注册 LLM 配置中的 MCP 服务器（bing-search, fetch, sequential-thinking）
+1. 启动时自动注册 LLM 配置中的 MCP 服务器（可通过 `SKIP_MCP` 环境变量跳过）
 2. 读取 SKILL.md 了解技能结构和流水线阶段
 3. 按阶段使用工具执行命令、验证产物
-4. 通过 `spawn_sub_agent` 递归分派子代理处理 LLM 任务（子代理有独立 StateGraph）
-5. 动态系统提示词在每轮注入当前工具列表、技能目录和项目目录
-6. JSONL 日志记录每一步操作（位于 `--log-dir` 指定目录）
+4. 通过 `spawn_sub_agent` 递归分派子代理处理 LLM 任务（子代理有独立 StateGraph，最大深度 3）
+5. 动态系统提示词在每轮注入当前工具列表、技能目录、项目目录和**工作目录**（`--work-dir`），包含 CLI 参数规则和 `WORK_RULES`（子代理优先、guided-extract 两步模式、严格阶段顺序）
+6. JSONL 日志记录每一步操作：`agent_turn`（轮次/深度）、`llm_response`（LLM 响应摘要）、**`tool_results`**（每轮工具执行结果：工具名、成功/失败、截断输出）、`spawn_sub_agent_start/end`（子代理生命周期）、`agent_done`（完成）
 
 ### CLI 参数
 
@@ -360,8 +360,8 @@ npx tsx agent/index.ts --llm-config test-llm-config.json --task agent/task-srs-f
 
 ```
 agent/
-├── index.ts              # 入口（--llm-config + --task，ToolRegistry + AgentDirectory）
-├── agent.ts              # LangGraph StateGraph ReAct 循环 + 动态系统提示词
+├── index.ts              # 入口（--llm-config + --task，ToolRegistry + AgentDirectory，workDir 通过 AgentConfig 传入）
+├── agent.ts              # StateGraph ReAct 循环 + 动态系统提示词（注入 workDir + WORK_RULES）+ tool_results 日志
 ├── tools.ts              # 9 基础工具 + 5 工厂（spawn/register/unregister/MCP）
 ├── tool-registry.ts      # 动态工具注册/卸载（register/unregister/getActiveTools）
 ├── agent-directory.ts    # A2A 代理目录（send/broadcast/list/markError）
@@ -373,6 +373,22 @@ agent/
 └── task-srs-formalizer.md  # 最小任务提示词（一行，代理自行发现流水线）
 ```
 
+### JSONL 日志格式
+
+每次 agent 运行在 `--log-dir` 下生成一个 `orchestrator-<ts>-<seq>.jsonl` 文件，每行一条 JSON：
+
+| type | 含义 | 关键字段 |
+|------|------|------|
+| `mcp_auto_register` | MCP 服务器自动注册 | `server`, `tools` |
+| `agent_turn` | 每轮开始 | `msgCount`, `depth` |
+| `tool_results` | 上轮工具执行结果 | `results[{tool, ok, result}]` |
+| `llm_response` | LLM 响应 | `content`（截断 200 字符）, `toolCalls`, `toolNames` |
+| `spawn_sub_agent_start` | 子代理启动 | `task`（截断 150 字符）, `depth` |
+| `spawn_sub_agent_end` | 子代理完成 | `outputLen` |
+| `agent_done` | Agent 结束 | `content`（截断 200 字符） |
+| `llm_error` | LLM 调用异常 | `error` |
+| `mcp_auto_register_error` | MCP 注册失败 | `server`, `error` |
+
 ### 工具列表
 
 **内置工具：**
@@ -383,7 +399,7 @@ agent/
 | `write_file`        | 创建或覆盖写入文件                                                      |
 | `edit_file`         | 精确字符串替换                                                          |
 | `search_in_file`    | 关键字/正则搜索                                                         |
-| `run_command`       | Shell 命令执行（捕获 stdout + stderr），默认 cwd 为 `SKILL_SCRIPTS_DIR` |
+| `run_command`       | Shell 命令执行（捕获 stdout + stderr），默认 cwd 为 `SKILL_SCRIPTS_DIR`；系统提示会告知当前 `--workdir` 参数 |
 | `web_search`        | 联网搜索（DuckDuckGo，无需 API key）                                    |
 | `http_request`      | HTTP GET/POST 请求                                                      |
 | `list_directory`    | 列出目录内容                                                            |
