@@ -23,11 +23,12 @@ import { execSync } from "node:child_process";
 export const runCommandTool = tool(
   async ({ command, cwd, timeoutMs = 120000 }) => {
     const workDir = cwd || process.env.SKILL_SCRIPTS_DIR || process.cwd();
+    const timeout = typeof timeoutMs === "string" ? parseInt(timeoutMs, 10) : timeoutMs;
     try {
       const stdout = execSync(command, {
         cwd: workDir,
         stdio: "pipe",
-        timeout: timeoutMs,
+        timeout,
         env: { ...process.env },
         maxBuffer: 10 * 1024 * 1024,
       })
@@ -60,7 +61,11 @@ export const runCommandTool = tool(
     schema: z.object({
       command: z.string().describe("Shell 命令"),
       cwd: z.string().optional().describe("工作目录"),
-      timeoutMs: z.number().optional().default(120000).describe("超时毫秒"),
+      timeoutMs: z
+        .union([z.number(), z.string()])
+        .optional()
+        .default(120000)
+        .describe("超时毫秒"),
     }),
   },
 );
