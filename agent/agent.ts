@@ -32,6 +32,7 @@ import {
 import { loadLlmConfig } from "./llm-config.js";
 import { registerMcpServer, callMcpTool } from "./mcp.js";
 import * as fs from "node:fs";
+import * as path from "node:path";
 
 let agentIdCounter = 0;
 
@@ -204,8 +205,10 @@ export async function createAgent(config: AgentConfig): Promise<{
     config.workDir || process.env.WORK_DIR,
   );
 
-  // Restrict filesystem access to project root
-  const projectRoot = config.projectRoot || process.env.PROJECT_ROOT || process.cwd();
+  // Restrict filesystem access to project root (resolve to absolute path)
+  const projectRoot = path.resolve(
+    config.projectRoot || process.env.PROJECT_ROOT || process.cwd(),
+  );
   const backend = new FilesystemBackend({ rootDir: projectRoot });
 
   const agent = createDeepAgent({

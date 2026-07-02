@@ -44,15 +44,17 @@ async function main() {
     process.exit(1);
   }
 
-  const projectRoot =
+  const projectRoot = path.resolve(
     parseArg(args, "--project-root") ||
-    process.env.PROJECT_ROOT ||
-    process.cwd();
+      process.env.PROJECT_ROOT ||
+      process.cwd(),
+  );
 
-  const skillsDir =
+  const skillsDir = path.resolve(
     parseArg(args, "--skills-dir") ||
-    process.env.SKILLS_DIR ||
-    path.join(projectRoot, ".claude", "skills");
+      process.env.SKILLS_DIR ||
+      path.join(projectRoot, ".claude", "skills"),
+  );
 
   const workDir =
     parseArg(args, "--work-dir") ||
@@ -87,10 +89,9 @@ async function main() {
 
   console.log(`Agent ID: ${id}`);
 
-  // High limit — let the agent iterate until task complete
   const result = await agent.invoke(
     { messages: [{ role: "user", content: task }] },
-    { recursionLimit: 9999 },
+    { recursionLimit: 500 },
   );
 
   const msgs = result.messages || [];
