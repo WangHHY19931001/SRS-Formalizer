@@ -72,12 +72,13 @@ export interface AgentConfig {
   logDir?: string;
   skillsDir?: string;
   projectRoot?: string;
+  depth?: number;
 }
 
 // ===================== createAgent =====================
 
 export async function createAgent(config: AgentConfig): Promise<{
-  agent: ReturnType<InstanceType<typeof StateGraph>["compile"]>;
+  agent: any;
   id: string;
   handle: AgentHandle;
 }> {
@@ -110,10 +111,14 @@ export async function createAgent(config: AgentConfig): Promise<{
   const mcpServerConfigs = llmConfig.mcp_servers || [];
   const autoRegisteredMcpTools: string[] = [];
 
+  // Check SKIP_MCP env var
+  if (process.env.SKIP_MCP) {
+    writeLog("mcp_skip", { reason: `SKIP_MCP env var set: ${process.env.SKIP_MCP}` });
+  } else {
   // Register all MCP servers in parallel with a per-server timeout
   const mcpResults = await Promise.allSettled(
     mcpServerConfigs.map(async (mcpEntry) => {
-      const timeoutMs = 15000; // 15s per server
+      const timeoutMs = 5000; // 5s per server (reduced from 15s)
       const connectPromise = registerMcpServer({
         transport: "stdio",
         command: mcpEntry.command,
@@ -163,6 +168,7 @@ export async function createAgent(config: AgentConfig): Promise<{
     // Auto-register for immediate use
     await registry.register(toolNames.map(n => `mcp_${n}`));
   }
+  } // end else (skip MCP)
 
   // Context manager
   const openaiClient = new (await import("openai")).default({
@@ -186,7 +192,7 @@ export async function createAgent(config: AgentConfig): Promise<{
    * The sub-agent gets its own StateGraph, tool set, and message context.
    */
   async function spawnHandler(task: string): Promise<string> {
-    writeLog("spawn_sub_agent_start", { task: task.slice(0, 150) });
+    writeLog("spawn_sub_agent_start", { task: task.slice(0, 150), depth: config.depth || 0 });
 
     // Create a fresh ToolRegistry for the sub-agent (inherits from parent)
     const subRegistry = new ToolRegistry();
@@ -203,6 +209,7 @@ export async function createAgent(config: AgentConfig): Promise<{
       logDir,
       skillsDir: config.skillsDir,
       projectRoot: config.projectRoot,
+      depth: (config.depth || 0) + 1,
     });
 
     // Register in directory
@@ -225,7 +232,7 @@ export async function createAgent(config: AgentConfig): Promise<{
     // Unregister from directory
     directory.unregister(subResult.id);
 
-    writeLog("spawn_sub_agent_end", { id: subResult.id, outputLen: output.length });
+    writeLog("spawn_sub_agent_end", { id: subResult.id, outputLen: output.length, depth: config.depth || 0 });
     return output;
   }
 
@@ -273,9 +280,10 @@ export async function createAgent(config: AgentConfig): Promise<{
   });
 
   // Register all tools
+  const includeSpawn = (config.depth || 0) < 3;
   const allTools: StructuredTool[] = [
     ...BASE_TOOLS,
-    spawnSubAgentTool,
+    ...(includeSpawn ? [spawnSubAgentTool] : []),
     registerToolsTool,
     unregisterToolsTool,
     mcpRegisterTool,
@@ -299,7 +307,7 @@ export async function createAgent(config: AgentConfig): Promise<{
       content: "content" in m ? (m as any).content : "",
     }));
 
-    writeLog("agent_turn", { msgCount: messages.length });
+    writeLog("agent_turn", { msgCount: messages.length, depth: config.depth || 0 });
 
     // Bind tools dynamically (supports register/unregister at runtime)
     const currentTools = registry.getActiveTools();

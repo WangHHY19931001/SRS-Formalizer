@@ -11,7 +11,7 @@
 ## 输出模板（逐字复制，只填 `<...>`）
 
 ```jsonl
-{"id":"R2-<SAFE_ID>-<SEQ>","category":"implicit","statement":"<推导描述>","source_file":"<SHARD_ID>_S1.md","confidence":"<CONF>","metadata":{"derived_from":"<R1_ID>"}}
+{"id":"R2-<SAFE_ID>-<SEQ>","category":"implicit","statement":"<推导描述>","source_file":"<SHARD_ID>","confidence":"<CONF>","metadata":{"derived_from":"<R1_ID>"}}
 ```
 
 | 占位符 | 规则 |

@@ -85,7 +85,7 @@ S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱
 - **S3**: build-graph → analyze-structure → analyze-graph → export-cypher
 - **S4**: generate-bdd → validate-bdd (gherkin-lint 严格模式, 20 条规则) → build-behavior-graph
 - **S5**: TLA+ 严格模式 (validate-tla: -deadlock/禁止黑洞/奇迹/无限状态/死锁) / Lean 4 拆分证明四步法 (validate-lean: 0 sorry/0 axiom/0 warnings, ❌ Windows 禁止)
-- **S6**: verify-gate FINAL → build-system-architecture → 跨图一致性验证 (10 个根本问题) → 收敛循环 (≤5 次, ≥3 次触发苏格拉底拷问)
+- **S6**: verify-gate FINAL → build-system-architecture → 跨图一致性语义验证 (10 个根本问题, 节点标签+跨图边+最小阈值检查) → 收敛循环 (≤5 次, ≥3 次触发苏格拉底拷问)
 
 ### Skill directory layout
 
@@ -127,7 +127,7 @@ S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱
 |------|------|
 | `index.ts` | 入口 — 解析 CLI 参数，创建 ToolRegistry/AgentDirectory，调用 `createAgent()` |
 | `agent.ts` | Agent 工厂 — `createAgent()` 构建 StateGraph（agentNode → toolNode → 条件路由），动态系统提示词，JSONL 日志 |
-| `tools.ts` | 10 基础工具 + 5 工厂 (spawn/register/unregister/MCP) — `tool()` + Zod v4 |
+| `tools.ts` | 9 基础工具 + 5 工厂 (spawn/register/unregister/MCP) — `tool()` + Zod v4，通用 CLI 代理无技能适配 |
 | `tool-registry.ts` | ToolRegistry — 动态 register/unregister/getActiveTools，支持 LLM 运行时绑定 |
 | `agent-directory.ts` | AgentDirectory — A2A 代理间通信（send/broadcast/list/markError） |
 | `context.ts` | ContextManager（auto-compress ≥80%/suggest ≥60%/allow ≥40%）+ `createContextTools()` 工厂 |
@@ -137,6 +137,12 @@ S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱
 | `task-srs-formalizer.md` | 最小任务提示词（一行），Agent 自行从 SKILL.md 发现流水线 |
 
 Agent 通过 `--task` 文件接收工作提示词，**不硬编码任何技能路径或流程**。系统提示词按模板动态生成，填充当前工具列表、技能目录和项目目录。
+
+**Agent 设计原则**：Agent 是通用命令行任务代理，不应包含任何技能特定适配。所有 CLI 调用通过 `run_command` 完成，LLM 自行从 SKILL.md 学习命令签名。工具集中的 `execSync` 默认 cwd 为 `SKILL_SCRIPTS_DIR`（如有设置），确保命令在正确的技能目录上下文中执行。
+
+**安全约束**：
+- 子代理递归深度 ≤3（达到上限自动移除 `spawn_sub_agent` 工具）
+- MCP 自动注册可通过 `SKIP_MCP` 环境变量跳过，单服务器超时 5 秒
 
 ## Key conventions
 

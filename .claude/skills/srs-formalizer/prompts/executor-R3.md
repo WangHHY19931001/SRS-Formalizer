@@ -10,7 +10,7 @@
 ## 输出模板（逐字复制）
 
 ```jsonl
-{"id":"R3-<SAFE_ID>-<SEQ>","category":"relational","statement":"<关系描述>","source_file":"<SHARD_ID>_S1.md","confidence":"<CONF>","metadata":{"relation":"<TYPE>","source_id":"<SRC_ID>","target_id":"<TGT_ID>","source_module":"<SRC_MOD>","target_module":"<TGT_MOD>"}}
+{"id":"R3-<SAFE_ID>-<SEQ>","category":"relational","statement":"<关系描述>","source_file":"<SHARD_ID>","confidence":"<CONF>","metadata":{"relation":"<TYPE>","source_id":"<SRC_ID>","target_id":"<TGT_ID>","source_module":"<SRC_MOD>","target_module":"<TGT_MOD>"}}
 ```
 
 | 占位符 | 规则 |

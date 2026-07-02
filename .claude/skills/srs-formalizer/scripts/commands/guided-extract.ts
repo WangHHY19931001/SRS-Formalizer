@@ -29,7 +29,7 @@ import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 // ===================== Validators (3 types) =====================
 
 type ExtractType = 'r1' | 'r2' | 'r3' | 'arch';
-const VALID_ID_RE = /^[R]\d-[A-Z]+-\d{4}$/;
+const VALID_ID_RE = /^R[123]-[A-Za-z0-9_.]+-\d{4}$/;
 const VALID_CATEGORIES = ['explicit', 'implicit', 'relational'];
 
 function validateRequirementLine(line: string, expectedPrefix: string): { valid: boolean; errors: string[] } {

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.2] - 2026-07-02
+
+### Fixed
+- `index.ts` validate-tla 和 validate-lean 命令使用未定义变量导致崩溃，修复为与其他 27 个命令一致的模式
+- `guided-extract.ts` VALID_ID_RE 正则仅允许大写字母，放宽为与 jsonl.ts 一致的 `^R[123]-[A-Za-z0-9_.]+-\d{4}$`
+- `SKILL.md` 版本号从 0.5.1 更新为 0.5.2
+- `executor-R1.md`/`executor-R2.md`/`executor-R3.md` 的 `source_file` 模板引用不存在的物理分片文件，修复为使用分片 ID
+
 ## [0.5.1] - 2026-07-01
 
 ### Added

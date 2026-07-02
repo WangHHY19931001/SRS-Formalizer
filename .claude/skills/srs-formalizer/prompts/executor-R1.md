@@ -12,7 +12,7 @@
 每行输出一条 JSON。**禁止修改 key 名、禁止新增字段、禁止改变嵌套层级、禁止添加注释。**
 
 ```jsonl
-{"id":"R1-<SAFE_ID>-<SEQ>","category":"explicit","statement":"<SRS原文>","source_file":"<SHARD_ID>_S1.md","confidence":"<CONF>","metadata":{}}
+{"id":"R1-<SAFE_ID>-<SEQ>","category":"explicit","statement":"<SRS原文>","source_file":"<SHARD_ID>","confidence":"<CONF>","metadata":{}}
 ```
 
 | 占位符 | 填充规则 | 示例 |
@@ -20,7 +20,7 @@
 | `<SAFE_ID>` | 分片 ID 仅保留 ASCII 字母数字下划线，去除中文和特殊符 | `S001` |
 | `<SEQ>` | 4 位序号，从 0001 递增 | `0001` |
 | `<SRS原文>` | 直接引用 SRS 原文，最小改写 | `系统应支持手机号注册` |
-| `<SHARD_ID>` | 原样填入分片 ID | `S001` |
+| `<SHARD_ID>` | 原样填入分片 ID（关联 shard_index.json 中的原始 SRS 文件） | `S001` |
 | `<CONF>` | `high`（明确）/ `medium`（模糊）/ `low`（隐含） | `high` |
 
 ## 硬性约束（违反 → validate-jsonl REJECTED，校验者 REJECTED）

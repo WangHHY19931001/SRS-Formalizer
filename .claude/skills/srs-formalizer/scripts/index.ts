@@ -206,13 +206,15 @@ async function main(): Promise<void> {
     }
     case 'validate-tla': {
       const { main: validateTlaMain } = await import('./commands/validate-tla.js');
-      result = await validateTlaMain(positional);
-      break;
+      const result = await validateTlaMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
     }
     case 'validate-lean': {
       const { main: validateLeanMain } = await import('./commands/validate-lean.js');
-      result = await validateLeanMain(positional);
-      break;
+      const result = await validateLeanMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
     }
     case 'validate-checklist': {
       const { main: validateChecklistMain } = await import('./commands/validate-checklist.js');

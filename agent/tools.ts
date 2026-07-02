@@ -227,41 +227,7 @@ export const checkFileTool = tool(
   }
 );
 
-// ==================== 10. validate_output ====================
-
-export const validateOutputTool = tool(
-  async ({ type, filePath, workdir }) => {
-    const cmdMap: Record<string, string> = {
-      jsonl: `npx tsx index.ts validate-jsonl --file ${filePath} --workdir ${workdir}`,
-      feature: `npx tsx index.ts validate-bdd --workdir ${workdir}`,
-      cypher: `npx tsx index.ts validate-cypher --file ${filePath} --workdir ${workdir}`,
-      glossary: `npx tsx index.ts validate-glossary --file ${filePath}`,
-      tla: `npx tsx index.ts validate-tla --file ${filePath} --workdir ${workdir}`,
-      lean: `npx tsx index.ts validate-lean --file ${filePath}`,
-      checklist: `npx tsx index.ts validate-checklist --file ${filePath}`,
-      glossary: `npx tsx index.ts validate-glossary --file ${filePath}`,
-    };
-    try {
-      return execSync(cmdMap[type] || "echo error", {
-        cwd: getScriptsDir(), stdio: "pipe", timeout: 30000, env: { ...process.env },
-      }).toString().trim();
-    } catch (e: unknown) {
-      const err = e as { stdout?: Buffer; stderr?: Buffer };
-      return err.stdout?.toString().trim() || err.stderr?.toString().trim() || "ERROR";
-    }
-  },
-  {
-    name: "validate_output",
-    description: "校验流水线产物格式",
-    schema: z.object({
-      type: z.enum(["jsonl", "feature", "tla", "lean", "cypher", "glossary"]),
-      filePath: z.string(),
-      workdir: z.string(),
-    }),
-  }
-);
-
-// ==================== 11. spawn_sub_agent (factory) ====================
+// ==================== 10. spawn_sub_agent (factory) ====================
 
 /**
  * Create a spawn_sub_agent tool bound to a handler function.
@@ -342,7 +308,7 @@ export function createUnregisterToolsTool(
 // ==================== 14. MCP tools (factories) ====================
 
 export function createMcpRegisterTool(
-  mcpRegister: (config: { transport: string; command?: string; args?: string[]; url?: string }) => Promise<string[]>,
+  mcpRegister: (config: { transport: "stdio" | "http"; command?: string; args?: string[]; url?: string }) => Promise<string[]>,
 ) {
   return tool(
     async ({ transport, command, args, url }) => {
@@ -395,7 +361,7 @@ export function createMcpCallTool(
 export const BASE_TOOLS = [
   readFileTool, writeFileTool, editFileTool, searchInFileTool,
   runCommandTool, webSearchTool, httpRequestTool,
-  listDirTool, checkFileTool, validateOutputTool,
+  listDirTool, checkFileTool,
 ];
 
 /** @deprecated Use BASE_TOOLS. Dynamic tools are created via factory functions. */
