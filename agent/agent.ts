@@ -31,6 +31,7 @@ import {
 } from "./tools.js";
 import { loadLlmConfig } from "./llm-config.js";
 import { registerMcpServer, callMcpTool } from "./mcp.js";
+import * as fs from "node:fs";
 
 let agentIdCounter = 0;
 
@@ -83,6 +84,7 @@ export interface AgentConfig {
   skillsDir?: string;
   projectRoot?: string;
   workDir?: string;
+  logDir?: string;
   depth?: number;
 }
 
@@ -216,23 +218,34 @@ export async function createAgent(config: AgentConfig): Promise<{
 
   // ===================== Trace Callback =====================
 
+  const logDir = config.logDir || "/tmp/srs-agent-traces";
+  fs.mkdirSync(logDir, { recursive: true });
+  const logPath = `${logDir}/${id}.log`;
+  const logLine = (msg: string) => {
+    const ts = new Date().toISOString();
+    const line = `${ts} ${msg}\n`;
+    process.stderr.write(line);
+    try { fs.appendFileSync(logPath, line, "utf-8"); } catch { /* ignore */ }
+  };
+
   let turnCount = 0;
   const trace = new (class extends BaseCallbackHandler {
     name = "console-tracer";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async handleToolStart(tool: any, input: string): Promise<void> {
       turnCount++;
-      const preview = input.slice(0, 120).replace(/\n/g, "\\n");
-      console.error(`[${turnCount}] 🔧 ${tool.name || tool.id?.join(".") || "?"} ${preview}`);
+      const preview = input.slice(0, 150).replace(/\n/g, "\\n");
+      logLine(`[${turnCount}] 🔧 ${tool.name || tool.id?.join(".") || "?"} ${preview}`);
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async handleToolEnd(output: string, _runId: string, _parentRunId?: string): Promise<void> {
-      const preview = output.slice(0, 150).replace(/\n/g, "\\n");
-      console.error(`     ✅ ${preview}`);
+    async handleToolEnd(output: any): Promise<void> {
+      const raw = typeof output === "string" ? output : JSON.stringify(output);
+      const preview = raw.slice(0, 200).replace(/\n/g, "\\n");
+      logLine(`     ✅ ${preview}`);
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async handleLLMStart(_llm: any, _prompts: string[]): Promise<void> {
-      console.error(`[${turnCount + 1}] 🤖 LLM`);
+      logLine(`[${turnCount + 1}] 🤖 LLM`);
     }
   })();
 

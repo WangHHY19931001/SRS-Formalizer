@@ -38,6 +38,9 @@ async function main() {
     console.error(
       "  --work-dir      测试工作目录（默认: /tmp/srs-debug-<timestamp>/.srs_formalizer）",
     );
+    console.error(
+      "  --log-dir       轨迹日志目录（默认: /tmp/srs-agent-traces）",
+    );
     process.exit(1);
   }
 
@@ -59,6 +62,11 @@ async function main() {
   process.env.SKILL_SCRIPTS_DIR = skillsDir;
   process.env.WORK_DIR = workDir;
 
+  const logDir =
+    parseArg(args, "--log-dir") ||
+    process.env.AGENT_LOG_DIR ||
+    "/tmp/srs-agent-traces";
+
   const task = taskPath ? fs.readFileSync(taskPath, "utf-8") : taskPrompt!;
 
   console.log(`Agent starting...`);
@@ -66,6 +74,7 @@ async function main() {
   console.log(`  Project root: ${projectRoot}`);
   console.log(`  Skills dir: ${skillsDir}`);
   console.log(`  Work dir: ${workDir}`);
+  console.log(`  Log dir: ${logDir}`);
 
   const { agent, id } = await createAgent({
     configPath: llmConfig,
@@ -73,6 +82,7 @@ async function main() {
     skillsDir,
     projectRoot,
     workDir,
+    logDir,
   });
 
   console.log(`Agent ID: ${id}`);
