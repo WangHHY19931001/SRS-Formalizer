@@ -125,6 +125,20 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function' as const,
     function: {
+      name: 'spawn_sub_agent',
+      description: '分派子代理执行 LLM 任务并接收返回结果。用于需求提取、BDD充实、术语提取等需要语义理解的任务。子代理有独立的工具集（文件读写、Shell、搜索等），完成后返回结果文本。',
+      parameters: {
+        type: 'object',
+        properties: {
+          task: { type: 'string', description: '子代理的任务提示词，描述需要完成的工作' },
+        },
+        required: ['task'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'validate_output',
       description: '校验流水线产物格式（JSONL/feature/tla/lean/cypher/glossary）。',
       parameters: {
