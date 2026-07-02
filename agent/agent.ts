@@ -12,8 +12,9 @@
  */
 
 import OpenAI from 'openai';
-import { Tracer, type TraceEventType } from './tracer.js';
+import { Tracer } from './tracer.js';
 import { TOOL_DEFINITIONS, executeTool } from './tools.js';
+import { ContextManager } from './context.js';
 
 // ===================== System Prompts =====================
 
@@ -29,6 +30,7 @@ export interface AgentConfig {
   baseURL: string;
   apiKey: string;
   maxTurns?: number;
+  maxContextTokens?: number;
   role: 'orchestrator' | 'worker';
   tracer?: Tracer;
 }
@@ -40,6 +42,7 @@ export class Agent {
   private model: string;
   private maxTurns: number;
   private role: 'orchestrator' | 'worker';
+  private ctx: ContextManager;
   tracer: Tracer;
   private messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
   private tools: typeof TOOL_DEFINITIONS;
@@ -50,6 +53,7 @@ export class Agent {
     this.maxTurns = config.maxTurns || 50;
     this.role = config.role;
     this.tracer = config.tracer || new Tracer();
+    this.ctx = new ContextManager(this.client, this.model, config.maxContextTokens || 131072, 2);
 
     const systemPrompt = config.role === 'orchestrator' ? BASE_SYSTEM_PROMPT : WORKER_PROMPT;
     this.messages = [{ role: 'system', content: systemPrompt }];
@@ -98,6 +102,22 @@ export class Agent {
       turn++;
       const agentId = this.role;
 
+      // Context window management
+      const ctxState = this.ctx.check(this.messages);
+      if (ctxState.level === 'force') {
+        this.tracer.log('compress_context', agentId, { level: 'force', before_pct: ctxState.usage_pct, tokens: ctxState.total_tokens });
+        this.messages = await this.ctx.compress(this.messages);
+        const afterState = this.ctx.check(this.messages);
+        this.tracer.log('compress_context', agentId, { level: 'force', after_pct: afterState.usage_pct, tokens: afterState.total_tokens });
+      } else if (ctxState.level === 'suggest') {
+        // Inject a nudge message before the next LLM call
+        this.messages.push({
+          role: 'user',
+          content: `[系统提示] 上下文使用率已达 ${ctxState.usage_pct}%（${ctxState.total_tokens}/${ctxState.maxTokens} tokens）。如果当前任务已完成，请记录观测并继续。如果上下文过长，你可以说"压缩上下文"来触发压缩。`,
+        });
+      }
+      // 'allow' level: LLM can voluntarily call compress_context placeholder (handled in tool execution)
+
       this.tracer.llmRequest(agentId, this.messages, this.tools);
 
       const resp = await this.client.chat.completions.create({
@@ -141,10 +161,16 @@ export class Agent {
 
         let result: string;
 
-        // Special handling: spawn_sub_agent creates a recursive agent
+        // Special handling: tools that need Agent context
         if (toolName === 'spawn_sub_agent') {
           const subPrompt = (toolArgs.prompt as string) || (toolArgs.task as string) || '';
           result = await this.spawnSubAgent(subPrompt);
+        } else if (toolName === 'compress_context') {
+          // LLM-triggered compression
+          this.tracer.toolCall(agentId, 'compress_context', { trigger: 'llm' });
+          this.messages = await this.ctx.compress(this.messages);
+          const cs = this.ctx.check(this.messages);
+          result = `上下文已压缩。使用率: ${cs.usage_pct}% (${cs.total_tokens}/${cs.maxTokens})`;
         } else {
           result = await executeTool(toolName, toolArgs);
         }

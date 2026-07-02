@@ -218,6 +218,18 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function' as const,
     function: {
+      name: 'compress_context',
+      description: '压缩对话上下文。将历史消息总结为摘要，释放 token 空间。当上下文使用率接近限制时使用。调用后对话历史会被压缩为摘要继续。',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'record_observation',
       description: '记录测试观测。用于标记阶段完成、检查结果、发现问题和改进建议。',
       parameters: {
@@ -445,7 +457,11 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       } catch (e) { return `ERROR: ${(e as Error).message}`; }
     }
 
-    // 10. record_observation
+    // 10a. compress_context — handled by Agent, placeholder here
+    case 'compress_context':
+      return 'COMPRESS_TRIGGERED'; // Agent's run loop detects this and calls ctx.compress()
+
+    // 11. record_observation
     case 'record_observation': {
       const cat = args.category as string;
       const detail = args.detail as string;
