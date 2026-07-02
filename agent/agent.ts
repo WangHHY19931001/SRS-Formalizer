@@ -68,7 +68,7 @@ export interface AgentConfig {
 // ===================== createAgent =====================
 
 export async function createAgent(config: AgentConfig): Promise<{
-  agent: ReturnType<typeof StateGraph.prototype.compile>;
+  agent: ReturnType<InstanceType<typeof StateGraph>["compile"]>;
   id: string;
   handle: AgentHandle;
 }> {
