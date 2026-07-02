@@ -259,28 +259,44 @@ export const validateOutputTool = tool(
   }
 );
 
-// ==================== 11. spawn_sub_agent ====================
+// ==================== 11. spawn_sub_agent (factory) ====================
 
-export const spawnSubAgentTool = tool(
-  async ({ task }) => {
-    // This tool is handled specially by the agent — the agent detects it
-    // and spawns a recursive Agent instance. Here we just return a marker.
-    return `SUBTASK_DISPATCHED: ${task.slice(0, 100)}`;
-  },
-  {
-    name: "spawn_sub_agent",
-    description: "分派子代理执行 LLM 任务并接收返回结果",
-    schema: z.object({
-      task: z.string().describe("子代理的任务提示词"),
-    }),
-  }
-);
+/**
+ * Create a spawn_sub_agent tool bound to a handler function.
+ * The handler receives the task prompt and must return the sub-agent's result.
+ *
+ * Called by agent.ts during createAgent() to wire up recursive sub-agent spawning.
+ */
+export function createSpawnSubAgentTool(
+  handler: (task: string) => Promise<string>,
+) {
+  return tool(
+    async ({ task }) => {
+      try {
+        const result = await handler(task);
+        return result;
+      } catch (e) {
+        return `SUB_AGENT_ERROR: ${(e as Error).message}`;
+      }
+    },
+    {
+      name: "spawn_sub_agent",
+      description: "分派子代理执行 LLM 任务并接收返回结果。子代理拥有独立的工具集和上下文，可并行执行。传入详细的任务提示词。",
+      schema: z.object({
+        task: z.string().describe("子代理的任务提示词，应包含完整的任务描述、期望输出格式和约束条件"),
+      }),
+    }
+  );
+}
 
-// ==================== All tools ====================
+// ==================== Base tools (without spawn_sub_agent) ====================
 
-export const ALL_TOOLS = [
+/** All tools except spawn_sub_agent (which is created dynamically by agent.ts). */
+export const BASE_TOOLS = [
   readFileTool, writeFileTool, editFileTool, searchInFileTool,
   runCommandTool, webSearchTool, httpRequestTool,
   listDirTool, checkFileTool, validateOutputTool,
-  spawnSubAgentTool,
 ];
+
+/** @deprecated Use BASE_TOOLS. spawn_sub_agent is created dynamically via createSpawnSubAgentTool(). */
+export const ALL_TOOLS = BASE_TOOLS;

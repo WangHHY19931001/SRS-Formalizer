@@ -19,9 +19,12 @@ import type { StructuredTool } from "@langchain/core/tools";
 import { ToolRegistry } from "./tool-registry.js";
 import { AgentDirectory, type AgentHandle } from "./agent-directory.js";
 import { ContextManager, createContextTools } from "./context.js";
-import { ALL_TOOLS } from "./tools.js";
+import { BASE_TOOLS, createSpawnSubAgentTool } from "./tools.js";
 import { loadLlmConfig } from "./llm-config.js";
 import * as fs from "node:fs";
+
+// Re-export for external use
+export { BASE_TOOLS, createSpawnSubAgentTool };
 
 let agentIdCounter = 0;
 
@@ -112,6 +115,59 @@ export async function createAgent(config: AgentConfig): Promise<{
     () => messageBox.current as any,
   );
 
+  // ===================== Spawn Sub-Agent Handler =====================
+
+  /**
+   * Recursively spawn a worker sub-agent.
+   * The sub-agent gets its own StateGraph, tool set, and message context.
+   */
+  async function spawnHandler(task: string): Promise<string> {
+    writeLog("spawn_sub_agent_start", { task: task.slice(0, 150) });
+
+    // Create a fresh ToolRegistry for the sub-agent (inherits from parent)
+    const subRegistry = new ToolRegistry();
+    const subDirectory = directory; // Share A2A directory
+
+    // Build the sub-agent with the same LLM config
+    const subResult = await createAgent({
+      configPath: config.configPath,
+      role: "worker",
+      registry: subRegistry,
+      directory: subDirectory,
+      maxTurns: 30,
+      maxContextTokens: maxTokens,
+      logDir,
+      skillsDir: config.skillsDir,
+      projectRoot: config.projectRoot,
+    });
+
+    // Register in directory
+    directory.register(subResult.handle, "worker");
+
+    // Run the sub-agent with the task
+    let output: string;
+    try {
+      const result = await subResult.agent.invoke(
+        { messages: [new HumanMessage(task)] },
+        { recursionLimit: 30 },
+      );
+      const msgs = result.messages || [];
+      const last = msgs[msgs.length - 1];
+      output = last ? ((last as any).content as string) || "" : "(no output)";
+    } catch (e) {
+      output = `SUB_AGENT_ERROR: ${(e as Error).message}`;
+    }
+
+    // Unregister from directory
+    directory.unregister(subResult.id);
+
+    writeLog("spawn_sub_agent_end", { id: subResult.id, outputLen: output.length });
+    return output;
+  }
+
+  // Create the real spawn tool with the handler
+  const spawnSubAgentTool = createSpawnSubAgentTool(spawnHandler);
+
   // Complete task tool — signals the agent to stop
   const completeTaskTool = tool(
     async ({ summary }) => `TASK_COMPLETE: ${summary}`,
@@ -122,8 +178,14 @@ export async function createAgent(config: AgentConfig): Promise<{
     },
   );
 
-  // Register all tools
-  const allTools: StructuredTool[] = [...ALL_TOOLS, contextInfoTool, compressContextTool, completeTaskTool];
+  // Register all tools (base tools + spawn + context + complete)
+  const allTools: StructuredTool[] = [
+    ...BASE_TOOLS,
+    spawnSubAgentTool,
+    contextInfoTool,
+    compressContextTool,
+    completeTaskTool,
+  ];
   for (const t of allTools) {
     registry.addActive(t);
   }
