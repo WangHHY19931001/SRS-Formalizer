@@ -80,7 +80,8 @@ function identifyChapters(content: string, sourcePath: string): ChapterInfo[] {
   }
   // Markdown logic
   const chapters: ChapterInfo[] = [];
-  const lines = content.split('\n');
+  // Normalize CRLF → LF, then split
+  const lines = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
@@ -169,6 +170,7 @@ function subdivideShard(
   lang: 'zh' | 'en',
   parentChunkPrefix: string,
 ): ShardEntry[] {
+  // startLine and endLine are 1-based (inclusive). ch.line is 0-based.
   const lineCount = endLine - startLine + 1;
 
   // Base case: small enough
@@ -176,7 +178,7 @@ function subdivideShard(
     return [createShardEntry(absPath, startLine, endLine, '（小分片）', '—', lines, lang, parentChunkPrefix)];
   }
 
-  // Find sub-chapters within this range at the requested level or deeper
+  // Find sub-chapters within this range (convert to consistent 0-based comparison)
   const subChapters = allChapters.filter(
     ch => ch.level >= minLevel && ch.line >= startLine - 1 && ch.line < endLine,
   );
@@ -192,8 +194,10 @@ function subdivideShard(
   for (let i = 0; i < subChapters.length; i++) {
     const ch = subChapters[i]!;
     const nextCh = subChapters[i + 1];
-    const segStart = ch.line + 1; // 1-based
+    const segStart = ch.line + 1; // 1-based, line after the heading
+    // nextCh.line is 0-based, so it correctly points to the line BEFORE the next heading
     const segEnd = nextCh ? nextCh.line : endLine;
+    if (segStart > segEnd) continue; // skip empty segments (adjacent headings)
     const segLines = segEnd - segStart + 1;
     const chunkId = `${parentChunkPrefix}-${String(chunkCounter).padStart(2, '0')}`;
 
@@ -268,8 +272,15 @@ function buildShardIndex(
   const lines = content.split('\n');
   const absPath = path.resolve(sourcePath);
 
-  // Initial split: use level-2 and level-3 headings as top-level boundaries
-  const topChapters = chapters.filter(ch => ch.level === 2 || ch.level === 3);
+  // Initial split: use only level-2 (##) headings as top-level boundaries.
+  // Level-3+ headings are used inside subdivideShard for recursive splitting.
+  const topChapters = chapters.filter(ch => ch.level === 2);
+
+  // Fallback: if no level-2 headings found, use level-3
+  if (topChapters.length === 0) {
+    const l3 = chapters.filter(ch => ch.level === 3);
+    topChapters.push(...l3);
+  }
 
   // No chapters found → whole file, but still subdivide if > MAX_SHARD_LINES
   if (topChapters.length === 0) {
