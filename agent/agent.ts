@@ -17,7 +17,7 @@
 
 import { createDeepAgent } from "deepagents";
 import { ChatOpenAI } from "@langchain/openai";
-import { HumanMessage } from "@langchain/core/messages";
+import { BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { StructuredTool } from "@langchain/core/tools";
@@ -106,7 +106,30 @@ export async function createAgent(config: AgentConfig): Promise<{
   const id = `${config.role}-${Date.now()}-${++agentIdCounter}`;
   const llmConfig = loadLlmConfig(config.configPath);
 
-  const llm = new ChatOpenAI({
+  // Qwen-compatible: strip file content blocks before API call
+  class QwenCompatibleChatOpenAI extends ChatOpenAI {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    override async invoke(input: any, options?: any): Promise<any> {
+      const messages: BaseMessage[] = Array.isArray(input) ? input : [input];
+      const sanitized = messages.map((msg) => {
+        const raw = msg as unknown as { content: unknown };
+        const content = raw.content;
+        if (!Array.isArray(content)) return msg;
+        const cleaned = content.map((block: Record<string, unknown>) => {
+          if (block.type === "file") {
+            const name =
+              (block as { file?: { name?: string } }).file?.name || "unknown";
+            return { type: "text", text: `[File: ${name}]` };
+          }
+          return block;
+        });
+        return new HumanMessage({ content: cleaned as Array<{ type: string; text: string }> });
+      });
+      return super.invoke(sanitized, options);
+    }
+  }
+
+  const llm = new QwenCompatibleChatOpenAI({
     model: llmConfig.name,
     temperature: 0.1,
     configuration: { baseURL: llmConfig.baseURL, apiKey: llmConfig.key },
