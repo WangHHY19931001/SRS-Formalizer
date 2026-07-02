@@ -91,7 +91,7 @@ async function main() {
 
   let result: { messages?: Array<{ content: unknown }> } | null = null;
   let attempt = 0;
-  const maxAttempts = 2;
+  const maxAttempts = 3;
 
   while (attempt < maxAttempts) {
     attempt++;
@@ -106,8 +106,12 @@ async function main() {
       console.error(`Agent error (attempt ${attempt}/${maxAttempts}): ${msg.slice(0, 300)}`);
       if (attempt >= maxAttempts) throw err;
       // AggregateError / MiddlewareError from parallel sub-agents — retry
-      if (msg.includes("AggregateError") || msg.includes("MiddlewareError")) {
-        console.error("Retrying after parallel sub-agent error...");
+      if (
+        msg.includes("AggregateError") ||
+        msg.includes("MiddlewareError") ||
+        msg.includes("file")  // Qwen file content block transient error
+      ) {
+        console.error("Retrying after transient error...");
         continue;
       }
       throw err;
