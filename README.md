@@ -227,6 +227,16 @@ cp llm-config.template.json test-llm-config.json
 # 编辑 test-llm-config.json，填入 OpenAI 兼容的 LLM 服务
 ```
 
+LLM 配置文件支持 `mcp_servers` 字段，Agent 启动时自动注册配置的 MCP 服务器。默认包含：
+
+| MCP 服务器 | 命令 | 提供工具 |
+|------|------|------|
+| `bing-search` | `npx -y bing-cn-mcp` | `mcp_bing_search`, `mcp_crawl_webpage` |
+| `fetch` | `uvx mcp-server-fetch` | `mcp_fetch` |
+| `sequential-thinking` | `npx -y @modelcontextprotocol/server-sequential-thinking` | `mcp_sequentialthinking` |
+
+也可在运行时通过 `register_mcp_server` 动态注册其他 MCP 服务器。
+
 ### 运行
 
 ```bash
@@ -240,11 +250,12 @@ npx tsx agent/index.ts --llm-config test-llm-config.json --task agent/task-srs-f
 ### 工作原理
 
 代理通过 `--task` 文件接收最小工作提示词（如"使用 xxx 技能，基于 xxx 路径的 SRS 文档工作"），然后：
-1. 读取 SKILL.md 了解技能结构和流水线阶段
-2. 按阶段使用工具执行命令、验证产物
-3. 通过 `spawn_sub_agent` 递归分派子代理处理 LLM 任务
-4. 动态系统提示词在每轮注入当前工具列表、技能目录和项目目录
-5. JSONL 日志记录每一步操作（位于 `--log-dir` 指定目录）
+1. 启动时自动注册 LLM 配置中的 MCP 服务器（bing-search, fetch, sequential-thinking）
+2. 读取 SKILL.md 了解技能结构和流水线阶段
+3. 按阶段使用工具执行命令、验证产物
+4. 通过 `spawn_sub_agent` 递归分派子代理处理 LLM 任务（子代理有独立 StateGraph）
+5. 动态系统提示词在每轮注入当前工具列表、技能目录和项目目录
+6. JSONL 日志记录每一步操作（位于 `--log-dir` 指定目录）
 
 ### CLI 参数
 
@@ -264,18 +275,20 @@ npx tsx agent/index.ts --llm-config test-llm-config.json --task agent/task-srs-f
 agent/
 ├── index.ts              # 入口（--llm-config + --task，ToolRegistry + AgentDirectory）
 ├── agent.ts              # LangGraph StateGraph ReAct 循环 + 动态系统提示词
-├── tools.ts              # 12 LangChain 工具（tool() + Zod v4）
+├── tools.ts              # 10 基础工具 + 5 工厂（spawn/register/unregister/MCP）
 ├── tool-registry.ts      # 动态工具注册/卸载（register/unregister/getActiveTools）
 ├── agent-directory.ts    # A2A 代理目录（send/broadcast/list/markError）
 ├── context.ts            # ContextManager（getInfo + createContextTools）
 ├── llm-config.ts         # LLM 配置加载器
-├── mcp.ts                # MCP 客户端（stdio/HTTP）
+├── mcp.ts                # MCP 客户端（stdio/HTTP，启动时自动注册配置的服务器）
 ├── package.json          # LangGraph + LangChain + openai + zod 依赖
 ├── tsconfig.json         # Strict TypeScript 配置
 └── task-srs-formalizer.md  # 最小任务提示词（一行，代理自行发现流水线）
 ```
 
 ### 工具列表
+
+**内置工具：**
 
 | 工具 | 说明 |
 |------|------|
@@ -289,8 +302,19 @@ agent/
 | `list_directory` | 列出目录内容 |
 | `check_file_exists` | 检查文件/目录是否存在 |
 | `validate_output` | 校验流水线产物格式 |
-| `spawn_sub_agent` | 递归分派子代理 |
+
+**Agent 管理工具：**
+
+| 工具 | 说明 |
+|------|------|
+| `spawn_sub_agent` | 递归分派子代理（独立 StateGraph） |
+| `register_tools` | 动态注册工具（从懒加载池激活） |
+| `unregister_tools` | 动态卸载工具 |
+| `register_mcp_server` | 运行时注册 MCP 服务器（stdio/HTTP） |
+| `call_mcp_tool` | 调用 MCP 服务器工具 |
 | `context_info` | 查询上下文使用率 |
+| `compress_context` | 触发上下文压缩 |
+| `complete_task` | 任务完成信号 |
 | `compress_context` | 请求压缩上下文 |
 | `complete_task` | 任务完成信号 |
 

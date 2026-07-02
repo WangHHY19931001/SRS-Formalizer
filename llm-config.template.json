@@ -4,5 +4,10 @@
   "baseURL": "http://your-llm-server:8000/v1",
   "key": "your-api-key",
   "max-model-len": 131072,
-  "description": "Copy to test-llm-config.json and fill in your LLM details. This file is gitignored."
+  "description": "Copy to test-llm-config.json and fill in your LLM details. This file is gitignored.",
+  "mcp_servers": [
+    { "name": "bing-search", "command": "npx", "args": ["-y", "bing-cn-mcp"] },
+    { "name": "fetch", "command": "uvx", "args": ["mcp-server-fetch"] },
+    { "name": "sequential-thinking", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"] }
+  ]
 }
