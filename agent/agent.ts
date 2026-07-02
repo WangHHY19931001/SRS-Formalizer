@@ -15,12 +15,7 @@
  *   - Custom system prompt with workDir, WORK_TABOOS, and WORK_RULES
  */
 
-import {
-  createDeepAgent,
-  createSummarizationMiddleware,
-  computeSummarizationDefaults,
-  StateBackend,
-} from "deepagents";
+import { createDeepAgent } from "deepagents";
 import { ChatOpenAI } from "@langchain/openai";
 import { BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
@@ -208,15 +203,6 @@ export async function createAgent(config: AgentConfig): Promise<{
     config.workDir || process.env.WORK_DIR,
   );
 
-  // Auto-compress context when approaching model limits
-  const summaryDefaults = computeSummarizationDefaults(llm);
-  const summarizationMiddleware = createSummarizationMiddleware({
-    model: llm,
-    trigger: summaryDefaults.trigger,
-    backend: () => new StateBackend(),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
-
   const agent = createDeepAgent({
     model: llm,
     systemPrompt,
@@ -228,7 +214,6 @@ export async function createAgent(config: AgentConfig): Promise<{
       mcpCallTool,
       ...mcpTools,
     ],
-    middleware: [summarizationMiddleware],
   });
 
   // ===================== Trace Callback =====================
