@@ -1,1 +1,0 @@
-theorem partial : True := by
