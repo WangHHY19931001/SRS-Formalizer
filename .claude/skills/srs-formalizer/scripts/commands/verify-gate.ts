@@ -480,6 +480,34 @@ function checkBehaviorGraphExists(workDir: string): CheckResult {
   return { name: 'Behavior graph exists', passed: false, detail: `Missing: ${missing.join(', ')}` };
 }
 
+function checkTlaGraphExists(workDir: string): CheckResult {
+  const graphPath = path.join(workDir, '5_formal', 'tla-interaction-graph.json');
+  const cypherPath = path.join(workDir, '6_outputs', 'knowledge_graph', 'tla-interaction.cypher');
+  // Only applicable if TLA+ specs were generated
+  const specsDir = path.join(workDir, '5_formal', 'specs');
+  const hasTlaSpecs = fs.existsSync(specsDir) && fs.readdirSync(specsDir).some(f => f.endsWith('.tla'));
+
+  if (!hasTlaSpecs) {
+    return { name: 'TLA interaction graph exists', passed: true, detail: 'N/A (TLA+ not triggered)' };
+  }
+
+  const hasGraph = fs.existsSync(graphPath);
+  const hasCypher = fs.existsSync(cypherPath);
+  if (hasGraph && hasCypher) {
+    try {
+      const g = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+      const nodes = g.nodes?.length ?? 0;
+      const edges = g.edges?.length ?? 0;
+      const depth = g.metadata?.max_hierarchy_depth ?? 0;
+      return { name: 'TLA interaction graph exists', passed: true, detail: `${nodes} nodes, ${edges} edges, depth ${depth}` };
+    } catch {
+      return { name: 'TLA interaction graph exists', passed: false, detail: 'Corrupt JSON' };
+    }
+  }
+  const missing = [!hasGraph && 'tla-interaction-graph.json', !hasCypher && 'tla-interaction.cypher'].filter(Boolean);
+  return { name: 'TLA interaction graph exists', passed: false, detail: `Missing: ${missing.join(', ')}` };
+}
+
 /** R3: 验证架构 JSONL 文件存在且非空 */
 function checkArchitectureExists(workDir: string): CheckResult {
   try {
@@ -611,6 +639,7 @@ export async function main(args: string[]): Promise<CliResult> {
     allChecks.push(checkBrainstormContextExists(workDir));
     allChecks.push(checkMindmapModules(workDir));
     allChecks.push(checkBehaviorGraphExists(workDir));
+    allChecks.push(checkTlaGraphExists(workDir));
   }
 
   const errors = allChecks.filter(c => !c.passed).map(c => c.detail ?? c.name);

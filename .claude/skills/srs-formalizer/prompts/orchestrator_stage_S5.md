@@ -10,10 +10,13 @@
 触发条件：微服务协作/并行进程/分布式锁/共识协议/跨服务状态机
 
 1. LLM 子代理按层级编写 .tla（L1系统级→L2子系统级→L3原子级）
-2. 每级 tlc 验证：死锁/不变量/活性
+2. 每级 SANY + TLC 验证：死锁/不变量/活性
 3. 失败 → debug-tlc 子代理定位根因 → SRS设计缺陷则回写 SRS_PATCHES.md
 4. 全部通过 → 冻结 .tla 文件
-5. 写入 SPECS.md 索引
+5. 构建系统交互图谱：
+   npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-tla-graph --workdir .srs_formalizer
+   产物: 5_formal/tla-interaction-graph.json + 6_outputs/knowledge_graph/tla-interaction.cypher
+6. 写入 SPECS.md 索引
 
 ## Lean 4 拆分证明（条件触发）
 

@@ -23,6 +23,7 @@ Commands:
   query-graph        Graph query and traversal interface (--query <type> --params '<json>')
   build-architecture Build architecture graph from architecture JSONL files
   build-behavior-graph Build system behavior graph from BDD feature files
+  build-tla-graph    Build system interaction graph from TLA+ specs
   validate-architecture Validate architecture JSONL records (6 checks)
   validate-cypher   Validate .cypher script file (4 checks)
   validate-glossary Validate glossary JSON file (8 checks + gate)
@@ -153,6 +154,12 @@ async function main(): Promise<void> {
     case 'build-behavior-graph': {
       const { main: buildBehaviorMain } = await import('./commands/build-behavior-graph.js');
       const result = await buildBehaviorMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'build-tla-graph': {
+      const { main: buildTlaMain } = await import('./commands/build-tla-graph.js');
+      const result = await buildTlaMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }
