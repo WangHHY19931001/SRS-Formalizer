@@ -1,23 +1,20 @@
 /**
- * guided-extract.ts — 交互式逐行 JSONL 提取
+ * guided-extract.ts — 逐行 JSONL 提取（双模式）
  *
- * CLI: npx tsx index.ts guided-extract --template <path> --shard-id <id> --workdir <path>
+ * 模式一（生成提示词）:
+ *   npx tsx index.ts guided-extract --template <path> --shard-id <id> --type r1 --workdir <path>
+ *   返回 filled template + guided system prompt，由 agent 发给 LLM。
  *
- * LLM 每次只输出一行 JSON → 脚本验证 → 正确追加，错误反馈重试。
- * 解决一次性输出长 JSONL 易出错的问题（特别是推理模型）。
+ * 模式二（处理单行，agent 可直接调用）:
+ *   npx tsx index.ts guided-extract --line '<json>' --shard-id <id> --type r1 --workdir <path>
+ *   校验单行 JSON，合法则追加到输出文件，返回 "OK" / "ERR: ..." / "DONE"。
+ *   agent 用 run_command 逐行调用，无需交互式 I/O。
  *
- * 流程：
- *   1. inject-prompt 填充模板
- *   2. 发送给 LLM（通过 stdin/args 或外部 LLM 调用）
- *   3. 逐行验证 → 正确则追加到输出文件
- *   4. 错误则返回校验失败详情，LLM 重试
- *   5. LLM 输出 DONE 结束
- *
- * 交互协议（LLM 侧）：
- *   - 每次输出一行 JSON（不要换行，不要思考过程）
- *   - 系统回复 "OK" 表示已接受 → 继续下一条
- *   - 系统回复 "ERR: ..." 表示校验失败 → 修正后重新输出
- *   - 所有需求提取完成后输出 "DONE"
+ * LLM 协议不变：
+ *   - 每次输出一行 JSON
+ *   - OK → 继续下一条
+ *   - ERR → 修正后重试
+ *   - DONE → 结束
  */
 
 import * as fs from "node:fs";
@@ -174,75 +171,9 @@ function processLine(
 }
 
 /**
- * Batch process: given a filled template and output path,
- * produce the interactive prompt that an agent can use with the LLM.
- * The agent handles the actual LLM interaction loop.
+ * Resolve the output path for a given shard ID and extract type.
  */
-export async function main(args: string[]): Promise<CliResult> {
-  let templatePath: string | null;
-  let shardId: string | null;
-  let workDirArg: string | null;
-  let extractType: string | null;
-
-  try {
-    templatePath = safeParseArg(args, "--template");
-    shardId = safeParseArg(args, "--shard-id");
-    workDirArg = safeParseArg(args, "--workdir");
-    extractType = safeParseArg(args, "--type") || "r1";
-  } catch (err) {
-    return { status: "error", message: (err as Error).message };
-  }
-
-  if (!templatePath) return { status: "error", message: "Missing --template" };
-  if (!shardId) return { status: "error", message: "Missing --shard-id" };
-  if (!workDirArg) return { status: "error", message: "Missing --workdir" };
-  if (!["r1", "r2", "r3", "arch"].includes(extractType)) {
-    return {
-      status: "error",
-      message: `Invalid --type: ${extractType}. Must be r1|r2|r3|arch`,
-    };
-  }
-  const etype = extractType as ExtractType;
-
-  let workDir: string;
-  try {
-    workDir = validateWorkDir(workDirArg);
-  } catch (err) {
-    return { status: "error", message: (err as Error).message };
-  }
-
-  // 1. Fill template via inject-prompt
-  let filled: string;
-  try {
-    const result = execSync(
-      `npx tsx index.ts inject-prompt --template ${templatePath} --shard-id ${shardId} --workdir ${workDir} --params '{}'`,
-      {
-        cwd: path.resolve(__dirname, ".."),
-        stdio: "pipe",
-        timeout: 30000,
-        env: { ...process.env },
-      },
-    )
-      .toString()
-      .trim();
-    const parsed = JSON.parse(result);
-    if (parsed.status !== "ok")
-      return {
-        status: "error",
-        message: `inject-prompt failed: ${parsed.message}`,
-      };
-    filled = parsed.data as string;
-  } catch (err) {
-    return {
-      status: "error",
-      message: `inject-prompt error: ${(err as Error).message}`,
-    };
-  }
-
-  // 2. Generate guided prompt
-  const guidedPrompt = generateGuidedPrompt(filled, etype);
-
-  // Map type to output directory
+function resolveOutputPath(workDir: string, shardId: string, etype: ExtractType): string {
   const outSubdir =
     etype === "arch"
       ? "architecture"
@@ -251,23 +182,95 @@ export async function main(args: string[]): Promise<CliResult> {
         : etype === "r3"
           ? "r3-relational"
           : "r1-explicit";
-  const outputPath = path.join(
-    workDir,
-    "2_extract",
-    outSubdir,
-    `${shardId}.jsonl`,
-  );
+  return path.join(workDir, "2_extract", outSubdir, `${shardId}.jsonl`);
+}
 
-  // 3. Return the guided prompt + output path for the agent to use
+/**
+ * Dual-mode entry point.
+ *
+ * Mode A (prompt generation): --template + --shard-id + --workdir
+ *   Fills template, wraps in guided system prompt, returns it.
+ *   Agent sends the prompt to LLM, then uses Mode B per line.
+ *
+ * Mode B (line processing): --line + --shard-id + --type + --workdir
+ *   Validates a single JSON line, appends to output if valid.
+ *   Returns "OK" / "ERR: ..." / "DONE" as plain text.
+ *   Designed for agent run_command — no interactive I/O needed.
+ */
+export async function main(args: string[]): Promise<CliResult> {
+  let templatePath: string | null;
+  let shardId: string | null;
+  let workDirArg: string | null;
+  let extractType: string | null;
+  let lineInput: string | null;
+
+  try {
+    templatePath = safeParseArg(args, "--template");
+    shardId = safeParseArg(args, "--shard-id");
+    workDirArg = safeParseArg(args, "--workdir");
+    extractType = safeParseArg(args, "--type") || "r1";
+    lineInput = safeParseArg(args, "--line");
+  } catch (err) {
+    return { status: "error", message: (err as Error).message };
+  }
+
+  // ── Mode B: process a single line ──
+  if (lineInput !== null) {
+    if (!shardId) return { status: "error", message: "Missing --shard-id" };
+    if (!workDirArg) return { status: "error", message: "Missing --workdir" };
+    if (!["r1", "r2", "r3", "arch"].includes(extractType)) {
+      return { status: "error", message: `Invalid --type: ${extractType}. Must be r1|r2|r3|arch` };
+    }
+    const etype = extractType as ExtractType;
+
+    let workDir: string;
+    try { workDir = validateWorkDir(workDirArg); } catch (err) { return { status: "error", message: (err as Error).message }; }
+
+    const outputPath = resolveOutputPath(workDir, shardId, etype);
+    const feedback = processLine(lineInput, outputPath, etype);
+    return { status: "ok", data: feedback };
+  }
+
+  // ── Mode A: generate guided prompt ──
+  if (!templatePath) return { status: "error", message: "Missing --template" };
+  if (!shardId) return { status: "error", message: "Missing --shard-id" };
+  if (!workDirArg) return { status: "error", message: "Missing --workdir" };
+  if (!["r1", "r2", "r3", "arch"].includes(extractType)) {
+    return { status: "error", message: `Invalid --type: ${extractType}. Must be r1|r2|r3|arch` };
+  }
+  const etype = extractType as ExtractType;
+
+  let workDir: string;
+  try { workDir = validateWorkDir(workDirArg); } catch (err) { return { status: "error", message: (err as Error).message }; }
+
+  // 1. Fill template via inject-prompt
+  let filled: string;
+  try {
+    const result = execSync(
+      `npx tsx index.ts inject-prompt --template ${templatePath} --shard-id ${shardId} --workdir ${workDir} --params '{}'`,
+      { cwd: path.resolve(__dirname, ".."), stdio: "pipe", timeout: 30000, env: { ...process.env } },
+    ).toString().trim();
+    const parsed = JSON.parse(result);
+    if (parsed.status !== "ok") return { status: "error", message: `inject-prompt failed: ${parsed.message}` };
+    filled = parsed.data as string;
+  } catch (err) {
+    return { status: "error", message: `inject-prompt error: ${(err as Error).message}` };
+  }
+
+  // 2. Generate guided prompt
+  const guidedPrompt = generateGuidedPrompt(filled, etype);
+  const outputPath = resolveOutputPath(workDir, shardId, etype);
+
   return {
     status: "ok",
     data: {
       guided_prompt: guidedPrompt,
       output_path: outputPath,
       shard_id: shardId,
-      line_validator: "validateJsonlLine", // function name for the agent to call per line
-      instructions:
-        'Send guided_prompt to LLM. For each response line, call processLine(line, output_path). If "OK", prompt for next. If "ERR:...", send error back for retry. If "DONE", stop.',
+      type: etype,
+      usage: `Send guided_prompt to LLM. For each LLM output line, call:
+  npx tsx index.ts guided-extract --line '<json>' --shard-id ${shardId} --type ${etype} --workdir ${workDirArg}
+Response: "OK" (appended) / "ERR: ..." (retry) / "DONE" (complete).`,
     },
   };
 }

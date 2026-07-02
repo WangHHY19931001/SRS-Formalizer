@@ -17,17 +17,31 @@ S2.7 R3 关系推导-2   ──→ 2_extract/r3-relational/ (最终)
 
 ## 执行流程
 
-### S2.1：R1 显式需求提取（逐行交互式，推荐）
-对每个分片使用 guided-extract 进行逐行交互式提取：
+### S2.1：R1 显式需求提取（逐行提取，推荐）
+
+对每个分片，两步完成：
+
+**Step 1 — 获取 guided prompt：**
 ```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract --template prompts/executor-R1.md --shard-id <shard_id> --workdir .srs_formalizer
 ```
-编排者启动交互循环：发送 guided_prompt → LLM 逐行输出 JSON → processLine 校验 → OK 则继续 / ERR 则反馈重试 / DONE 结束。
+返回 JSON：`{ "data": { "guided_prompt": "...", "output_path": "...", "type": "r1" } }`
+
+**Step 2 — 逐行处理（用 `--line` 模式，agent 可直接 `run_command` 调用）：**
+
+将 `guided_prompt` 发给 LLM 子代理。对 LLM 输出的每一行：
+```bash
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract --line '<json>' --shard-id <shard_id> --type r1 --workdir .srs_formalizer
+```
+返回：`"OK"`（已追加）/ `"ERR: ..."`（需修正重试）/ `"DONE"`（全部完成）。
+无需交互式 I/O——agent 用 `run_command` 逐行调用即可。
+
 输出写入 `2_extract/r1-explicit/<shard_id>.jsonl`。
+完成后校验：
 ```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-jsonl --file <path> --workdir .srs_formalizer
 ```
-备选（一次性注入）：
+备选（一次性注入，不推荐）：
 ```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-R1.md --shard-id <shard_id> --workdir .srs_formalizer
 ```
@@ -46,9 +60,12 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-architecture --work
 ```
 
 ### S2.3：R2 隐式需求推导
-基于 R1 + **架构（Arch-1）**，对每个分片（推荐逐行提取）：
+基于 R1 + **架构（Arch-1）**，对每个分片使用 guided-extract（同 S2.1 的两步模式）：
 ```bash
+# Step 1: 获取 guided prompt
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract --template prompts/executor-R2.md --shard-id <shard_id> --type r2 --workdir .srs_formalizer
+# Step 2: 逐行处理
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract --line '<json>' --shard-id <shard_id> --type r2 --workdir .srs_formalizer
 ```
 备选一次性注入：
 ```bash
@@ -70,9 +87,12 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-architecture --work
 ```
 
 ### S2.5：R3 关系推导-1
-基于 R1 + R2 + **架构（Arch-2）**（推荐逐行提取）：
+基于 R1 + R2 + **架构（Arch-2）**，使用 guided-extract（同 S2.1 的两步模式）：
 ```bash
+# Step 1: 获取 guided prompt
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract --template prompts/executor-R3.md --shard-id <shard_id> --type r3 --workdir .srs_formalizer
+# Step 2: 逐行处理
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract --line '<json>' --shard-id <shard_id> --type r3 --workdir .srs_formalizer
 ```
 备选一次性注入：
 ```bash

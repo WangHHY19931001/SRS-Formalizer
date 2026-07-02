@@ -2,6 +2,10 @@
 
 ## [0.5.2] - 2026-07-02
 
+### Added
+
+- `guided-extract --line '<json>'` 模式：单次 CLI 调用处理一行 JSON，校验通过则追加到输出文件，返回 OK/ERR/DONE。agent 用 `run_command` 即可逐行调用，无需交互式 I/O。
+
 ### Fixed
 
 - `index.ts` validate-tla 和 validate-lean 命令使用未定义变量导致崩溃，修复为与其他 27 个命令一致的模式
