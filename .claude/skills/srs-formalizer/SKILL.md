@@ -21,6 +21,7 @@ metadata:
   post_conditions:
     - "所有产物写入 .srs_formalizer/ 工作目录"
     - "verify-gate FINAL 全部通过"
+    - "cross-graph-report.json 全部 10 个根本问题可回答"
     - "convergence-log.jsonl 记录迭代历史"
   permissions:
     - kind: filesystem
@@ -215,6 +216,29 @@ TLA+ 使用内置 `tla2tools-1.7.4.jar`（`tools/` 目录）。仅需 Java（不
 | Linux x86_64 | ✅ |
 | macOS ARM64 | ✅ |
 | Windows | ❌ 禁止（使用 WSL2） |
+
+安装后执行 `lake exe cache get` 下载 mathlib4 编译缓存（避免从源码编译）。
+
+Lean 4 必须使用拆分证明四步法（骨架→拆分→递归至0 sorry），详见 `references/lean4-coding-guide.md`。
+
+### S6 跨图一致性验证（10 个根本问题）
+
+S6 收敛循环验证全部图谱是否可联合回答 10 个根本问题（详见 `lib/cross-graph-verifier.ts`）：
+
+| # | 问题 | 联合图谱 |
+|:--:|------|------|
+| Q1 | 它是什么？（本质定义、核心定位） | 需求 + 系统架构 |
+| Q2 | 它做什么？（核心功能、主要作用） | 需求 + 行为 |
+| Q3 | 它能做什么？（具体能力、应用场景） | 需求 + 行为 + TLA+ |
+| Q4 | 它为什么可以这样？（技术原理、论文URL、开源URL，含 Lean 4 建模） | Lean + 需求 + 联网搜索 |
+| Q5 | 能不能和其他软件/工具联合使用？ | 系统架构 + TLA+ |
+| Q6 | 它的内部行为是怎样的（TLA+ 多层子系统建模） | TLA+ + 系统架构 |
+| Q7 | 它与其他系统如何交互（BDD+TLA+ 联合建模） | 行为 + TLA+ |
+| Q8 | 它与外部如何交互（BDD+TLA+ 联合建模） | 行为 + TLA+ + 系统架构 |
+| Q9 | 它的工作边界是什么（联合建模+边界条件） | 行为 + TLA+ + 系统架构 |
+| Q10 | 它的兜底方案是什么（降级/回滚/恢复） | 需求 + 行为 + 系统架构 |
+
+不可回答 → 回退对应阶段修复。≥3 次未收敛 → 苏格拉底拷问（联网搜索 + 可选项 + 推荐）+ 人类决策。
 
 ## 核心原则
 

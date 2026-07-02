@@ -91,6 +91,7 @@ unzip srs-formalizer-v0.5.1.zip -d /your-project/
 
 | 版本 | 日期 | 关键变更 |
 |------|------|---------|
+| **0.5.2** | 2026-07-02 | TLA+ 内置 JAR + 严格模式（-deadlock/禁止黑洞/奇迹/无限状态）、Lean 4 拆分证明四步法 + mathlib4 缓存、gherkin-lint BDD 严格模式（20 条规则）、S6 跨图一致性验证（10 个根本问题）、validate-tla/validate-lean 命令、Windows 平台限制 |
 | **0.5.1** | 2026-07-02 | 50-probe 重写、TLA+/Lean 编码指南、递归分片(≤200行)、术语表并行提取、五层图谱体系、CLI 毒值防护、S6 收敛循环 |
 | **0.5.0** | 2026-07-01 | 分片索引化重构——`ShardEntry.locator` 格式 `{file_abspath}-{start}-{end}-{chunk_id}`，移除 `1_shard/` 目录，HTML 格式保留，`inject-prompt --shard-id` 自动解析 |
 | **0.4.0** | 2026-07-01 | SkCC 方法论集成——`compile` 命令、SkIR 中间表示、Anti-Skill 安全注入（7 条规则）、Claude XML + Generic MD 双发射器 |
@@ -128,9 +129,15 @@ unzip srs-formalizer-v0.5.1.zip -d /your-project/
 | `agent-integration-guide.md` | 安装 | Agent 多平台集成差异参考（Cline / Roo Code / GenAI / ...） |
 | `capability-adaptation.md` | S0 | LLM 能力分级适配方案——根据能力探测结果调整行为 |
 | `tlaplus-coding-guide.md` | S5 | TLA+ 编码指南（S5 TLA+ 触发时加载给子代理） |
-| `lean4-coding-guide.md` | S5 | Lean 4 编码指南（S5 Lean 证明触发时加载给子代理） |
+| `lean4-coding-guide.md` | S5 | Lean 4 编码指南（拆分证明四步法 + mathlib4 缓存，S5 Lean 证明触发时加载给子代理） |
+| `gherkin-lint-guide.md` | S4 | Gherkin Lint 参考指南（严格模式配置 + 规则说明，S4 BDD 校验时加载） |
 
 ### `templates/`（产出模板）
+
+| 文件 / 目录 | 用途 |
+|-------------|------|
+| `.gherkin-lintrc` | srs-formalizer 推荐 BDD 校验配置 |
+| `.gherkin-lintrc-strict` | 严格模式配置（全部 20 条规则 + 禁止 GAP/PLACEHOLDER/UNDEFINED） |
 
 | 文件 / 目录 | 用途 |
 |-------------|------|
