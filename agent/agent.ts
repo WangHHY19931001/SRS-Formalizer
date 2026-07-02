@@ -111,34 +111,44 @@ export async function createAgent(config: AgentConfig): Promise<{
   const id = `${config.role}-${Date.now()}-${++agentIdCounter}`;
   const llmConfig = loadLlmConfig(config.configPath);
 
-  // Qwen-compatible: strip file content blocks before API call
-  class QwenCompatibleChatOpenAI extends ChatOpenAI {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    override async invoke(input: any, options?: any): Promise<any> {
-      const messages: BaseMessage[] = Array.isArray(input) ? input : [input];
-      const sanitized = messages.map((msg) => {
-        const raw = msg as unknown as { content: unknown };
-        const content = raw.content;
-        if (!Array.isArray(content)) return msg;
-        const cleaned = content.map((block: Record<string, unknown>) => {
-          if (block.type === "file") {
-            const name =
-              (block as { file?: { name?: string } }).file?.name || "unknown";
-            return { type: "text", text: `[File: ${name}]` };
-          }
-          return block;
-        });
-        return new HumanMessage({ content: cleaned as Array<{ type: string; text: string }> });
-      });
-      return super.invoke(sanitized, options);
+  // Qwen-compatible: strip file content blocks from all messages.
+  // Proxy intercepts ALL method calls (invoke, stream, _generate, etc.)
+  // because deepagents may call internal methods that bypass invoke().
+  function stripFileBlocks(obj: unknown): unknown {
+    if (!obj || typeof obj !== "object") return obj;
+    if (Array.isArray(obj)) return obj.map(stripFileBlocks);
+    const o = obj as Record<string, unknown>;
+    if (o.type === "file") {
+      const name = (o as { file?: { name?: string } }).file?.name || "file";
+      return { type: "text", text: `[${name}]` };
     }
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(o)) {
+      result[key] = stripFileBlocks(o[key]);
+    }
+    return result;
   }
 
-  const llm = new QwenCompatibleChatOpenAI({
+  const rawLlm = new ChatOpenAI({
     model: llmConfig.name,
     temperature: 0.1,
     configuration: { baseURL: llmConfig.baseURL, apiKey: llmConfig.key },
   });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const llm = new Proxy(rawLlm, {
+    get(target, prop, _receiver) {
+      const orig = (target as unknown as Record<string, unknown>)[prop as string];
+      if (typeof orig === "function") {
+        return (...args: unknown[]) => {
+          // Strip file blocks from all arguments (messages are in args)
+          const clean = args.map((a) => stripFileBlocks(a));
+          return (orig as (...a: unknown[]) => unknown).apply(target, clean);
+        };
+      }
+      return orig;
+    },
+  }) as unknown as ChatOpenAI;
 
   // ===================== MCP Auto-Registration =====================
 
