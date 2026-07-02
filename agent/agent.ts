@@ -16,7 +16,6 @@
  */
 
 import { createDeepAgent } from "deepagents";
-import type { SubAgent } from "deepagents";
 import { ChatOpenAI } from "@langchain/openai";
 import { BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
@@ -204,36 +203,6 @@ export async function createAgent(config: AgentConfig): Promise<{
     config.workDir || process.env.WORK_DIR,
   );
 
-  // Specialized sub-agents for srs-formalizer pipeline stages.
-  // Each has isolated context, independent tools, and file-based handoff.
-  // They do NOT receive the task tool (no recursive delegation).
-  const subagents: SubAgent[] = [
-    {
-      name: "extractor",
-      description:
-        "需求提取子代理。从 SRS 分片中逐行提取需求 JSONL，使用 guided-extract --line 模式。",
-      systemPrompt:
-        "你是需求提取器。对每个分片：获取 guided_prompt → 逐行输出 JSON → 用 run_command 调用 guided-extract --line 校验追加。完成后报告产物路径。",
-      tools: [runCommandTool],
-    },
-    {
-      name: "verifier",
-      description:
-        "校验子代理。验证 JSONL/BDD/Cypher 产物格式，运行 validate-* 命令，报告不通过的记录。",
-      systemPrompt:
-        "你是校验器。运行对应的 validate-* CLI 命令检查产物格式。列出所有不通过的记录及原因。不要修改文件，只报告问题。",
-      tools: [runCommandTool],
-    },
-    {
-      name: "researcher",
-      description:
-        "研究子代理。联网搜索技术原理、论文、开源实现，为 S6 收敛循环提供事实依据。",
-      systemPrompt:
-        "你是研究员。联网搜索相关技术原理、论文 URL、开源实现。产出结构化的研究摘要。",
-      tools: [webSearchTool, httpRequestTool, runCommandTool],
-    },
-  ];
-
   const agent = createDeepAgent({
     model: llm,
     systemPrompt,
@@ -245,7 +214,6 @@ export async function createAgent(config: AgentConfig): Promise<{
       mcpCallTool,
       ...mcpTools,
     ],
-    subagents,
   });
 
   // ===================== Trace Callback =====================
