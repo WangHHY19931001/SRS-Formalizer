@@ -138,12 +138,12 @@ export async function createAgent(config: AgentConfig): Promise<{
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const LLM_METHODS = new Set(["invoke", "stream"]);
   const llm = new Proxy(rawLlm, {
     get(target, prop, _receiver) {
       const orig = (target as unknown as Record<string, unknown>)[prop as string];
-      if (typeof orig === "function") {
+      if (typeof orig === "function" && LLM_METHODS.has(prop as string)) {
         return (...args: unknown[]) => {
-          // Strip file blocks from all arguments (messages are in args)
           const clean = args.map((a) => stripFileBlocks(a));
           return (orig as (...a: unknown[]) => unknown).apply(target, clean);
         };
