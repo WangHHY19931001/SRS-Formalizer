@@ -24,6 +24,7 @@ Commands:
   build-architecture Build architecture graph from architecture JSONL files
   build-behavior-graph Build system behavior graph from BDD feature files
   build-tla-graph    Build system interaction graph from TLA+ specs
+  build-lean-graph   Build proof dependency graph from Lean 4 proofs
   validate-architecture Validate architecture JSONL records (6 checks)
   validate-cypher   Validate .cypher script file (4 checks)
   validate-glossary Validate glossary JSON file (8 checks + gate)
@@ -160,6 +161,12 @@ async function main(): Promise<void> {
     case 'build-tla-graph': {
       const { main: buildTlaMain } = await import('./commands/build-tla-graph.js');
       const result = await buildTlaMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'build-lean-graph': {
+      const { main: buildLeanMain } = await import('./commands/build-lean-graph.js');
+      const result = await buildLeanMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }

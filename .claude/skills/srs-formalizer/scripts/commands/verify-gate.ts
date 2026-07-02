@@ -483,7 +483,6 @@ function checkBehaviorGraphExists(workDir: string): CheckResult {
 function checkTlaGraphExists(workDir: string): CheckResult {
   const graphPath = path.join(workDir, '5_formal', 'tla-interaction-graph.json');
   const cypherPath = path.join(workDir, '6_outputs', 'knowledge_graph', 'tla-interaction.cypher');
-  // Only applicable if TLA+ specs were generated
   const specsDir = path.join(workDir, '5_formal', 'specs');
   const hasTlaSpecs = fs.existsSync(specsDir) && fs.readdirSync(specsDir).some(f => f.endsWith('.tla'));
 
@@ -506,6 +505,34 @@ function checkTlaGraphExists(workDir: string): CheckResult {
   }
   const missing = [!hasGraph && 'tla-interaction-graph.json', !hasCypher && 'tla-interaction.cypher'].filter(Boolean);
   return { name: 'TLA interaction graph exists', passed: false, detail: `Missing: ${missing.join(', ')}` };
+}
+
+function checkLeanGraphExists(workDir: string): CheckResult {
+  const graphPath = path.join(workDir, '5_formal', 'lean-proof-graph.json');
+  const cypherPath = path.join(workDir, '6_outputs', 'knowledge_graph', 'lean-proof.cypher');
+  const proofsDir = path.join(workDir, '5_formal', 'proofs');
+  const hasLeanProofs = fs.existsSync(proofsDir) && fs.readdirSync(proofsDir).some(f => f.endsWith('.lean'));
+
+  if (!hasLeanProofs) {
+    return { name: 'Lean proof graph exists', passed: true, detail: 'N/A (Lean 4 not triggered)' };
+  }
+
+  const hasGraph = fs.existsSync(graphPath);
+  const hasCypher = fs.existsSync(cypherPath);
+  if (hasGraph && hasCypher) {
+    try {
+      const g = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+      const nodes = g.nodes?.length ?? 0;
+      const edges = g.edges?.length ?? 0;
+      const depth = g.metadata?.max_proof_depth ?? 0;
+      const axiomWarn = g.metadata?.axiom_count > 0 ? ` ⚠ ${g.metadata.axiom_count} axioms` : '';
+      return { name: 'Lean proof graph exists', passed: true, detail: `${nodes} nodes, ${edges} edges, depth ${depth}${axiomWarn}` };
+    } catch {
+      return { name: 'Lean proof graph exists', passed: false, detail: 'Corrupt JSON' };
+    }
+  }
+  const missing = [!hasGraph && 'lean-proof-graph.json', !hasCypher && 'lean-proof.cypher'].filter(Boolean);
+  return { name: 'Lean proof graph exists', passed: false, detail: `Missing: ${missing.join(', ')}` };
 }
 
 /** R3: 验证架构 JSONL 文件存在且非空 */
@@ -640,6 +667,7 @@ export async function main(args: string[]): Promise<CliResult> {
     allChecks.push(checkMindmapModules(workDir));
     allChecks.push(checkBehaviorGraphExists(workDir));
     allChecks.push(checkTlaGraphExists(workDir));
+    allChecks.push(checkLeanGraphExists(workDir));
   }
 
   const errors = allChecks.filter(c => !c.passed).map(c => c.detail ?? c.name);

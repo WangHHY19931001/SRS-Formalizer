@@ -27,7 +27,11 @@
 3. lake build 验证
 4. 失败 → debug-lean 子代理定位根因
 5. 递归至无 sorry 残留
-6. 写入 PROOFS.md 索引
+6. 构建算法序列图谱：
+   npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-lean-graph --workdir .srs_formalizer
+   产物: 5_formal/lean-proof-graph.json + 6_outputs/knowledge_graph/lean-proof.cypher
+   检查: axiom_count = 0, sorry_count = 0
+7. 写入 PROOFS.md 索引
 
 ## 约束
 - 工具链缺失时优雅降级（标记不可用而非阻塞）
