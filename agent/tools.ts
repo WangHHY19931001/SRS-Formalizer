@@ -20,6 +20,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execSync } from 'node:child_process';
+import { registerMcpServer, callMcpTool } from './mcp.js';
 
 const SCRIPTS_DIR = path.resolve('.claude/skills/srs-formalizer/scripts');
 const WEB_SEARCH_URL = process.env.WEB_SEARCH_URL || 'http://localhost:3000';
@@ -119,6 +120,40 @@ export const TOOL_DEFINITIONS = [
           engine: { type: 'string', enum: ['duckduckgo', 'bing', 'baidu'], description: '搜索引擎（默认 duckduckgo）' },
         },
         required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'http_request',
+      description: '发送 HTTP 请求（GET/POST）并获取响应。用于调用外部 API、读取网页内容、访问 REST 服务。',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: '请求 URL' },
+          method: { type: 'string', enum: ['GET', 'POST'], description: 'HTTP 方法（默认 GET）' },
+          headers: { type: 'string', description: 'JSON 格式的请求头，如 \'{"Content-Type":"application/json"}\'' },
+          body: { type: 'string', description: '请求体（POST 时使用）' },
+        },
+        required: ['url'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'register_mcp_server',
+      description: '动态注册 MCP (Model Context Protocol) 服务器。支持 stdio（本地进程）和 HTTP 两种传输方式。注册后即可调用该服务器提供的工具。',
+      parameters: {
+        type: 'object',
+        properties: {
+          transport: { type: 'string', enum: ['stdio', 'http'], description: '传输方式' },
+          command: { type: 'string', description: 'stdio: 启动命令，如 "npx @modelcontextprotocol/server-brave-search"' },
+          args: { type: 'string', description: 'stdio: 命令行参数（空格分隔），如 "--api-key xxx"' },
+          url: { type: 'string', description: 'http: MCP 服务器 URL，如 "http://localhost:3000/mcp"' },
+        },
+        required: ['transport'],
       },
     },
   },
@@ -280,7 +315,39 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       }
     }
 
-    // 6. web_search
+    // 6a. http_request
+    case 'http_request': {
+      const url = args.url as string;
+      const method = (args.method as string) || 'GET';
+      let headers: Record<string, string> = { 'User-Agent': 'srs-formalizer-debug-agent/1.0' };
+      try {
+        if (args.headers) headers = { ...headers, ...JSON.parse(args.headers as string) };
+        const opts: RequestInit = { method, headers, signal: AbortSignal.timeout(30000) };
+        if (method === 'POST' && args.body) opts.body = args.body as string;
+        const resp = await fetch(url, opts);
+        const text = await resp.text();
+        return `HTTP ${resp.status}: ${text.slice(0, 2000)}`;
+      } catch (e) { return `HTTP ERROR: ${(e as Error).message}`; }
+    }
+
+    // 6b. register_mcp_server
+    case 'register_mcp_server': {
+      const transport = args.transport as string;
+      try {
+        const cmd = args.command as string | undefined;
+        const argsStr = args.args as string | undefined;
+        const url = args.url as string | undefined;
+        const toolNames = await registerMcpServer({
+          transport: transport as 'stdio' | 'http',
+          command: cmd,
+          args: argsStr ? argsStr.split(/\s+/) : undefined,
+          url,
+        });
+        return `OK: registered ${toolNames.length} MCP tools: ${toolNames.join(', ')}`;
+      } catch (e) { return `MCP ERROR: ${(e as Error).message}`; }
+    }
+
+    // 7. web_search
     case 'web_search': {
       const query = encodeURIComponent(args.query as string);
       const maxResults = (args.max_results as number) || 5;
