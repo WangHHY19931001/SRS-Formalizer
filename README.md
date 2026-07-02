@@ -144,18 +144,82 @@ unzip srs-formalizer-v0.5.1.zip -d /your-project/
 | `RESEARCH_LOG.md.template` | 深度研究日志模板 |
 | `checklists/` | 7 份阶段验收 CHECKLIST（S0 发现 → S6 验收闸门），`init` 时按阶段复制到 `.srs_formalizer/` |
 
-## S5 形式化质量保障
+## S4 / S5 形式化质量保障（严格模式）
 
-S5（形式化）阶段在触发条件满足时自动启用，依赖 **确定性工具链** 对生成的 TLA+ 规约和 Lean 4 证明进行机械性检查，而非依赖 LLM 评审。
+### S4 BDD（gherkin-lint 严格模式）
 
-| 机制 | 工具 | 作用 |
-|------|------|------|
-| **TLA+ 模型检测** | SANY 解析器 + TLC 模型检测器 | 解析 TLA+ 规约语法，运行模型检测验证不变量和活性 |
-| **Lean 4 证明验证** | `lake build`（Lean 构建系统） | 编译 Lean 证明文件，验证定理证明的正确性 |
-| **能力探测** | `capability-probe` CLI 命令 | S0 阶段出题判分（8 维度 50 题），判断当前 LLM 是否具备 TLA+/Lean 所需的推理能力，避免因能力不足导致无效形式化 |
-| **错误诊断** | `prompts/debug-tlc.md`、`prompts/debug-lean.md` | 子代理读取工具错误输出进行诊断修复 |
+BDD 校验使用 `gherkin-lint`，默认启用严格模式（全部 20 条可配置规则）：
 
-**工作流**：S0 阶段通过 `capability-probe` 探测 LLM 在 `logical_reasoning`、`state_machine_modeling`、`theorem_proving` 等维度的能力分数；S5 阶段由子代理生成 `.tla` / `.lean` 文件后，编排者调用 SANY/TLC 或 `lake build` 进行编译验证，不通过则进入 `systematic-debugging` 循环修复。
+- **禁止 GAP**：检测 `GAP`、`TODO`、`FIXME`、`TBD` 标记
+- **禁止 PLACEHOLDER**：检测 `<THEN_PLACEHOLDER>` 等占位符
+- **禁止未定义**：检测 `UNDEFINED`、`待定`、`未定义`、`待实现`
+- **强制逻辑顺序**：Given → When → Then → And
+
+配置文件：`templates/.gherkin-lintrc-strict`
+
+### S5 TLA+（内置 JAR + 严格模式）
+
+TLA+ 使用技能内置 `tools/tla2tools-1.7.4.jar`（仅需 Java，不限 OS）。
+首次运行时自动尝试下载最新版；下载失败则使用内置版。
+
+```bash
+# SANY 语法解析 + TLC 模型检测（严格模式）
+npx tsx index.ts validate-tla --file <file>.tla --workdir .srs_formalizer
+```
+
+严格模式检查：
+- **禁止死锁（黑洞）**：`-deadlock` 标志
+- **禁止无限状态**：状态空间必须有限
+- **禁止奇迹**：不允许不可能的状态转换
+- **禁止未定义**：TypeOK 不变式强制执行
+- **禁止活锁（停滞）**：Stuttering 检测
+
+### S5 Lean 4（平台限制）
+
+| 平台 | 支持 |
+|------|:----:|
+| Linux x86_64 | ✅ |
+| macOS ARM64 | ✅ |
+| Windows | ❌ 禁止（引导使用 WSL2） |
+
+```bash
+# lake build 编译验证
+npx tsx index.ts validate-lean --file <file>.lean
+```
+
+### 能力探测
+
+S0 阶段通过 `capability-probe` 探测 LLM 在 `logical_reasoning`、`state_machine_modeling`、`theorem_proving` 等维度的能力分数，决定 S5 是否触发。
+
+## S6 收敛循环与跨图一致性验证
+
+S6 阶段在全部图谱构建完成后，验证 **10 个根本问题** 是否可被联合回答：
+
+| # | 问题 | 联合图谱 |
+|:--:|------|------|
+| Q1 | 它是什么？（本质定义、核心定位） | 需求 + 系统架构 |
+| Q2 | 它做什么？（核心功能、主要作用） | 需求 + 行为 |
+| Q3 | 它能做什么？（具体能力、应用场景） | 需求 + 行为 + TLA+ |
+| Q4 | 它为什么可以这样？（技术原理、论文URL、开源URL，含 Lean 4 建模） | Lean + 需求 + 联网搜索 |
+| Q5 | 能不能和其他软件/工具联合使用？ | 系统架构 + TLA+ |
+| Q6 | 它的内部行为是怎样的（TLA+ 多层子系统建模） | TLA+ + 系统架构 |
+| Q7 | 它与其他系统如何交互（BDD+TLA+ 联合建模） | 行为 + TLA+ |
+| Q8 | 它与外部如何交互（BDD+TLA+ 联合建模） | 行为 + TLA+ + 系统架构 |
+| Q9 | 它的工作边界是什么（联合建模+边界条件） | 行为 + TLA+ + 系统架构 |
+| Q10 | 它的兜底方案是什么（降级/回滚/恢复） | 需求 + 行为 + 系统架构 |
+
+```bash
+npx tsx index.ts build-system-architecture --workdir .srs_formalizer --iteration <N>
+```
+
+产物：`6_outputs/cross-graph-report.json` + `convergence-log.jsonl`
+
+**不一致处理**：回退对应阶段修复 → 重新验证（≤5 次迭代）。≥3 次未收敛 → 苏格拉底拷问模式：
+- 联网搜索确认事实（论文、开源实现、技术文档）
+- 为每个缺口生成 3-4 个可选项 + 推荐项
+- 通过 `STATE.md` 向人类提问
+
+**一致定义**：全部 10 个问题可回答 + 跨层边 > 0 + 高置信度 ≥ 7/10 + verify-gate FINAL 通过。
 
 ## 目录结构
 
@@ -169,9 +233,10 @@ S5（形式化）阶段在触发条件满足时自动启用，依赖 **确定性
 │   ├── lib/              # 库模块（graph, jsonl, bdd, anti-skill, emitters...）
 │   ├── types/            # 类型定义（JsonlRecord, ShardEntry, SkIR...）
 │   └── __tests__/        # 255 个测试
+├── tools/                # 内置工具（tla2tools-1.7.4.jar）
 ├── prompts/              # LLM 提示词（编排者 + 执行者 + 校验者）
-├── references/           # 参考文档
-├── templates/            # 产出模板 + CHECKLIST
+├── references/           # 参考文档（含 gherkin-lint / TLA+ / Lean 4 编码指南）
+├── templates/            # 产出模板 + CHECKLIST + .gherkin-lintrc-strict
 └── tests/                # 验收用例 + Golden 文件
 ```
 

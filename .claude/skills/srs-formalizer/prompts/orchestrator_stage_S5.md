@@ -37,21 +37,74 @@ TLA+ 工具：技能内置 `tools/tla2tools-1.7.4.jar`，仅需 Java（不限 OS
 **平台限制**：❌ Windows 禁止使用。✅ Linux x86_64 / macOS ARM64。
 详细安装指南：`references/lean4-coding-guide.md`。
 
-1. LLM 子代理编写证明骨架（带 sorry）
-2. 拆分每个 sorry 为独立 .lean 文件
-3. **验证**：
-   ```bash
-   npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-lean --file <file>.lean
+### 拆分证明四步法（强制遵循）
+
+**Step 1：编写证明骨架（带 sorry）**
+LLM 子代理编写 theorem 声明和证明策略框架，用 `sorry` 标记未完成部分。
+
+**Step 2：拆分 sorry 为独立文件**
+将每个 `sorry` 变为独立的 `.lean` 文件进行证明。每个 lemma 独立文件。
+
+**Step 3：无法单文件则继续拆分**
+如果一个 theorem/lemma 无法在单个文件中搞定，拆分为多个文件分别进行 theorem/lemma 证明，然后 `import`。
+
+**Step 4：递归循环**
+如果还有 `sorry`，回到 Step 1 继续拆分。递归至 0 个 sorry。
+
+### 硬门禁（全部必须通过）
+
+| # | 检查 | 命令 |
+|:--:|------|------|
+| 1 | 0 sorry | `grep -r "sorry" *.lean` → 空 |
+| 2 | 0 axiom | `grep -r "axiom" *.lean` → 空 |
+| 3 | 0 warnings | lake build 输出无 warning |
+| 4 | lake build 通过 | exit 0 |
+| 5 | theorem + 完整 proof | 每个声明含完整 tactic proof |
+| 6 | 每个 lemma 独立文件 | 无 >100 行单体证明 |
+
+允许使用 mathlib4（最新版）。
+
+### SRS 不一致升级流程
+
+如果符合 SRS 设计但仍然有问题（逻辑矛盾、不可证明、类型不匹配）：
+1. **不修改 Lean 代码绕过问题**
+2. 写入 `SRS_PATCHES.md`，格式：
    ```
-4. 失败 → debug-lean 子代理定位根因
-5. 递归至无 sorry 残留
-6. 构建算法序列图谱：
-   ```bash
-   npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-lean-graph --workdir .srs_formalizer
+   ## SRS 不一致报告
+   - 矛盾: <描述>
+   - SRS 引用: <章节>
+   - 可选项:
+     A. <方案A> — 推荐 ✓
+     B. <方案B>
+     C. <方案C>
+   - 事实依据: <联网搜索的论文/开源 URL>
    ```
-   产物: `5_formal/lean-proof-graph.json` + `6_outputs/knowledge_graph/lean-proof.cypher`
-   检查: `axiom_count = 0, sorry_count = 0`
-7. 写入 PROOFS.md 索引
+3. **允许联网搜索深度调研**，基于事实工作
+4. 等待人类确认后按确认方案修改
+
+### 验证
+
+```bash
+# lake build 验证
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-lean --file <file>.lean
+
+# 构建算法序列图谱
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-lean-graph --workdir .srs_formalizer
+```
+产物: `5_formal/lean-proof-graph.json` + `6_outputs/knowledge_graph/lean-proof.cypher`
+
+### 质量标准
+
+- ✅ 允许使用 mathlib4（最新版）
+- ✅ 每个 lemma ≤100 行（独立文件）
+- ✅ 策略级联：`rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → aesop`
+- ❌ 禁止占位实现、简化实现、错误实现
+- ❌ 禁止 `#eval` 替代 proof
+- ❌ 禁止 `import Mathlib`（全量导入）
+- ❌ 算法实现错误、不完整实现
+- ✅ 每个修改后立即 `lake build`，不积攒
+
+写入 PROOFS.md 索引。
 
 ## 约束
 - 工具链缺失时优雅降级（标记不可用而非阻塞）

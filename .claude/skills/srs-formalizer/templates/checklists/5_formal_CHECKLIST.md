@@ -20,9 +20,22 @@
 ## Lean 4（条件触发）
 - [ ] 工具链就绪：`lake --version` 通过（✅ Linux x86_64 / macOS ARM64）
 - [ ] `validate-lean --file <file>.lean` 通过
-- [ ] lake build 通过：无错误、无告警
-- [ ] **0 sorry 检查**：证明中无未完成的 sorry
-- [ ] **0 axiom 检查**：证明中无未证明的公理
-- [ ] 证明骨架 → 拆分 sorry → 递归至无 sorry
+- [ ] **拆分证明方法确认**：
+  - [ ] Step 1: 编写证明骨架（带 sorry）✅
+  - [ ] Step 2: 每个 sorry 拆分为独立 lemma 文件 ✅
+  - [ ] Step 3: 无法单文件则继续拆分子文件，用 `import` 组合 ✅
+  - [ ] Step 4: 递归至 0 个 sorry ✅
+- [ ] **硬门禁**：
+  - [ ] 0 sorry（`grep -r "sorry" *.lean` 为空）
+  - [ ] 0 axiom（`grep -r "axiom" *.lean` 为空）
+  - [ ] 0 warnings（lake build 输出无 warning）
+  - [ ] lake build 通过（exit 0）
+  - [ ] 使用 `theorem` + 完整 proof（非 `#eval`）
+  - [ ] 每个 lemma 独立文件（无 >100 行单体证明）
+- [ ] 允许使用 mathlib4（最新版）
+- [ ] **SRS 一致性**：
+  - [ ] 符合 SRS 设计
+  - [ ] 如有矛盾 → 已报告至 `SRS_PATCHES.md`（含可选项 + 事实依据）
+  - [ ] 已等待人类确认
 - [ ] build-lean-graph PASS → `5_formal/lean-proof-graph.json`
 - [ ] PROOFS.md 索引已更新

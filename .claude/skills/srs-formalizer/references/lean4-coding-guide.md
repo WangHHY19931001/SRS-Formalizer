@@ -23,11 +23,9 @@ lake update
 ### 0.2 macOS ARM64 (Apple Silicon)
 
 ```bash
-# 安装 elan + lake
 curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
 source ~/.zshrc
 
-# 创建项目并获取最新 mathlib4
 mkdir ~/lean4-project && cd ~/lean4-project
 lake init
 echo 'require mathlib from git "https://github.com/leanprover-community/mathlib4.git"' >> lakefile.lean
@@ -37,42 +35,28 @@ lake update
 ### 0.3 验证安装
 
 ```bash
-lean --version    # 应显示 Lean 4.x
-lake --version    # 应显示 Lake 4.x
+lean --version    # Lean 4.x
+lake --version    # Lake 4.x
 ```
 
 ### 0.4 平台限制
 
 | 平台 | 状态 | 说明 |
 |------|:----:|------|
-| Linux x86_64 | ✅ | 完整支持（elan + lake + mathlib4） |
-| macOS ARM64 (Apple Silicon) | ✅ | 完整支持（elan + lake + mathlib4） |
-| macOS x86_64 (Intel) | ⚠️ | 可用但非推荐配置 |
-| Windows | ❌ | **禁止使用**。Lean 4 没有 Windows 上便于使用的发行版。请使用 WSL2 (Linux x86_64) |
-
-### 0.5 离线 / 网络受限环境
-
-使用技能内置的 elan 离线安装包：
-
-```bash
-# Linux x86_64
-tar -xzf tools/lean-4-linux-x86_64.tar.gz -C ~/.elan/
-export PATH="$HOME/.elan/bin:$PATH"
-
-# macOS ARM64
-tar -xzf tools/lean-4-macos-arm64.tar.gz -C ~/.elan/
-export PATH="$HOME/.elan/bin:$PATH"
-```
-
-> **注意**: 预置离线包为基础工具链。首次使用 `lake update` 获取最新 mathlib4 仍需网络。
+| Linux x86_64 | ✅ | 完整支持 |
+| macOS ARM64 | ✅ | 完整支持 |
+| macOS x86_64 | ⚠️ | 可用但非推荐 |
+| Windows | ❌ | 禁止使用，请使用 WSL2 |
 
 ---
 
-## 1. 拆分证明方法论
+## 1. 拆分证明方法论（强制遵循）
 
-### 1.1 Step 1: 编写证明骨架
+Lean 4 必须使用拆分建模方法。以下流程 **必须严格按序执行**。
 
-第一步编写证明骨架（带 `sorry`），清晰标注证明策略。
+### 1.1 Step 1：编写证明骨架（带 sorry）
+
+第一步编写证明骨架，用 `sorry` 标记未完成的部分，清晰标注证明策略。
 
 ```lean4
 theorem main_property (n : ℕ) : n * 2 = n + n := by
@@ -83,99 +67,140 @@ theorem main_property (n : ℕ) : n * 2 = n + n := by
     sorry
 ```
 
-### 1.2 Step 2: 拆分 sorry 为独立文件
+### 1.2 Step 2：拆分 sorry 为独立文件
 
-将每个 `sorry` 变为独立的 `.lean` 文件进行证明。
+将每个 `sorry` 变为独立的 `.lean` 文件进行证明。每个 lemma 应独立文件证明。
 
-### 1.3 Step 3: 无法单文件则继续拆分
+```
+MainTheorem.lean
+├── Lemma_BaseCase.lean      -- sorry ①
+├── Lemma_InductiveStep.lean -- sorry ②
+└── Lemma_Helper.lean        -- sorry ③
+```
 
-如果一个 theorem/lemma 无法在单个文件中证明，拆分为多个文件分别进行 theorem/lemma 证明，然后 `import`。
+### 1.3 Step 3：无法单文件则继续拆分
 
-### 1.4 Step 4: 递归循环
+如果一个 theorem/lemma 无法在单个文件中搞定，拆分为多个文件分别证明，然后 `import`。
 
-如果还有 `sorry`，回到 Step 1 继续拆分。递归至无 `sorry` 残留。
+```lean4
+-- Lemma_InductiveStep.lean
+import Lemma_BaseCase
+import Lemma_Helper
 
-### 1.5 质量标准
+theorem inductive_step (ih : n * 2 = n + n) : (n+1) * 2 = (n+1) + (n+1) := by
+  -- proof using imported lemmas
+  ring
+```
 
-Lean 4 必须通过工具检查。不允许：
-- 算法实现错误
-- 不完整实现
-- `sorry`
-- 告警（warnings）
-- `axiom`
+### 1.4 Step 4：递归循环
 
-允许使用 `mathlib`。必须使用 `theorem` + 完整 proof。每个 lemma 应独立文件证明。
+如果还有 `sorry`，回到 Step 1 继续拆分。递归至 **0 个 sorry**。
 
-### 1.6 实现要求
+### 1.5 拆分阈值
 
-Lean 4 不接受占位实现、简化实现、错误实现。
-
-### 1.7 SRS 一致性
-
-Lean 4 建模必须符合 SRS 的设计。对于符合设计仍然有问题的，需要报告人类，提出可选项对 SRS 进行修正。此部分允许联网搜索深度调研，但必须基于事实工作。产出写入 `SRS_PATCHES.md`。
+- 单文件 > 100 行 → 必须拆分为多个 lemma
+- 单个 `have` 块 > 30 行 → 提取为独立 lemma
+- 单个 proof > 50 行 → 考虑拆分为子 lemma
 
 ---
 
-## 2. 编码最佳实践
+## 2. 质量铁律
 
-### 2.1 四阶段工作流
+### 2.1 硬门禁（全部必须通过，违反即阻断）
 
-**Phase 1: Structure Before Solving** — 提纲先行。用 `have` 声明和带文档的 `sorry` 勾勒证明策略，然后才写 tactic。
+| # | 要求 | 检查方式 |
+|:--:|------|------|
+| 1 | **无 sorry** | `grep -r "sorry" *.lean` → 0 results |
+| 2 | **无 axiom** | `grep -r "axiom" *.lean` → 0 results |
+| 3 | **无 warning** | `lake build 2>&1` → 0 warnings |
+| 4 | **lake build 通过** | exit code 0 |
+| 5 | **必须使用 theorem + 完整 proof** | 每个声明必须为 `theorem`，含完整 tactic proof |
+| 6 | **每个 lemma 独立文件** | 不允许单体证明（>100 行单文件） |
 
-**Phase 2: Helper Lemmas First** — 自下而上构建基础设施。提取可复用组件为独立 lemma。
+### 2.2 绝对禁止
 
-**Phase 3: Incremental Filling** — 一次填一个 `sorry`，每填一个就 `lake build` 验证。
+- ❌ 占位实现（如 `sorry`, `admit`）
+- ❌ 简化实现（如用具体值代替通用类型）
+- ❌ 错误实现（与 SRS 设计矛盾的证明）
+- ❌ 全量导入 `import Mathlib`（只导入实际使用的模块）
+- ❌ 用 `#eval` 替代 `theorem` 证明
 
-**Phase 4: Type Class Management** — synthesis 失败时用 `haveI` / `letI` 添加显式实例。
+### 2.3 允许
 
-### 2.2 策略级联
+- ✅ 使用 mathlib4（最新版）
+- ✅ 使用 `haveI` / `letI` 添加显式实例
+- ✅ 使用 `lean` REPL 验证类型
 
-按以下顺序尝试自动化策略，每个失败后才尝试下一个：
+---
+
+## 3. SRS 一致性与人类升级
+
+### 3.1 正常流程
+
+Lean 4 建模必须符合 SRS 的设计。S5 阶段在已确认的 SRS 需求基础上进行定理证明。
+
+### 3.2 发现 SRS 设计问题
+
+如果建模过程中发现 **符合 SRS 设计但仍然有问题**（如逻辑矛盾、不变量不可证明、类型不匹配等）：
+
+1. **不修改 Lean 代码绕过问题**
+2. **报告人类**，写入 `SRS_PATCHES.md`：
+   ```markdown
+   ## SRS 不一致报告
+   - 发现的矛盾: <描述>
+   - 涉及的 SRS 章节: <引用>
+   - 涉及的文件: <.lean 文件路径>
+   - 可选项:
+     A. <方案A> — 推荐 ✓
+     B. <方案B>
+     C. <方案C>
+   - 事实依据: <联网搜索的论文/开源项目URL>
+   ```
+3. **此部分允许联网搜索深度调研**，但必须基于事实工作
+4. 人类确认后，按照确认的方案修改（可能修改 SRS 或 Lean 证明）
+
+---
+
+## 4. 编码最佳实践
+
+### 4.1 策略级联
 
 ```
 rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → aesop
 ```
 
-### 2.3 have vs let 选择
+每个失败后才尝试下一个。
 
-- `have`：用于命题和证明项（值被"遗忘"——视为证明完成）
-- `let`：用于数据定义（值被保留以供后续引用）
-- 对数据用 `have` 是常见陷阱——丢失了可计算的值
+### 4.2 have vs let
 
-### 2.4 证明结构
+- `have`：命题和证明项（值被"遗忘"）
+- `let`：数据定义（值被保留以供引用）
+- 对数据用 `have` 是常见陷阱
 
-单文件 >100 行 → 必须拆分为多个 lemma。
-`have` 块 >30 行 → 提取为独立 lemma。
-
-### 2.5 mathlib 导入最小化
-
-只导入实际使用的模块。`import Mathlib`（全量导入）禁止。
-
-### 2.6 lake build 流程
+### 4.3 lake build 流程
 
 每次修改后立即 `lake build`，不要积攒多个修改一起编译。
 
 ---
 
-## 3. LLM 常见错误
+## 5. LLM 常见错误
 
-基于 benchflow-ai（AI 定理证明评测框架）、FormalMATH（5560 题，最高 16.5%）和 FormalProofBench（33.5%）的发现：
-
-| # | 错误类型 | 说明 | 规避方法 |
-|---|---------|------|---------|
-| 1 | **单体证明** | >100 行单体 proof 未拆分 | 每个 lemma ≤100 行 |
-| 2 | **sorry 残留增长** | 递归拆分时 sorry 越拆越多 | 每轮 lake build 确认 sorry 计数递减 |
-| 3 | **simulate 未验证** | 使用 `#eval` 模拟而非 `theorem` 证明 | 禁止 `#eval` 替代 proof |
-| 4 | **mathlib 版本不匹配** | 引用当前 mathlib 不存在的 lemma | lake build 报错时检查 mathlib 版本 |
+| # | 错误 | 规避 |
+|---|------|------|
+| 1 | 单体证明 >100 行 | 每个 lemma ≤100 行 |
+| 2 | sorry 越拆越多 | 每轮 lake build 确认 sorry 计数递减 |
+| 3 | `#eval` 替代 proof | 禁止 `#eval`，必须用 `theorem` |
+| 4 | mathlib 版本不匹配 | lake build 报错时检查版本 |
+| 5 | 绕过 SRS 设计问题 | 遇到矛盾立即报告人类，不自行"修正" |
 
 ---
 
-## 4. 检查清单
+## 6. 检查清单
 
-- [ ] lake build 通过？
-- [ ] 0 `sorry`？
-- [ ] 0 `axiom`？
-- [ ] 0 warnings？
-- [ ] 每个 lemma 独立文件？
-- [ ] proof 使用 theorem + 完整 tactic？
-- [ ] 与 SRS 设计一致？
+- [ ] lake build 通过（0 errors）
+- [ ] 0 `sorry`（`grep -r "sorry" *.lean` 为空）
+- [ ] 0 `axiom`（`grep -r "axiom" *.lean` 为空）
+- [ ] 0 warnings
+- [ ] 每个 lemma 独立文件
+- [ ] 使用 `theorem` + 完整 `proof`（非 `#eval`）
+- [ ] 符合 SRS 设计；如有矛盾已报告至 `SRS_PATCHES.md`
