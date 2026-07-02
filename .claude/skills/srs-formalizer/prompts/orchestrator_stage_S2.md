@@ -17,14 +17,19 @@ S2.7 R3 关系推导-2   ──→ 2_extract/r3-relational/ (最终)
 
 ## 执行流程
 
-### S2.1：R1 显式需求提取
-对 `_ctx/shard_index.json` 中每个分片：
+### S2.1：R1 显式需求提取（逐行交互式，推荐）
+对每个分片使用 guided-extract 进行逐行交互式提取：
 ```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-R1.md --shard-id <shard_id> --workdir .srs_formalizer
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract --template prompts/executor-R1.md --shard-id <shard_id> --workdir .srs_formalizer
 ```
+编排者启动交互循环：发送 guided_prompt → LLM 逐行输出 JSON → processLine 校验 → OK 则继续 / ERR 则反馈重试 / DONE 结束。
 输出写入 `2_extract/r1-explicit/<shard_id>.jsonl`。
 ```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-jsonl --file <path> --workdir .srs_formalizer
+```
+备选（一次性注入）：
+```bash
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt --template prompts/executor-R1.md --shard-id <shard_id> --workdir .srs_formalizer
 ```
 
 ### S2.2：初步架构分解

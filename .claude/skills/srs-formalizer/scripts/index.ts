@@ -10,6 +10,7 @@ Commands:
   init               Initialize .srs_formalizer working directory
   manifest           Shard SRS and recognize chapters
   inject-prompt      Inject params into a template and output result
+  guided-extract     Interactive line-by-line JSONL extraction with validation
   validate-jsonl     Validate JSONL file (6 checks)
   build-graph        Build requirement knowledge graph from JSONL files
   analyze-structure  Analyze graph for structural defects
@@ -78,6 +79,12 @@ async function main(): Promise<void> {
     case 'inject-prompt': {
       const { main: injectMain } = await import('./commands/inject-prompt.js');
       const result = await injectMain(args.slice(1));
+      console.log(JSON.stringify(result));
+      process.exit(result.status === 'ok' ? 0 : 1);
+    }
+    case 'guided-extract': {
+      const { main: guidedExtractMain } = await import('./commands/guided-extract.js');
+      const result = await guidedExtractMain(args.slice(1));
       console.log(JSON.stringify(result));
       process.exit(result.status === 'ok' ? 0 : 1);
     }
