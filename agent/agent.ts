@@ -1,44 +1,40 @@
 /**
- * agent.ts — LangGraph-based agent factory
+ * agent.ts — Deep Agent factory powered by deepagentsjs + LangSmith tracing
  *
- * Uses a custom StateGraph with ReAct pattern for full control over:
- * - Tool execution (special handling for spawn_sub_agent, register/unregister)
- * - Termination conditions (LLM can stop by producing text without tool calls)
- * - Context management (auto-compress at thresholds)
+ * Built on createDeepAgent from @langchain/deepagents which provides:
+ *   - Filesystem tools (read_file, write_file, edit_file, ls, glob, grep)
+ *   - Sub-agent delegation (task) with isolated context windows
+ *   - Planning (write_todos) for task breakdown and progress tracking
+ *   - Context management via memory middleware
  *
- * Dynamic tool registry, A2A agent directory, and context-aware tools.
+ * We add:
+ *   - Shell execution (run_command)
+ *   - Web search (web_search) and HTTP requests (http_request)
+ *   - MCP server auto-registration from llm-config.json
+ *   - LangSmith tracing via LangChainTracer
+ *   - Custom system prompt with workDir, WORK_TABOOS, and WORK_RULES
  */
 
-import { StateGraph, MessagesAnnotation } from "@langchain/langgraph";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
+import { createDeepAgent } from "deepagents";
+import { LangChainTracer } from "@langchain/core/tracers/tracer_langchain";
 import { ChatOpenAI } from "@langchain/openai";
-import {
-  HumanMessage,
-  SystemMessage,
-  AIMessage,
-  ToolMessage,
-} from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { StructuredTool } from "@langchain/core/tools";
-import { ToolRegistry } from "./tool-registry.js";
-import { AgentDirectory, type AgentHandle } from "./agent-directory.js";
-import { ContextManager, createContextTools } from "./context.js";
 import {
-  BASE_TOOLS,
-  createSpawnSubAgentTool,
-  createRegisterToolsTool,
-  createUnregisterToolsTool,
+  runCommandTool,
+  webSearchTool,
+  httpRequestTool,
   createMcpRegisterTool,
   createMcpCallTool,
 } from "./tools.js";
 import { loadLlmConfig } from "./llm-config.js";
 import { registerMcpServer, callMcpTool } from "./mcp.js";
-import * as fs from "node:fs";
 
 let agentIdCounter = 0;
 
-// ===================== Dynamic System Prompt =====================
+// ===================== System Prompt =====================
 
 const WORK_TABOOS = [
   "禁止修改 .git 目录和已提交的代码文件",
@@ -50,29 +46,25 @@ const WORK_TABOOS = [
 ];
 
 const WORK_RULES = [
-  "对于 LLM 密集型任务（需求提取、术语表生成、架构分解），必须使用 spawn_sub_agent 分派子代理执行——禁止手动编写 JSONL 或直接生成大量结构化数据",
+  "对于 LLM 密集型任务（需求提取、术语表生成、架构分解），必须使用 task 分派子代理执行——禁止手动编写 JSONL 或直接生成大量结构化数据",
   "提取需求时使用 guided-extract 两步模式：先获取 guided_prompt（--template 模式），再逐行调用 --line 模式处理 LLM 输出的每一行",
   "始终遵循技能 SKILL.md 中的流水线阶段顺序，不要跳步",
 ];
 
 function buildSystemPrompt(
-  toolNames: string[],
-  skillsDir: string,
-  projectRoot: string,
+  skillsDir?: string,
+  projectRoot?: string,
   workDir?: string,
 ): string {
-  const toolList = toolNames.map((n) => `  - ${n}`).join("\n");
-  const taboos = WORK_TABOOS.map((t, i) => `  ${i + 1}. ${t}`).join("\n");
-  const rules = WORK_RULES.map((r, i) => `  ${i + 1}. ${r}`).join("\n");
+  const skillsLine = skillsDir ? `\n当前技能所在目录：${skillsDir}` : "";
+  const projectLine = projectRoot ? `\n当前项目目录：${projectRoot}` : "";
   const workDirLine = workDir
     ? `\n当前技能工作目录：${workDir}（所有 CLI 命令必须用 --workdir ${workDir}，init 除外——init 用 --output ${workDir}）`
     : "";
-  return `你是一个工作 agent，你拥有如下工具：
-${toolList}
+  const taboos = WORK_TABOOS.map((t, i) => `  ${i + 1}. ${t}`).join("\n");
+  const rules = WORK_RULES.map((r, i) => `  ${i + 1}. ${r}`).join("\n");
 
-你被设计为在实际环境中执行工作任务，任务信息由用户提示词说明。
-当前技能所在目录：${skillsDir}
-当前项目目录：${projectRoot}${workDirLine}
+  return `你是一个工作 agent，被设计为在实际环境中执行工作任务。${skillsLine}${projectLine}${workDirLine}
 
 你将尽可能完成用户任务。
 
@@ -88,15 +80,16 @@ ${rules}`;
 export interface AgentConfig {
   configPath: string;
   role: "orchestrator" | "worker";
-  registry?: ToolRegistry;
-  directory?: AgentDirectory;
-  maxTurns?: number;
-  maxContextTokens?: number;
-  logDir?: string;
   skillsDir?: string;
   projectRoot?: string;
   workDir?: string;
   depth?: number;
+}
+
+export interface AgentHandle {
+  id: string;
+  role: string;
+  receive: (message: string, fromId: string) => Promise<string>;
 }
 
 // ===================== createAgent =====================
@@ -113,28 +106,6 @@ export async function createAgent(config: AgentConfig): Promise<{
 }> {
   const id = `${config.role}-${Date.now()}-${++agentIdCounter}`;
   const llmConfig = loadLlmConfig(config.configPath);
-  const maxTokens =
-    config.maxContextTokens || llmConfig["max-model-len"] || 131072;
-  const maxTurns = config.maxTurns || 250;
-  const logDir = config.logDir || "/tmp/srs-agent-logs";
-
-  // Ensure log dir exists
-  fs.mkdirSync(logDir, { recursive: true });
-  const logPath = `${logDir}/${id}.jsonl`;
-
-  function writeLog(type: string, data: Record<string, unknown>) {
-    const line = JSON.stringify({
-      ts: new Date().toISOString(),
-      type,
-      agentId: id,
-      ...data,
-    });
-    try {
-      fs.appendFileSync(logPath, line + "\n", "utf-8");
-    } catch {
-      /* silent */
-    }
-  }
 
   const llm = new ChatOpenAI({
     model: llmConfig.name,
@@ -142,342 +113,114 @@ export async function createAgent(config: AgentConfig): Promise<{
     configuration: { baseURL: llmConfig.baseURL, apiKey: llmConfig.key },
   });
 
-  // Tool registry & agent directory
-  const registry = config.registry || new ToolRegistry();
-  const directory = config.directory || new AgentDirectory();
+  // ===================== MCP Auto-Registration =====================
 
-  // ===================== Auto-register configured MCP servers =====================
-  const mcpServerConfigs = llmConfig.mcp_servers || [];
-  const autoRegisteredMcpTools: string[] = [];
+  const mcpTools: StructuredTool[] = [];
 
-  // Check SKIP_MCP env var
-  if (process.env.SKIP_MCP) {
-    writeLog("mcp_skip", {
-      reason: `SKIP_MCP env var set: ${process.env.SKIP_MCP}`,
-    });
-  } else {
-    // Register all MCP servers in parallel with a per-server timeout
+  if (!process.env.SKIP_MCP) {
+    const mcpServerConfigs = llmConfig.mcp_servers || [];
     const mcpResults = await Promise.allSettled(
       mcpServerConfigs.map(async (mcpEntry) => {
-        const timeoutMs = 5000; // 5s per server (reduced from 15s)
+        const timeoutMs = 5000;
         const connectPromise = registerMcpServer({
           transport: "stdio",
           command: mcpEntry.command,
           args: mcpEntry.args,
         });
-
         const result = await Promise.race([
           connectPromise.then((tools) => ({ ok: true as const, tools })),
           new Promise<{ ok: false; tools: string[] }>((resolve) =>
             setTimeout(() => resolve({ ok: false, tools: [] }), timeoutMs),
           ),
         ]);
-
         return { entry: mcpEntry, ...result };
       }),
     );
 
     for (const r of mcpResults) {
-      if (r.status === "rejected") {
-        writeLog("mcp_auto_register_error", {
-          server: "unknown",
-          error: String(r.reason),
-        });
-        continue;
-      }
+      if (r.status === "rejected") continue;
       const { entry, ok, tools: toolNames } = r.value;
-      if (!ok) {
-        writeLog("mcp_auto_register_timeout", { server: entry.name });
-        continue;
-      }
+      if (!ok) continue;
 
-      writeLog("mcp_auto_register", { server: entry.name, tools: toolNames });
-
-      // Register each MCP tool with mcp_ prefix in the ToolRegistry
       for (const name of toolNames) {
-        const mcpToolName = `mcp_${name}`;
-        registry.addLazy(mcpToolName, async () => {
-          const { tool: langchainTool } = await import("@langchain/core/tools");
-          return langchainTool(
+        mcpTools.push(
+          tool(
             async (args: Record<string, unknown>) => callMcpTool(name, args),
             {
-              name: mcpToolName,
+              name: `mcp_${name}`,
               description: `[${entry.name}] MCP tool: ${name}`,
               schema: z.object({}).passthrough(),
             },
-          );
-        });
-        autoRegisteredMcpTools.push(mcpToolName);
+          ),
+        );
       }
-      // Auto-register for immediate use
-      await registry.register(toolNames.map((n) => `mcp_${n}`));
     }
-  } // end else (skip MCP)
-
-  // Context manager
-  const openaiClient = new (await import("openai")).default({
-    baseURL: llmConfig.baseURL,
-    apiKey: llmConfig.key,
-  });
-  const ctxManager = new ContextManager(
-    openaiClient,
-    llmConfig.name,
-    maxTokens,
-    2,
-  );
-
-  // Context tracking
-  const messageBox: { current: Array<{ role: string; content: unknown }> } = {
-    current: [],
-  };
-
-  const { contextInfoTool, compressContextTool } = createContextTools(
-    ctxManager,
-    () => messageBox.current as any,
-  );
-
-  // ===================== Spawn Sub-Agent Handler =====================
-
-  /**
-   * Recursively spawn a worker sub-agent.
-   * The sub-agent gets its own StateGraph, tool set, and message context.
-   */
-  async function spawnHandler(task: string): Promise<string> {
-    writeLog("spawn_sub_agent_start", {
-      task: task.slice(0, 150),
-      depth: config.depth || 0,
-    });
-
-    // Create a fresh ToolRegistry for the sub-agent (inherits from parent)
-    const subRegistry = new ToolRegistry();
-    const subDirectory = directory; // Share A2A directory
-
-    // Build the sub-agent with the same LLM config
-    const subResult = await createAgent({
-      configPath: config.configPath,
-      role: "worker",
-      registry: subRegistry,
-      directory: subDirectory,
-      maxTurns: 30,
-      maxContextTokens: maxTokens,
-      logDir,
-      skillsDir: config.skillsDir,
-      projectRoot: config.projectRoot,
-      depth: (config.depth || 0) + 1,
-    });
-
-    // Register in directory
-    directory.register(subResult.handle, "worker");
-
-    // Run the sub-agent with the task
-    let output: string;
-    try {
-      const result = await subResult.agent.invoke(
-        { messages: [new HumanMessage(task)] },
-        { recursionLimit: 30 },
-      );
-      const msgs = result.messages || [];
-      const last = msgs[msgs.length - 1];
-      output = last ? ((last as any).content as string) || "" : "(no output)";
-    } catch (e) {
-      output = `SUB_AGENT_ERROR: ${(e as Error).message}`;
-    }
-
-    // Unregister from directory
-    directory.unregister(subResult.id);
-
-    writeLog("spawn_sub_agent_end", {
-      id: subResult.id,
-      outputLen: output.length,
-      depth: config.depth || 0,
-    });
-    return output;
   }
 
-  // Create the real spawn tool with the handler
-  const spawnSubAgentTool = createSpawnSubAgentTool(spawnHandler);
-
-  // Complete task tool — signals the agent to stop
-  const completeTaskTool = tool(
-    async ({ summary }) => `TASK_COMPLETE: ${summary}`,
-    {
-      name: "complete_task",
-      description:
-        "任务完成时调用此工具。调用后必须直接输出文本结果，不要再调用其他工具。传入任务摘要。",
-      schema: z.object({ summary: z.string().describe("任务完成摘要") }),
-    },
-  );
-
-  // Dynamic tool registration tools
-  const registerToolsTool = createRegisterToolsTool(registry);
-  const unregisterToolsTool = createUnregisterToolsTool(registry);
-
-  // MCP tools
+  // MCP dynamic registration tools (runtime)
   const mcpRegisterTool = createMcpRegisterTool(async (mcpConfig) => {
     const toolNames = await registerMcpServer(mcpConfig);
-    // Register each MCP tool in the ToolRegistry with mcp_ prefix
-    for (const name of toolNames) {
-      const mcpToolName = `mcp_${name}`;
-      registry.addLazy(mcpToolName, async () => {
-        const { tool: langchainTool } = await import("@langchain/core/tools");
-        return langchainTool(
-          async (args: Record<string, unknown>) => callMcpTool(name, args),
-          {
-            name: mcpToolName,
-            description: `MCP tool: ${name}`,
-            schema: z.object({}).passthrough(),
-          },
-        );
-      });
-    }
-    // Auto-register them for immediate use
-    const prefixed = toolNames.map((n) => `mcp_${n}`);
-    await registry.register(prefixed);
-    return [...toolNames, ...prefixed];
+    return [...toolNames, ...toolNames.map((n) => `mcp_${n}`)];
   });
 
   const mcpCallTool = createMcpCallTool(async (toolName, args) => {
-    // Strip mcp_ prefix if present, then call MCP
     const actualName = toolName.startsWith("mcp_")
       ? toolName.slice(4)
       : toolName;
     return callMcpTool(actualName, args);
   });
 
-  // Register all tools
-  const includeSpawn = (config.depth || 0) < 3;
-  const allTools: StructuredTool[] = [
-    ...BASE_TOOLS,
-    ...(includeSpawn ? [spawnSubAgentTool] : []),
-    registerToolsTool,
-    unregisterToolsTool,
-    mcpRegisterTool,
-    mcpCallTool,
-    contextInfoTool,
-    compressContextTool,
-    completeTaskTool,
-  ];
-  for (const t of allTools) {
-    registry.addActive(t);
+  // ===================== Build Agent =====================
+
+  const systemPrompt = buildSystemPrompt(
+    config.skillsDir || process.env.SKILL_SCRIPTS_DIR,
+    config.projectRoot || process.env.PROJECT_ROOT,
+    config.workDir || process.env.WORK_DIR,
+  );
+
+  const agent = createDeepAgent({
+    model: llm,
+    systemPrompt,
+    tools: [
+      runCommandTool,
+      webSearchTool,
+      httpRequestTool,
+      mcpRegisterTool,
+      mcpCallTool,
+      ...mcpTools,
+    ],
+  });
+
+  // ===================== LangSmith Tracer =====================
+
+  const tracer = process.env.LANGSMITH_TRACING
+    ? new LangChainTracer({
+        projectName: process.env.LANGSMITH_PROJECT || "srs-formalizer-debug",
+      })
+    : null;
+
+  function invokeConfig(
+    extra?: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const callbacks = tracer ? [tracer] : [];
+    return { ...extra, callbacks };
   }
 
-  // Build tool node
-  const toolNode = new ToolNode(registry.getActiveTools());
+  // ===================== AgentHandle =====================
 
-  // Custom agent node with context check
-  async function agentNode(state: typeof MessagesAnnotation.State) {
-    const messages = state.messages;
-    messageBox.current = messages.map((m) => ({
-      role: m.getType?.() ?? "unknown",
-      content: "content" in m ? (m as any).content : "",
-    }));
-
-    writeLog("agent_turn", {
-      msgCount: messages.length,
-      depth: config.depth || 0,
-    });
-
-    // Log tool execution results from the previous turn
-    const toolMsgs = messages.filter((m) => m.getType?.() === "tool");
-    if (toolMsgs.length > 0) {
-      const results = toolMsgs.map((tm) => {
-        const raw = tm as unknown as { name?: string; content?: unknown };
-        const content =
-          typeof raw.content === "string"
-            ? raw.content
-            : JSON.stringify(raw.content);
-        const isError =
-          content.startsWith("ERROR") ||
-          content.startsWith("ERR") ||
-          content.includes("exit: 1") ||
-          content.includes("SUB_AGENT_ERROR");
-        return {
-          tool: raw.name || "unknown",
-          ok: !isError,
-          result: content.slice(0, 300),
-        };
-      });
-      writeLog("tool_results", { count: results.length, results });
-    }
-
-    // Bind tools dynamically (supports register/unregister at runtime)
-    const currentTools = registry.getActiveTools();
-    const llmWithTools = llm.bindTools(currentTools);
-
-    // Build dynamic system prompt
-    const skillsDir =
-      config.skillsDir || process.env.SKILL_SCRIPTS_DIR || process.cwd();
-    const projectRoot =
-      config.projectRoot || process.env.PROJECT_ROOT || process.cwd();
-    const systemPrompt = buildSystemPrompt(
-      currentTools.map((t) => t.name),
-      skillsDir,
-      projectRoot,
-      config.workDir || process.env.WORK_DIR,
-    );
-
-    const systemMsg = new SystemMessage(systemPrompt);
-    const allMessages = [systemMsg, ...messages];
-
-    try {
-      const response = await llmWithTools.invoke(allMessages);
-
-      // Check if LLM returned tool calls
-      const toolCalls = (response as any).tool_calls;
-      writeLog("llm_response", {
-        content: (response.content as string)?.slice(0, 200) || "",
-        toolCalls: toolCalls?.length || 0,
-        toolNames: toolCalls?.map((tc: any) => tc.name) || [],
-      });
-
-      return { messages: [response] };
-    } catch (e) {
-      writeLog("llm_error", { error: (e as Error).message });
-      return {
-        messages: [
-          new AIMessage(
-            `Error: ${(e as Error).message}. Please try a different approach or report the issue.`,
-          ),
-        ],
-      };
-    }
-  }
-
-  // Route: if last message has tool_calls → tools, otherwise → END
-  function shouldContinue(
-    state: typeof MessagesAnnotation.State,
-  ): "tools" | "__end__" {
-    const lastMsg = state.messages[state.messages.length - 1];
-    const toolCalls = (lastMsg as any).tool_calls;
-    if (toolCalls && toolCalls.length > 0) {
-      return "tools";
-    }
-    // No tool calls → agent is done
-    writeLog("agent_done", {
-      content: ((lastMsg as any).content as string)?.slice(0, 200) || "",
-    });
-    return "__end__";
-  }
-
-  // Build graph
-  const graph = new StateGraph(MessagesAnnotation)
-    .addNode("agent", agentNode)
-    .addNode("tools", toolNode)
-    .addEdge("__start__", "agent")
-    .addConditionalEdges("agent", shouldContinue)
-    .addEdge("tools", "agent");
-
-  const compiledAgent = graph.compile();
-
-  // AgentHandle for A2A communication
   const handle: AgentHandle = {
     id,
     role: config.role,
     async receive(message: string, _fromId: string): Promise<string> {
       try {
-        const result = await compiledAgent.invoke(
+        // deepagents invoke has a complex generic signature; use unknown bridge
+        const invoke = agent.invoke as unknown as (
+          input: Record<string, unknown>,
+          config?: Record<string, unknown>,
+        ) => Promise<{ messages?: Array<{ content: unknown }> }>;
+        const result = await invoke(
           { messages: [new HumanMessage(message)] },
-          { recursionLimit: maxTurns },
+          invokeConfig(),
         );
         const msgs = result.messages || [];
         const last = msgs[msgs.length - 1];
@@ -488,6 +231,20 @@ export async function createAgent(config: AgentConfig): Promise<{
     },
   };
 
-  directory.register(handle, config.role);
-  return { agent: compiledAgent, id, handle };
+  // deepagents invoke has a complex generic signature; use unknown bridge to keep our API simple
+  const invoke = agent.invoke as unknown as (
+    input: Record<string, unknown>,
+    config?: Record<string, unknown>,
+  ) => Promise<{ messages?: Array<{ content: unknown }> }>;
+
+  return {
+    agent: {
+      invoke: (
+        input: Record<string, unknown>,
+        extra?: Record<string, unknown>,
+      ) => invoke(input, invokeConfig(extra)),
+    },
+    id,
+    handle,
+  };
 }

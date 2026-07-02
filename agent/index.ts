@@ -6,13 +6,11 @@
  *   npx tsx agent/index.ts --llm-config <path> --task <path>
  *                  [--project-root <path>] [--skills-dir <path>] [--work-dir <path>]
  *
- * Rewrite: uses createAgent() factory with LangGraph createReactAgent,
- * ToolRegistry, and AgentDirectory for A2A communication.
+ * Powered by deepagentsjs (createDeepAgent) + LangSmith tracing.
+ * Set LANGSMITH_TRACING=true to enable trace collection.
  */
 
 import { createAgent } from "./agent.js";
-import { ToolRegistry } from "./tool-registry.js";
-import { AgentDirectory } from "./agent-directory.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -34,9 +32,6 @@ async function main() {
     console.error("  --llm-config   LLM 配置文件路径（必填）");
     console.error("  --task         任务提示词文件路径（推荐）");
     console.error("  --task-prompt   直接传入任务提示词");
-    console.error(
-      "  --log-dir       日志存储目录（默认: /tmp/srs-agent-traces）",
-    );
     console.error("  --project-root  项目根目录（默认: CWD）");
     console.error(
       "  --skills-dir    skills 目录（默认: <project-root>/.claude/skills）",
@@ -44,13 +39,13 @@ async function main() {
     console.error(
       "  --work-dir      测试工作目录（默认: /tmp/srs-debug-<timestamp>/.srs_formalizer）",
     );
+    console.error("");
+    console.error("LangSmith tracing (optional):");
+    console.error(
+      "  LANGSMITH_TRACING=true  LANGSMITH_API_KEY=<key>  LANGSMITH_PROJECT=<name>",
+    );
     process.exit(1);
   }
-
-  const logDir =
-    parseArg(args, "--log-dir") ||
-    process.env.AGENT_LOG_DIR ||
-    "/tmp/srs-agent-traces";
 
   const projectRoot =
     parseArg(args, "--project-root") ||
@@ -72,22 +67,20 @@ async function main() {
 
   const task = taskPath ? fs.readFileSync(taskPath, "utf-8") : taskPrompt!;
 
-  const registry = new ToolRegistry();
-  const directory = new AgentDirectory();
-
   console.log(`Agent starting...`);
   console.log(`  LLM config: ${llmConfig}`);
   console.log(`  Project root: ${projectRoot}`);
   console.log(`  Skills dir: ${skillsDir}`);
   console.log(`  Work dir: ${workDir}`);
-  console.log(`  Log dir: ${logDir}`);
+  if (process.env.LANGSMITH_TRACING) {
+    console.log(
+      `  LangSmith: tracing enabled (project: ${process.env.LANGSMITH_PROJECT || "srs-formalizer-debug"})`,
+    );
+  }
 
   const { agent, id } = await createAgent({
     configPath: llmConfig,
     role: "orchestrator",
-    registry,
-    directory,
-    logDir,
     skillsDir,
     projectRoot,
     workDir,
@@ -106,8 +99,7 @@ async function main() {
 
   console.log("\n=== Agent Output ===");
   console.log(finalContent.slice(0, 2000));
-  console.log(`\nAgents in directory: ${directory.size}`);
-  console.log(`Total messages: ${msgs.length}`);
+  console.log(`\nTotal messages: ${msgs.length}`);
 }
 
 main().catch((err) => {
