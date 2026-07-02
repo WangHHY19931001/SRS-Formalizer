@@ -184,6 +184,10 @@ S5（形式化）阶段在触发条件满足时自动启用，依赖 **确定性
 | **Claude Code + DeepSeek V4** | 本技能实际开发使用 Claude Code + DeepSeek V4 进行开发 |
 | **grill-me / grill-with-docs** | 本技能部分方法论参考了 grill-me 和 grill-with-docs |
 | **SkCC 论文与实现** | 本技能参考了中山大学团队 SkCC 论文 (arXiv:2605.03353) 及 Nexa-Language/Skill-Compiler 开源实现 |
+| **LangChain.js** ([github.com/langchain-ai/langchainjs](https://github.com/langchain-ai/langchainjs)) | Agent 框架核心——提供 Zod schema 工具定义（`tool()`）、消息系统及 LangChain Core 运行时基础 |
+| **LangGraph.js** ([github.com/langchain-ai/langgraphjs](https://github.com/langchain-ai/langgraphjs)) | Agent 运行时引擎——StateGraph ReAct 循环、ToolNode 工具执行、条件路由及递归控制 |
+| **LangChain (Python)** ([github.com/langchain-ai/langchain](https://github.com/langchain-ai/langchain)) | 生态系统的 Python 实现（~140k stars），供 Agent 联网搜索查阅技术文档 |
+| **LangGraph (Python)** ([github.com/langchain-ai/langgraph](https://github.com/langchain-ai/langgraph)) | Python 版图 Agent 框架（~35.7k stars），设计参考及跨语言概念对齐 |
 
 ## 技能调测
 
