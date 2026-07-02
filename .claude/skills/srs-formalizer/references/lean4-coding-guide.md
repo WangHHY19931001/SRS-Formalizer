@@ -95,7 +95,7 @@ rfl → simp → ring → linarith → nlinarith → omega → exact? → apply?
 
 ## 3. LLM 常见错误
 
-基于 FormalMATH（5560 题，最高 16.5%）和 FormalProofBench（33.5%）的发现：
+基于 benchflow-ai（AI 定理证明评测框架）、FormalMATH（5560 题，最高 16.5%）和 FormalProofBench（33.5%）的发现：
 
 | # | 错误类型 | 说明 | 规避方法 |
 |---|---------|------|---------|
