@@ -118,15 +118,24 @@ export async function createAgent(config: AgentConfig): Promise<{
   // because deepagents may call internal methods that bypass invoke().
   function stripFileBlocks(obj: unknown): unknown {
     if (!obj || typeof obj !== "object") return obj;
+    // Skip LangChain internal objects (lc_ prefixed, kwargs, etc.)
+    if ((obj as Record<string, unknown>).lc !== undefined) return obj;
     if (Array.isArray(obj)) return obj.map(stripFileBlocks);
     const o = obj as Record<string, unknown>;
     if (o.type === "file") {
-      const name = (o as { file?: { name?: string } }).file?.name || "file";
-      return { type: "text", text: `[${name}]` };
+      const f = o as { file?: { name?: string; data?: unknown } };
+      const name = f.file?.name || "file";
+      const text = typeof f.file?.data === "string" ? f.file.data.slice(0, 500) : `[${name}]`;
+      return { type: "text", text };
     }
     const result: Record<string, unknown> = {};
     for (const key of Object.keys(o)) {
-      result[key] = stripFileBlocks(o[key]);
+      // Skip LangChain serialization fields to avoid breaking internal wiring
+      if (key.startsWith("lc_") || key === "kwargs" || key === "id") {
+        result[key] = o[key];
+      } else {
+        result[key] = stripFileBlocks(o[key]);
+      }
     }
     return result;
   }
@@ -138,7 +147,7 @@ export async function createAgent(config: AgentConfig): Promise<{
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const LLM_METHODS = new Set(["invoke", "stream"]);
+  const LLM_METHODS = new Set(["invoke", "stream", "_generate", "_streamResponseChunks"]);
   const llm = new Proxy(rawLlm, {
     get(target, prop, _receiver) {
       const orig = (target as unknown as Record<string, unknown>)[prop as string];
