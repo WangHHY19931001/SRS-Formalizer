@@ -21,20 +21,47 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Test
 
+本项目包含两个独立工程，各有独立的构建和测试命令：
+
+### 技能工程（`.claude/skills/srs-formalizer/scripts/`）
+
+零运行时依赖，仅 devDeps: `typescript` + `@types/node`。
+
 ```bash
 cd .claude/skills/srs-formalizer/scripts
 
-# Install (only devDeps: typescript, @types/node, openai)
+# Install
 npm install
 
 # Typecheck (strict mode)
 npx tsc --noEmit
 
-# All tests (node:test + node:assert)
+# All tests (35 files, 299 tests)
 npx tsx --test __tests__/*.test.ts
 
 # Single test file
 npx tsx --test __tests__/manifest.test.ts
+```
+
+### Agent 工程（`agent/`）
+
+独立 `package.json`，依赖 LangGraph + LangChain + openai + zod。
+
+```bash
+cd agent
+
+# Install
+npm install --legacy-peer-deps
+
+# Typecheck (strict mode)
+npx tsc --noEmit
+```
+
+Agent 集成测试（需要 LLM 服务）：
+
+```bash
+cd /home/celebi/openspec_skill_create_dir
+npx tsx agent/index.ts --llm-config test-llm-config.json --task agent/task-srs-formalizer.md
 ```
 
 ## Architecture
@@ -44,7 +71,7 @@ npx tsx --test __tests__/manifest.test.ts
 | Entry | Path | Purpose |
 |-------|------|---------|
 | Skill CLI | `.claude/skills/srs-formalizer/scripts/index.ts` | 29 commands for the skill pipeline |
-| Debug Agent | `agent/index.ts` | LLM-driven skill tester (reads SKILL.md, follows prompts, spawns sub-agents) |
+| Debug Agent | `agent/index.ts` | LangGraph ReAct agent（StateGraph + ToolRegistry + A2A），读取 SKILL.md 自主发现流水线 |
 
 ### Skill pipeline (S0→S6)
 
@@ -79,7 +106,7 @@ S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱
 
 ### Key design constraints
 
-- **Zero runtime npm dependencies** — only `typescript`, `@types/node`, `openai` (agent only) as devDeps
+- **技能工程零运行时 npm 依赖** — 仅 `typescript` + `@types/node` 为 devDeps；Agent 工程独立管理依赖
 - **TypeScript strict mode** (`noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`)
 - **All CLI commands must go through `npx tsx index.ts <cmd>`** — direct .ts invocation blocked by `refuseDirectInvocation`
 - **Poison value rejection** — `undefined`, `null`, `NaN`, `[object Object]` blocked at `index.ts` entry via `validateNoPoisonArgs`
@@ -89,16 +116,22 @@ S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱
 
 ### Agent framework (`agent/`)
 
+基于 **LangGraph StateGraph** 的 ReAct Agent，替代了旧的 OpenAI 直连循环。
+
 | File | Role |
 |------|------|
-| `agent.ts` | Unified Agent class (orchestrator + worker, recursive `spawn_sub_agent`) |
-| `tools.ts` | 14 tools (read/write/edit/search file, shell, web_search, http_request, MCP, spawn/compress/validate/...) |
-| `context.ts` | ContextManager: auto-compress at 80%, suggest at 60%, allow at 40% |
-| `tracer.ts` | Observation recording (JSONL trace logs) |
-| `mcp.ts` | MCP client (stdio/HTTP transport, dynamic tool registration) |
-| `task-srs-formalizer.md` | Sample task prompt (configures agent without hardcoded paths) |
+| `index.ts` | 入口 — 解析 CLI 参数，创建 ToolRegistry/AgentDirectory，调用 `createAgent()` |
+| `agent.ts` | Agent 工厂 — `createAgent()` 构建 StateGraph（agentNode → toolNode → 条件路由），动态系统提示词，JSONL 日志 |
+| `tools.ts` | 12 个 LangChain 工具 — `tool()` + Zod v4 schema，含 read/write/edit/search file、shell、web_search、http_request、spawn_sub_agent、validate_output 等 |
+| `tool-registry.ts` | ToolRegistry — 动态 register/unregister/getActiveTools，支持 LLM 运行时绑定 |
+| `agent-directory.ts` | AgentDirectory — A2A 代理间通信（send/broadcast/list/markError） |
+| `context.ts` | ContextManager（auto-compress ≥80%/suggest ≥60%/allow ≥40%）+ `createContextTools()` 工厂 |
+| `mcp.ts` | MCP client（stdio/HTTP transport，动态工具注册） |
+| `llm-config.ts` | LLM 配置加载器（OpenAI 兼容 API） |
+| `package.json` | 独立依赖管理 — @langchain/core, @langchain/langgraph, @langchain/openai, openai, zod |
+| `task-srs-formalizer.md` | 最小任务提示词（一行），Agent 自行从 SKILL.md 发现流水线 |
 
-Agent receives work prompt via `--task` file — no hardcoded skill paths. Can debug any skill.
+Agent 通过 `--task` 文件接收工作提示词，**不硬编码任何技能路径或流程**。系统提示词按模板动态生成，填充当前工具列表、技能目录和项目目录。
 
 ## Key conventions
 
