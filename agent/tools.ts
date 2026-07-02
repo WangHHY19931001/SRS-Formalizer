@@ -153,7 +153,14 @@ export function createMcpRegisterTool(
   return tool(
     async ({ transport, command, args, url }) => {
       try {
-        const toolNames = await mcpRegister({ transport, command, args, url });
+        const parsedArgs: string[] | undefined =
+          typeof args === "string" ? JSON.parse(args) : args;
+        const toolNames = await mcpRegister({
+          transport,
+          command,
+          args: parsedArgs,
+          url,
+        });
         return `MCP 服务器已注册。新增工具 (${toolNames.length}): ${toolNames.join(", ")}`;
       } catch (e) {
         return `MCP 注册失败: ${(e as Error).message}`;
@@ -166,7 +173,10 @@ export function createMcpRegisterTool(
       schema: z.object({
         transport: z.enum(["stdio", "http"]).describe("传输方式"),
         command: z.string().optional().describe("stdio: 启动命令"),
-        args: z.array(z.string()).optional().describe("stdio: 命令行参数"),
+        args: z
+          .union([z.array(z.string()), z.string()])
+          .optional()
+          .describe("stdio: 命令行参数"),
         url: z.string().optional().describe("http: MCP 服务器 URL"),
       }),
     },
@@ -180,7 +190,9 @@ export function createMcpCallTool(
   return tool(
     async ({ toolName, args }) => {
       try {
-        const result = await mcpCall(toolName, args || {});
+        const parsedArgs: Record<string, unknown> =
+          typeof args === "string" ? JSON.parse(args) : (args || {});
+        const result = await mcpCall(toolName, parsedArgs);
         return result;
       } catch (e) {
         return `MCP 调用失败 [${toolName}]: ${(e as Error).message}`;
@@ -197,7 +209,7 @@ export function createMcpCallTool(
             "MCP 工具名称（如 mcp_search-tickets），从 register_mcp_server 返回结果中获取",
           ),
         args: z
-          .record(z.string(), z.unknown())
+          .union([z.record(z.string(), z.unknown()), z.string()])
           .optional()
           .describe("工具参数 JSON 对象"),
       }),
