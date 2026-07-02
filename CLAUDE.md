@@ -2,19 +2,101 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Purpose
+## Project
 
-Skill development project. Detailed requirements will be provided by the user as a requirements specification.
+**srs-formalizer** — 将 SRS（软件需求规格说明）文档转化为形式化产出的 AI Agent 技能：
+需求知识图谱（Cypher）· BDD（Gherkin）· TLA+ 规约 · Lean 4 证明。
 
-## Workflow
+附带 `agent/` 目录包含 LLM 驱动的技能调测代理（编排者+工作者，支持递归子代理分派和上下文压缩）。
 
-- User will supply a requirements specification before implementation begins.
-- Use `superpowers:brainstorming` and `superpowers:writing-plans` before coding once requirements arrive.
-- Conventions (TDD, language, tooling) will be established from the requirements spec.
+## Build & Test
 
-## Current State
+```bash
+cd .claude/skills/srs-formalizer/scripts
 
-Empty project initialized 2026-06-30. Awaiting requirements specification.
+# Install (only devDeps: typescript, @types/node, openai)
+npm install
+
+# Typecheck (strict mode)
+npx tsc --noEmit
+
+# All tests (node:test + node:assert)
+npx tsx --test __tests__/*.test.ts
+
+# Single test file
+npx tsx --test __tests__/manifest.test.ts
+```
+
+## Architecture
+
+### Two entry points
+
+| Entry | Path | Purpose |
+|-------|------|---------|
+| Skill CLI | `.claude/skills/srs-formalizer/scripts/index.ts` | 29 commands for the skill pipeline |
+| Debug Agent | `agent/index.ts` | LLM-driven skill tester (reads SKILL.md, follows prompts, spawns sub-agents) |
+
+### Skill pipeline (S0→S6)
+
+```
+S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱构建)
+             → S4(BDD生成) → S5(形式化/条件触发) → S6(验收闸门+收敛循环)
+```
+
+- **S1**: init → manifest (recursive sharding, ≤200 lines) → glossary (parallel sub-agent)
+- **S2**: R1/R2/R3 extraction (guided line-by-line via `guided-extract`), arch decomposition
+- **S3**: build-graph → analyze-structure → analyze-graph → export-cypher
+- **S4**: generate-bdd → validate-bdd → build-behavior-graph
+- **S5**: TLA+/Lean (conditional) → build-tla-graph / build-lean-graph
+- **S6**: verify-gate FINAL → build-system-architecture → convergence loop (≤5 iterations)
+
+### Skill directory layout
+
+```
+.claude/skills/srs-formalizer/
+├── SKILL.md              # Frontmatter (metadata, triggers, gates, capability tiers)
+├── CHANGELOG.md
+├── scripts/
+│   ├── index.ts          # CLI entry (switch on command name)
+│   ├── commands/         # 29 commands (init, manifest, inject-prompt, build-*, validate-*, ...)
+│   ├── lib/              # 17 lib modules (graph, jsonl, bdd, cli, security, behavior-graph, tla-graph, lean-graph, system-architecture, ...)
+│   ├── types/            # Shared TypeScript types
+│   └── __tests__/        # 35 test files, 299 tests
+├── prompts/              # Orchestrator (S0-S6) + executor/verifier/debug prompts
+├── references/           # Coding guides (tlaplus, lean4), integration guides
+└── templates/            # Output templates + stage checklists
+```
+
+### Key design constraints
+
+- **Zero runtime npm dependencies** — only `typescript`, `@types/node`, `openai` (agent only) as devDeps
+- **TypeScript strict mode** (`noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`)
+- **All CLI commands must go through `npx tsx index.ts <cmd>`** — direct .ts invocation blocked by `refuseDirectInvocation`
+- **Poison value rejection** — `undefined`, `null`, `NaN`, `[object Object]` blocked at `index.ts` entry via `validateNoPoisonArgs`
+- **`init` uses `--output`**, all other commands use `--workdir`
+- **Workdir must be named `.srs_formalizer`** (enforced by `validateWorkDir`)
+- **Guided extraction preferred** — `guided-extract` for S2 JSONL stages (r1/r2/r3/arch)
+
+### Agent framework (`agent/`)
+
+| File | Role |
+|------|------|
+| `agent.ts` | Unified Agent class (orchestrator + worker, recursive `spawn_sub_agent`) |
+| `tools.ts` | 14 tools (read/write/edit/search file, shell, web_search, http_request, MCP, spawn/compress/validate/...) |
+| `context.ts` | ContextManager: auto-compress at 80%, suggest at 60%, allow at 40% |
+| `tracer.ts` | Observation recording (JSONL trace logs) |
+| `mcp.ts` | MCP client (stdio/HTTP transport, dynamic tool registration) |
+| `task-srs-formalizer.md` | Sample task prompt (configures agent without hardcoded paths) |
+
+Agent receives work prompt via `--task` file — no hardcoded skill paths. Can debug any skill.
+
+## Key conventions
+
+- Commit messages in Chinese or English, with `Co-Authored-By: Claude <noreply@anthropic.com>`
+- After feature changes: `pack-skill --force` + rebuild zip + push
+- Before claiming completion: run `npx tsx --test __tests__/*.test.ts` and verify 0 failures
+- Test LLM config: copy `llm-config.template.json` → `test-llm-config.json` (gitignored)
+- `safeParseArg` from `lib/cli.ts` must be used for all CLI argument parsing
 <!-- superpowers-zh:begin (do not edit between these markers) -->
 # Superpowers-ZH 中文增强版
 
@@ -32,23 +114,12 @@ Empty project initialized 2026-06-30. Awaiting requirements specification.
 Skills 位于 `.claude/skills/` 目录，每个 skill 有独立的 `SKILL.md` 文件。
 
 - **brainstorming**: 在任何创造性工作之前必须使用此技能——创建功能、构建组件、添加功能或修改行为。在实现之前先探索用户意图、需求和设计。
-- **chinese-code-review**: 中文 review 沟通参考——话术模板、分级标注（必须修复/建议修改/仅供参考）、国内团队常见反模式应对。仅在用户显式 /chinese-code-review 时调用，不要根据上下文自动触发。
-- **chinese-commit-conventions**: 中文 commit 与 changelog 配置参考——Conventional Commits 中文适配、commitlint/husky/commitizen 中文模板、conventional-changelog 中文配置。仅在用户显式 /chinese-commit-conventions 时调用，不要根据上下文自动触发。
-- **chinese-documentation**: 中文文档排版参考——中英文空格、全半角标点、术语保留、链接格式、中文文案排版指北约定。仅在用户显式 /chinese-documentation 时调用，不要根据上下文自动触发。
-- **chinese-git-workflow**: 国内 Git 平台配置参考——Gitee、Coding.net、极狐 GitLab、CNB 的 SSH/HTTPS/凭据/CI 接入差异与镜像同步配置。仅在用户显式 /chinese-git-workflow 时调用，不要根据上下文自动触发。
 - **dispatching-parallel-agents**: 当面对 2 个以上可以独立进行、无共享状态或顺序依赖的任务时使用
 - **executing-plans**: 当你有一份书面实现计划需要在单独的会话中执行，并设有审查检查点时使用
-- **finishing-a-development-branch**: 当实现完成、所有测试通过、需要决定如何集成工作时使用——通过提供合并、PR 或清理等结构化选项来引导开发工作的收尾
-- **mcp-builder**: MCP 服务器构建方法论 — 系统化构建生产级 MCP 工具，让 AI 助手连接外部能力
-- **receiving-code-review**: 收到代码审查反馈后、实施建议之前使用，尤其当反馈不明确或技术上有疑问时——需要技术严谨性和验证，而非敷衍附和或盲目执行
-- **requesting-code-review**: 完成任务、实现重要功能或合并前使用，用于验证工作成果是否符合要求
-- **subagent-driven-development**: 当在当前会话中执行包含独立任务的实现计划时使用
+- **srs-formalizer**: 将 SRS 文档转化为需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约和 Lean 4 证明。当用户提供或引用 SRS 文档（HTML/Markdown/多目录包），要求"形式化"、"生成知识图谱"、"生成 BDD"、"TLA+ 建模"、"Lean 证明"时使用。
 - **systematic-debugging**: 遇到任何 bug、测试失败或异常行为时使用，在提出修复方案之前执行
 - **test-driven-development**: 在实现任何功能或修复 bug 时使用，在编写实现代码之前
-- **using-git-worktrees**: 当需要开始与当前工作区隔离的功能开发，或在执行实现计划之前使用——通过原生工具或 git worktree 回退机制确保隔离工作区存在
-- **using-superpowers**: 在开始任何对话时使用——确立如何查找和使用技能，要求在任何响应（包括澄清性问题）之前调用 Skill 工具
 - **verification-before-completion**: 在宣称工作完成、已修复或测试通过之前使用，在提交或创建 PR 之前——必须运行验证命令并确认输出后才能声称成功；始终用证据支撑断言
-- **workflow-runner**: 在 Claude Code / OpenClaw / Cursor 中直接运行 agency-orchestrator YAML 工作流——无需 API key，使用当前会话的 LLM 作为执行引擎。当用户提供 .yaml 工作流文件或要求多角色协作完成任务时触发。
 - **writing-plans**: 当你有规格说明或需求用于多步骤任务时使用，在动手写代码之前
 - **writing-skills**: 当创建新技能、编辑现有技能或在部署前验证技能是否有效时使用
 
