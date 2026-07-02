@@ -40,6 +40,8 @@ export interface AgentConfig {
 export class Agent {
   private client: OpenAI;
   private model: string;
+  private baseURL: string;
+  private apiKey: string;
   private maxTurns: number;
   private role: 'orchestrator' | 'worker';
   private ctx: ContextManager;
@@ -48,6 +50,8 @@ export class Agent {
   private tools: typeof TOOL_DEFINITIONS;
 
   constructor(config: AgentConfig) {
+    this.baseURL = config.baseURL;
+    this.apiKey = config.apiKey;
     this.client = new OpenAI({ baseURL: config.baseURL, apiKey: config.apiKey });
     this.model = config.model;
     this.maxTurns = config.maxTurns || 50;
@@ -67,11 +71,11 @@ export class Agent {
   private async spawnSubAgent(taskPrompt: string): Promise<string> {
     const subAgent = new Agent({
       model: this.model,
-      baseURL: (this.client as unknown as { baseURL: string }).baseURL || '',
-      apiKey: (this.client as unknown as { apiKey: string }).apiKey || '',
+      baseURL: this.baseURL,
+      apiKey: this.apiKey,
       maxTurns: 15,
       role: 'worker',
-      tracer: this.tracer, // Share tracer for unified trace
+      tracer: this.tracer,
     });
 
     // Override system prompt for workers spawned by orchestrator
@@ -96,6 +100,7 @@ export class Agent {
     }
 
     let turn = 0;
+    let suggestedCompress = false;
     const observations: string[] = [];
 
     while (turn < this.maxTurns) {
@@ -109,11 +114,11 @@ export class Agent {
         this.messages = await this.ctx.compress(this.messages);
         const afterState = this.ctx.check(this.messages);
         this.tracer.log('compress_context', agentId, { level: 'force', after_pct: afterState.usage_pct, tokens: afterState.total_tokens });
-      } else if (ctxState.level === 'suggest') {
-        // Inject a nudge message before the next LLM call
+      } else if (ctxState.level === 'suggest' && !suggestedCompress) {
+        suggestedCompress = true;
         this.messages.push({
           role: 'user',
-          content: `[系统提示] 上下文使用率已达 ${ctxState.usage_pct}%（${ctxState.total_tokens}/${ctxState.maxTokens} tokens）。如果当前任务已完成，请记录观测并继续。如果上下文过长，你可以说"压缩上下文"来触发压缩。`,
+          content: `[系统提示] 上下文使用率已达 ${ctxState.usage_pct}%（${ctxState.total_tokens}/${ctxState.maxTokens} tokens）。如果当前任务已完成，请记录观测并继续。如果上下文过长，你可以调用 compress_context 工具来压缩上下文。`,
         });
       }
       // 'allow' level: LLM can voluntarily call compress_context placeholder (handled in tool execution)
@@ -163,7 +168,7 @@ export class Agent {
 
         // Special handling: tools that need Agent context
         if (toolName === 'spawn_sub_agent') {
-          const subPrompt = (toolArgs.prompt as string) || (toolArgs.task as string) || '';
+          const subPrompt = (toolArgs.task as string) || (toolArgs.prompt as string) || '';
           result = await this.spawnSubAgent(subPrompt);
         } else if (toolName === 'compress_context') {
           // LLM-triggered compression
