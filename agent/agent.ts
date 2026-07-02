@@ -49,24 +49,38 @@ const WORK_TABOOS = [
   "如果命令失败，最多重试 1 次，然后报告错误继续下一步",
 ];
 
+const WORK_RULES = [
+  "对于 LLM 密集型任务（需求提取、术语表生成、架构分解），必须使用 spawn_sub_agent 分派子代理执行——禁止手动编写 JSONL 或直接生成大量结构化数据",
+  "提取需求时使用 guided-extract 两步模式：先获取 guided_prompt（--template 模式），再逐行调用 --line 模式处理 LLM 输出的每一行",
+  "始终遵循技能 SKILL.md 中的流水线阶段顺序，不要跳步",
+];
+
 function buildSystemPrompt(
   toolNames: string[],
   skillsDir: string,
   projectRoot: string,
+  workDir?: string,
 ): string {
   const toolList = toolNames.map((n) => `  - ${n}`).join("\n");
   const taboos = WORK_TABOOS.map((t, i) => `  ${i + 1}. ${t}`).join("\n");
+  const rules = WORK_RULES.map((r, i) => `  ${i + 1}. ${r}`).join("\n");
+  const workDirLine = workDir
+    ? `\n当前技能工作目录：${workDir}（所有 CLI 命令必须用 --workdir ${workDir}，init 除外——init 用 --output ${workDir}）`
+    : "";
   return `你是一个工作 agent，你拥有如下工具：
 ${toolList}
 
 你被设计为在实际环境中执行工作任务，任务信息由用户提示词说明。
 当前技能所在目录：${skillsDir}
-当前项目目录：${projectRoot}
+当前项目目录：${projectRoot}${workDirLine}
 
 你将尽可能完成用户任务。
 
 工作禁忌如下：
-${taboos}`;
+${taboos}
+
+工作规则如下：
+${rules}`;
 }
 
 // ===================== Config =====================
@@ -81,6 +95,7 @@ export interface AgentConfig {
   logDir?: string;
   skillsDir?: string;
   projectRoot?: string;
+  workDir?: string;
   depth?: number;
 }
 
@@ -362,6 +377,29 @@ export async function createAgent(config: AgentConfig): Promise<{
       depth: config.depth || 0,
     });
 
+    // Log tool execution results from the previous turn
+    const toolMsgs = messages.filter((m) => m.getType?.() === "tool");
+    if (toolMsgs.length > 0) {
+      const results = toolMsgs.map((tm) => {
+        const raw = tm as unknown as { name?: string; content?: unknown };
+        const content =
+          typeof raw.content === "string"
+            ? raw.content
+            : JSON.stringify(raw.content);
+        const isError =
+          content.startsWith("ERROR") ||
+          content.startsWith("ERR") ||
+          content.includes("exit: 1") ||
+          content.includes("SUB_AGENT_ERROR");
+        return {
+          tool: raw.name || "unknown",
+          ok: !isError,
+          result: content.slice(0, 300),
+        };
+      });
+      writeLog("tool_results", { count: results.length, results });
+    }
+
     // Bind tools dynamically (supports register/unregister at runtime)
     const currentTools = registry.getActiveTools();
     const llmWithTools = llm.bindTools(currentTools);
@@ -375,6 +413,7 @@ export async function createAgent(config: AgentConfig): Promise<{
       currentTools.map((t) => t.name),
       skillsDir,
       projectRoot,
+      config.workDir || process.env.WORK_DIR,
     );
 
     const systemMsg = new SystemMessage(systemPrompt);
