@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Rules
+
+`project_rules/` 目录包含三类强制规则，开发前必须遵守：
+
+| 文件 | 内容 |
+|------|------|
+| `project_rules.md` | 构建命令、代码规范（中文注释、strict TS、Prettier）、Git 规范（Conventional Commits） |
+| `methodology.md` | 四层工作方法论：决策树穷尽 + 事实交叉验证 + 渐进式文档沉淀。超过 12 万 token 上下文强制拆解子目标 |
+| `skill-design-patterns.md` | Skill 设计五模式（Tool Wrapper/Generator/Reviewer/Inversion/Pipeline）、SkCC 编译四阶段、安全审计基线（Snyk 36.82% 漏洞率） |
+
 ## Project
 
 **srs-formalizer** — 将 SRS（软件需求规格说明）文档转化为形式化产出的 AI Agent 技能：

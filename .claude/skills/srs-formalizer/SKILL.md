@@ -6,7 +6,22 @@ tags: [srs, requirements, knowledge-graph, bdd, tla+, lean, formal-methods, cyph
 metadata:
   version: "0.5.1"
   compatibility: requires Node.js>=20, typescript>=5.5, Claude Code>=1.0
+  pattern: pipeline
+  domain: formal-methods
+  toxic_flow_analysis:
+    accesses_private_data: false
+    processes_untrusted_input: true
+    can_external_communicate: true
   security_level: high
+  hitl_required: true
+  pre_conditions:
+    - "SRS 文档必须存在且可读"
+    - "Node.js >=20 环境就绪"
+    - "S0 发现阶段完成用户确认"
+  post_conditions:
+    - "所有产物写入 .srs_formalizer/ 工作目录"
+    - "verify-gate FINAL 全部通过"
+    - "convergence-log.jsonl 记录迭代历史"
   permissions:
     - kind: filesystem
       scope: ".srs_formalizer/*"
