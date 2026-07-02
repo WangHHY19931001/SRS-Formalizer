@@ -6,7 +6,7 @@
  *   T2: score 模式完美答案 → 原 6 维度 100 分
  *   T3: score 模式全错答案 → 全 0 分 + low tier
  *   T4: score 模式部分正确 → 中间分数
- *   T5: tier 推断逻辑（全低→low, 全高→medium 因工具链维度 0 分）
+ *   T5: tier 推断逻辑（全低→low, 全高→low 因最弱维度决定 tier）
  *   T6: 非法答案文件处理（文件不存在 / 无效 JSON / 空 answers）
  *   T7: 缺少 --mode 参数报错
  */
@@ -485,7 +485,7 @@ describe('capability-probe command', () => {
   });
 
   // ========== T2: score mode — perfect answers ==========
-  it('T2: score mode with perfect answer returns 100 across all 6 original dimensions (tier: medium due to toolchain dims)', async () => {
+  it('T2: score mode with perfect answer returns 100 across all 6 original dimensions (tier: low — weakest dim determines tier)', async () => {
     const { main } = await import('../commands/capability-probe.js');
 
     // Generate probes and build perfect answers for all 50
@@ -511,8 +511,8 @@ describe('capability-probe command', () => {
     assert.equal(profile['formal_tlaplus'], 0, 'formal_tlaplus should be 0 (no toolchain)');
     assert.equal(profile['formal_lean4'], 0, 'formal_lean4 should be 0 (no toolchain)');
 
-    // Average = (6*100 + 0 + 0) / 8 = 75 → medium
-    assert.equal(data.estimated_tier, 'medium');
+    // Weakest-dimension rule: min(100,100,100,100,100,100,0,0) = 0 → low
+    assert.equal(data.estimated_tier, 'low');
     assert.ok(Array.isArray(data.recommendations));
   });
 
@@ -576,7 +576,7 @@ describe('capability-probe command', () => {
   });
 
   // ========== T5: tier inference ==========
-  it('T5: tier inference logic — all zero → low, all perfect → medium (toolchain dims score 0)', async () => {
+  it('T5: tier inference logic — all zero → low, all perfect → low (weakest dim = 0)', async () => {
     const { main } = await import('../commands/capability-probe.js');
 
     const genResult = await main(['--mode', 'generate']);
@@ -596,7 +596,7 @@ describe('capability-probe command', () => {
     const highResult = await main(['--mode', 'score', '--file', highPath]);
     assert.equal(highResult.status, 'ok');
     const highData = highResult.data as Record<string, unknown>;
-    assert.equal(highData.estimated_tier, 'medium');
+    assert.equal(highData.estimated_tier, 'low');
   });
 
   // ========== T6: invalid answer file ==========
