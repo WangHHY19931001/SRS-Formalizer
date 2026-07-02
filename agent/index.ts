@@ -84,7 +84,7 @@ async function main() {
 
   const result = await agent.invoke(
     { messages: [{ role: 'user', content: task }] },
-    { recursionLimit: 200 },
+    { recursionLimit: 500 },
   );
 
   const msgs = result.messages || [];

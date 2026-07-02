@@ -84,7 +84,7 @@ export async function createAgent(config: AgentConfig): Promise<{
   const id = `${config.role}-${Date.now()}-${++agentIdCounter}`;
   const llmConfig = loadLlmConfig(config.configPath);
   const maxTokens = config.maxContextTokens || llmConfig["max-model-len"] || 131072;
-  const maxTurns = config.maxTurns || 100;
+  const maxTurns = config.maxTurns || 250;
   const logDir = config.logDir || "/tmp/srs-agent-logs";
 
   // Ensure log dir exists
