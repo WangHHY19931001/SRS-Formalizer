@@ -183,7 +183,7 @@ S5（形式化）阶段在触发条件满足时自动启用，依赖 **确定性
 |------|:----:|------|
 | **LangChain.js** ([github.com/langchain-ai/langchainjs](https://github.com/langchain-ai/langchainjs)) | Agent | Agent 框架核心——提供 Zod schema 工具定义（`tool()`）、消息系统及 LangChain Core 运行时 |
 | **LangGraph.js** ([github.com/langchain-ai/langgraphjs](https://github.com/langchain-ai/langgraphjs)) | Agent | Agent 运行时引擎——StateGraph ReAct 循环、ToolNode 工具执行、条件路由及递归控制 |
-| **OpenAI Node.js SDK** ([github.com/openai/openai-node](https://github.com/openai/openai-node)) | 两者 | 技能（v6.x）和 Agent（v4.x）均通过 OpenAI 兼容 API 调用 LLM |
+| **OpenAI Node.js SDK** ([github.com/openai/openai-node](https://github.com/openai/openai-node)) | Agent | Agent 通过 OpenAI 兼容 API 调用 LLM（技能脚本为零依赖纯 CLI 工具，LLM 交互由 Agent 代理） |
 | **Zod** ([github.com/colinhacks/zod](https://github.com/colinhacks/zod)) | Agent | TypeScript-first schema 验证——v4.4+ 用于所有 LangChain 工具参数定义 |
 
 ### 开发工具链
