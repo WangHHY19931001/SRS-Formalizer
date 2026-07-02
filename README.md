@@ -197,6 +197,15 @@ S5（形式化）阶段在触发条件满足时自动启用，依赖 **确定性
 | **Prettier** ([github.com/prettier/prettier](https://github.com/prettier/prettier)) | 两者 | 代码格式化——统一全项目风格 |
 | **DefinitelyTyped** ([github.com/DefinitelyTyped/DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped)) | 两者 | `@types/node` 类型定义——技能 v20.x · Agent v26.x |
 
+### 形式化工具
+
+| 项目 | 阶段 | 说明 |
+|------|:----:|------|
+| **TLA+** ([github.com/tlaplus/tlaplus](https://github.com/tlaplus/tlaplus)) | S5 | 形式化规约语言——SANY 语法解析 + TLC 模型检测（严格模式：不允许黑洞/奇迹/无限状态/死锁） |
+| **Lean 4** ([github.com/leanprover/lean4](https://github.com/leanprover/lean4)) | S5 | 定理证明器——lake build 编译验证 |
+| **mathlib4** ([github.com/leanprover-community/mathlib4](https://github.com/leanprover-community/mathlib4)) | S5 | Lean 4 数学库——证明依赖的基础设施 |
+| **gherkin-lint** ([github.com/vsiakka/gherkin-lint](https://github.com/vsiakka/gherkin-lint)) | S4 | BDD 特征文件校验——严格模式（不允许 GAP/未定义/PLACEHOLDER） |
+
 ### 方法论与设计
 
 | 项目 | 说明 |

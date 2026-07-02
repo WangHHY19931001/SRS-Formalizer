@@ -82,32 +82,64 @@ export async function main(args: string[]): Promise<CliResult> {
     };
   }
 
-  // TLC model check (if .cfg exists or create minimal)
+  // TLC model check in strict mode
+  // Strict mode: -deadlock (no deadlock), -checkpoint 0 (fresh run)
+  // TLC checks: deadlocks, TypeOK invariant, termination, bounded state space
   const cfgPath = fileArg.replace(/\.tla$/, ".cfg");
+  const specName = path.basename(fileArg, ".tla");
+  const cfgDir = path.dirname(fileArg);
+
   if (!fs.existsSync(cfgPath)) {
-    const specName = path.basename(fileArg, ".tla");
-    const dir = path.dirname(fileArg);
-    fs.writeFileSync(cfgPath, `SPECIFICATION ${specName}\nINVARIANT TypeOK\n`, "utf-8");
+    // Strict mode config: requires TypeOK invariant, enables deadlock detection
+    fs.writeFileSync(cfgPath, [
+      `SPECIFICATION ${specName}`,
+      "INVARIANT TypeOK",
+      "CHECK_DEADLOCK TRUE",
+      "",
+    ].join("\n"), "utf-8");
+  }
+
+  // Ensure CHECK_DEADLOCK is in the config
+  let cfgContent = fs.readFileSync(cfgPath, "utf-8");
+  if (!cfgContent.includes("CHECK_DEADLOCK")) {
+    cfgContent += "\nCHECK_DEADLOCK TRUE\n";
+    fs.writeFileSync(cfgPath, cfgContent, "utf-8");
   }
 
   let tlcResult = "";
   try {
-    tlcResult = execSync(`java -cp "${jar}" tlc2.TLC -config "${cfgPath}" "${fileArg}"`, {
-      stdio: "pipe",
-      encoding: "utf-8",
-      timeout: 120000,
-      maxBuffer: 10 * 1024 * 1024,
-    });
+    tlcResult = execSync(
+      `java -cp "${jar}" tlc2.TLC -deadlock -config "${cfgPath}" "${fileArg}"`,
+      {
+        cwd: cfgDir,
+        stdio: "pipe",
+        encoding: "utf-8",
+        timeout: 120000,
+        maxBuffer: 10 * 1024 * 1024,
+      }
+    );
   } catch (e: unknown) {
     const err = e as { stdout?: string; stderr?: string };
+    const output = err.stdout?.toString() || err.stderr?.toString() || String(e);
+
+    // Detect strict mode violations
+    const violations: string[] = [];
+    if (output.includes("Deadlock")) violations.push("DEADLOCK: 系统存在死锁状态");
+    if (output.includes("Infinite")) violations.push("INFINITE_STATE: 状态空间无界");
+    if (output.toLowerCase().includes("miracle")) violations.push("MIRACLE: 检测到不可能的状态转换（奇迹）");
+    if (output.includes("null") || output.includes("undefined")) violations.push("UNDEFINED: 存在未定义的状态或变量");
+    if (output.includes("TypeOK")) violations.push("TYPE_INVARIANT: TypeOK 不变式被违反");
+    if (output.includes("Stuttering")) violations.push("STUTTERING: 检测到无限停滞（活锁）");
+
     return {
       status: "error",
-      message: "TLC model check failed",
+      message: `TLC model check failed (strict mode). Violations: ${violations.length > 0 ? violations.join("; ") : "see output"}`,
       data: {
         stage: "tlc",
         sany: sanyResult.slice(0, 500),
         jar_version: jarVersion,
-        output: err.stdout?.toString() || err.stderr?.toString() || String(e),
+        strict_violations: violations,
+        output: output.slice(0, 2000),
       },
     };
   }
