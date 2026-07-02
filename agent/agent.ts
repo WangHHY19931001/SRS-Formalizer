@@ -1,7 +1,8 @@
 /**
- * agent.ts — Deep Agent factory powered by deepagentsjs + LangSmith tracing
+/**
+ * agent.ts — Deep Agent factory powered by deepagentsjs
  *
- * Built on createDeepAgent from @langchain/deepagents which provides:
+ * Built on createDeepAgent which provides:
  *   - Filesystem tools (read_file, write_file, edit_file, ls, glob, grep)
  *   - Sub-agent delegation (task) with isolated context windows
  *   - Planning (write_todos) for task breakdown and progress tracking
@@ -11,12 +12,10 @@
  *   - Shell execution (run_command)
  *   - Web search (web_search) and HTTP requests (http_request)
  *   - MCP server auto-registration from llm-config.json
- *   - LangSmith tracing via LangChainTracer
  *   - Custom system prompt with workDir, WORK_TABOOS, and WORK_RULES
  */
 
 import { createDeepAgent } from "deepagents";
-import { LangChainTracer } from "@langchain/core/tracers/tracer_langchain";
 import { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
@@ -191,21 +190,6 @@ export async function createAgent(config: AgentConfig): Promise<{
     ],
   });
 
-  // ===================== LangSmith Tracer =====================
-
-  const tracer = process.env.LANGSMITH_TRACING
-    ? new LangChainTracer({
-        projectName: process.env.LANGSMITH_PROJECT || "srs-formalizer-debug",
-      })
-    : null;
-
-  function invokeConfig(
-    extra?: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const callbacks = tracer ? [tracer] : [];
-    return { ...extra, callbacks };
-  }
-
   // ===================== AgentHandle =====================
 
   const handle: AgentHandle = {
@@ -218,10 +202,9 @@ export async function createAgent(config: AgentConfig): Promise<{
           input: Record<string, unknown>,
           config?: Record<string, unknown>,
         ) => Promise<{ messages?: Array<{ content: unknown }> }>;
-        const result = await invoke(
-          { messages: [new HumanMessage(message)] },
-          invokeConfig(),
-        );
+        const result = await invoke({
+          messages: [new HumanMessage(message)],
+        });
         const msgs = result.messages || [];
         const last = msgs[msgs.length - 1];
         return last ? (last.content as string) || "" : "";
@@ -238,12 +221,7 @@ export async function createAgent(config: AgentConfig): Promise<{
   ) => Promise<{ messages?: Array<{ content: unknown }> }>;
 
   return {
-    agent: {
-      invoke: (
-        input: Record<string, unknown>,
-        extra?: Record<string, unknown>,
-      ) => invoke(input, invokeConfig(extra)),
-    },
+    agent: { invoke },
     id,
     handle,
   };

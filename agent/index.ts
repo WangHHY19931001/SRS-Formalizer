@@ -6,8 +6,7 @@
  *   npx tsx agent/index.ts --llm-config <path> --task <path>
  *                  [--project-root <path>] [--skills-dir <path>] [--work-dir <path>]
  *
- * Powered by deepagentsjs (createDeepAgent) + LangSmith tracing.
- * Set LANGSMITH_TRACING=true to enable trace collection.
+ * Powered by deepagentsjs (createDeepAgent).
  */
 
 import { createAgent } from "./agent.js";
@@ -39,11 +38,6 @@ async function main() {
     console.error(
       "  --work-dir      测试工作目录（默认: /tmp/srs-debug-<timestamp>/.srs_formalizer）",
     );
-    console.error("");
-    console.error("LangSmith tracing (optional):");
-    console.error(
-      "  LANGSMITH_TRACING=true  LANGSMITH_API_KEY=<key>  LANGSMITH_PROJECT=<name>",
-    );
     process.exit(1);
   }
 
@@ -72,11 +66,6 @@ async function main() {
   console.log(`  Project root: ${projectRoot}`);
   console.log(`  Skills dir: ${skillsDir}`);
   console.log(`  Work dir: ${workDir}`);
-  if (process.env.LANGSMITH_TRACING) {
-    console.log(
-      `  LangSmith: tracing enabled (project: ${process.env.LANGSMITH_PROJECT || "srs-formalizer-debug"})`,
-    );
-  }
 
   const { agent, id } = await createAgent({
     configPath: llmConfig,
