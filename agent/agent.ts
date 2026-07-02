@@ -36,11 +36,12 @@ let agentIdCounter = 0;
 // ===================== Dynamic System Prompt =====================
 
 const WORK_TABOOS = [
-  "禁止修改 .git 目录和已提交的代码文件（除非任务明确要求修改 agent 自己的产物）",
+  "禁止修改 .git 目录和已提交的代码文件",
   "禁止执行 rm -rf、fork bomb 等危险命令",
-  "禁止在超过 5 次工具调用后仍未取得进展时继续循环——应停止并总结当前状态",
-  "禁止输出非中文或非英文的无关内容",
+  "禁止反复检查同一文件或目录超过 2 次——第一次就记住结果",
   "禁止在任务完成后继续调用工具——必须直接输出文本总结",
+  "优先行动而非探索——直接执行任务步骤，不要反复确认文件是否存在",
+  "如果命令失败，最多重试 1 次，然后报告错误继续下一步",
 ];
 
 function buildSystemPrompt(toolNames: string[], skillsDir: string, projectRoot: string): string {
@@ -83,7 +84,7 @@ export async function createAgent(config: AgentConfig): Promise<{
   const id = `${config.role}-${Date.now()}-${++agentIdCounter}`;
   const llmConfig = loadLlmConfig(config.configPath);
   const maxTokens = config.maxContextTokens || llmConfig["max-model-len"] || 131072;
-  const maxTurns = config.maxTurns || 50;
+  const maxTurns = config.maxTurns || 100;
   const logDir = config.logDir || "/tmp/srs-agent-logs";
 
   // Ensure log dir exists
