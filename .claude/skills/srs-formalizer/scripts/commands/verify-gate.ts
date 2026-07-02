@@ -659,7 +659,7 @@ export async function main(args: string[]): Promise<CliResult> {
 
   // === Stage checklist gates (S1/R3/FINAL) ===
   if (stageArg === 'S1' || stageArg === 'R3' || stageArg === 'FINAL') {
-    allChecks.push(checkChecklistComplete('1_shard', workDir));
+    allChecks.push(checkChecklistComplete('S0', workDir));
   }
   if (stageArg === 'R3' || stageArg === 'FINAL') {
     allChecks.push(checkChecklistComplete('2_extract', workDir));

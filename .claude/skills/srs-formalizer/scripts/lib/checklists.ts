@@ -13,16 +13,16 @@ import * as path from 'node:path';
 // ---------------------------------------------------------------------------
 
 export const CHECKLISTS: Record<string, string> = {
-  '1_shard': `# S1 预处理 — 验收清单
+  'S0': `# S0 发现与确认 — 清单
 
-- [ ] init 成功创建目录结构
-- [ ] manifest 成功生成索引化分片
-- [ ] _ctx/shard_index.json 存在且 total_shards >= 1
-- [ ] 每个 shard 含 locator（{file_abspath}-{start}-{end}-{chunk_id}）
-- [ ] 每个 shard 的 source_path 指向的源文件存在
-- [ ] GAPS.md 已生成，缺口已标注优先级
-- [ ] CONTEXT.md 含术语表和切片索引
-- [ ] STATE.md 当前阶段标记为 S1 完成
+- [ ] SRS 文件路径确认且可读
+- [ ] 文件格式识别（.md / .html / 多目录）
+- [ ] §7 未解决问题已扫描
+- [ ] 术语表检测（存在 / 缺失）
+- [ ] TLA+ 触发条件已检测
+- [ ] Lean 4 触发条件已检测
+- [ ] 用户已确认阶段触发方案
+- [ ] 用户已确认语言偏好（zh/en）
 `,
   '2_extract': `# S2 需求提取 — 验收清单
 
@@ -114,10 +114,10 @@ export interface CanonicalDef {
 }
 
 export const CANONICAL: Record<string, CanonicalDef> = {
-  '1_shard': {
+  'S0': {
     expected_count: 8,
-    required_headers: ['S1', '预处理', '验收清单'],
-    required_phrases: ['init 成功', 'manifest 成功', 'shard_index.json', 'total_shards', 'locator', 'source_path', 'GAPS.md', 'CONTEXT.md'],
+    required_headers: ['S0', '发现', '确认'],
+    required_phrases: ['SRS', '文件路径', '格式识别', 'TLA+', 'Lean', '触发', '用户', '确认'],
   },
   '2_extract': {
     expected_count: 23,
@@ -152,7 +152,7 @@ export const CANONICAL: Record<string, CanonicalDef> = {
 
 /** 将 CHECKLISTS 写入工作目录的各阶段子目录 */
 export function writeChecklists(workDir: string): void {
-  const stageDirs = ['2_extract', '3_graph', '4_bdd', '5_formal', '6_outputs'];
+  const stageDirs = ['S0', '2_extract', '3_graph', '4_bdd', '5_formal', '6_outputs'];
   for (const dir of stageDirs) {
     const content = CHECKLISTS[dir];
     if (content) {

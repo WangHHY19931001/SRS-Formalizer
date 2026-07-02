@@ -150,19 +150,19 @@ describe('validate-checklist command', () => {
 
   // --- Integrity checks ---
 
-  it('canonical 1_shard checklist passes integrity', async () => {
-    const content = `# S1 预处理 — 验收清单
+  it('canonical S0 checklist passes integrity', async () => {
+    const content = `# S0 发现与确认 — 清单
 
-- [x] init 成功创建目录结构
-- [x] manifest 成功生成索引化分片
-- [x] _ctx/shard_index.json 存在且 total_shards >= 1
-- [x] 每个 shard 含 locator（{file_abspath}-{start}-{end}-{chunk_id}）
-- [x] 每个 shard 的 source_path 指向的源文件存在
-- [x] GAPS.md 已生成，缺口已标注优先级
-- [x] CONTEXT.md 含术语表和切片索引
-- [x] STATE.md 当前阶段标记为 S1 完成
+- [x] SRS 文件路径确认且可读
+- [x] 文件格式识别（.md / .html / 多目录）
+- [x] §7 未解决问题已扫描
+- [x] 术语表检测（存在 / 缺失）
+- [x] TLA+ 触发条件已检测
+- [x] Lean 4 触发条件已检测
+- [x] 用户已确认阶段触发方案
+- [x] 用户已确认语言偏好（zh/en）
 `;
-    const fp = path.join(TMP, '1_shard', 'CHECKLIST.md');
+    const fp = path.join(TMP, 'S0', 'CHECKLIST.md');
     fs.mkdirSync(path.dirname(fp), { recursive: true });
     fs.writeFileSync(fp, content, 'utf-8');
     const { main } = await import('../commands/validate-checklist.js');
@@ -176,12 +176,12 @@ describe('validate-checklist command', () => {
   });
 
   it('detects deleted items (item count < expected)', async () => {
-    const content = `# S1 预处理 — 验收清单
+    const content = `# S0 发现与确认 — 清单
 
 - [x] init 成功创建目录结构
 - [x] manifest 成功生成分片文件
 `;
-    const fp = path.join(TMP, '1_shard', 'CHECKLIST.md');
+    const fp = path.join(TMP, 'S0', 'CHECKLIST.md');
     fs.writeFileSync(fp, content, 'utf-8');
     const { main } = await import('../commands/validate-checklist.js');
     const result = await main(['--file', fp]);
@@ -197,13 +197,13 @@ describe('validate-checklist command', () => {
 - [x] init 成功创建目录结构
 - [x] manifest 成功生成分片文件
 - [x] _ctx/shard_index.json 存在且 total_shards ≥ 1
-- [x] 1_shard/ 下分片文件数 == total_shards
+- [x] S0/ 下分片文件数 == total_shards
 - [x] 每个分片头部含 # shard_id: # source: # total_shards:
 - [x] GAPS.md 已生成，缺口已标注优先级
 - [x] CONTEXT.md 含术语表和切片索引
 - [x] STATE.md 当前阶段标记为 S1 完成
 `;
-    const fp = path.join(TMP, '1_shard', 'CHECKLIST.md');
+    const fp = path.join(TMP, 'S0', 'CHECKLIST.md');
     fs.writeFileSync(fp, content, 'utf-8');
     const { main } = await import('../commands/validate-checklist.js');
     const result = await main(['--file', fp]);
@@ -214,7 +214,7 @@ describe('validate-checklist command', () => {
   });
 
   it('detects missing key phrases', async () => {
-    const content = `# S1 预处理 — 验收清单
+    const content = `# S0 发现与确认 — 清单
 
 - [x] done
 - [x] done
@@ -225,7 +225,7 @@ describe('validate-checklist command', () => {
 - [x] done
 - [x] done
 `;
-    const fp = path.join(TMP, '1_shard', 'CHECKLIST.md');
+    const fp = path.join(TMP, 'S0', 'CHECKLIST.md');
     fs.writeFileSync(fp, content, 'utf-8');
     const { main } = await import('../commands/validate-checklist.js');
     const result = await main(['--file', fp]);
@@ -241,7 +241,7 @@ describe('validate-checklist command', () => {
 - [x] a
 - [x] b
 `;
-    const fp = path.join(TMP, '1_shard', 'CHECKLIST.md');
+    const fp = path.join(TMP, 'S0', 'CHECKLIST.md');
     fs.writeFileSync(fp, content, 'utf-8');
     const { main } = await import('../commands/validate-checklist.js');
     const result = await main(['--file', fp]);
@@ -255,12 +255,12 @@ describe('validate-checklist command', () => {
   // --- Repair tests ---
 
   it('--repair regenerates tampered checklist from template', async () => {
-    const tampered = `# S1 预处理 — 验收清单
+    const tampered = `# S0 发现与确认 — 清单
 
 - [x] only 2 items left, rest deleted
 - [x] done
 `;
-    const fp = path.join(TMP, '1_shard', 'CHECKLIST.md');
+    const fp = path.join(TMP, 'S0', 'CHECKLIST.md');
     fs.mkdirSync(path.dirname(fp), { recursive: true });
     fs.writeFileSync(fp, tampered, 'utf-8');
 
@@ -274,18 +274,18 @@ describe('validate-checklist command', () => {
   });
 
   it('--repair on valid checklist does nothing', async () => {
-    const valid = `# S1 预处理 — 验收清单
+    const valid = `# S0 发现与确认 — 清单
 
-- [x] init 成功创建目录结构
-- [x] manifest 成功生成索引化分片
-- [x] _ctx/shard_index.json 存在且 total_shards >= 1
-- [x] 每个 shard 含 locator（{file_abspath}-{start}-{end}-{chunk_id}）
-- [x] 每个 shard 的 source_path 指向的源文件存在
-- [x] GAPS.md 已生成，缺口已标注优先级
-- [x] CONTEXT.md 含术语表和切片索引
-- [x] STATE.md 当前阶段标记为 S1 完成
+- [x] SRS 文件路径确认且可读
+- [x] 文件格式识别（.md / .html / 多目录）
+- [x] §7 未解决问题已扫描
+- [x] 术语表检测（存在 / 缺失）
+- [x] TLA+ 触发条件已检测
+- [x] Lean 4 触发条件已检测
+- [x] 用户已确认阶段触发方案
+- [x] 用户已确认语言偏好（zh/en）
 `;
-    const fp = path.join(TMP, '1_shard', 'CHECKLIST.md');
+    const fp = path.join(TMP, 'S0', 'CHECKLIST.md');
     fs.writeFileSync(fp, valid, 'utf-8');
     const { main } = await import('../commands/validate-checklist.js');
     const result = await main(['--file', fp, '--repair']);

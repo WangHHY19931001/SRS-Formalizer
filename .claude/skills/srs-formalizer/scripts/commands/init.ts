@@ -11,6 +11,8 @@ import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 
 const SUBDIRS = [
+  // S0: 发现与确认
+  'S0',
   // S1: 预处理 — shards tracked via shard_index.json
   '_ctx',
   // S2: 需求提取 + 架构分解

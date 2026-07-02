@@ -15,7 +15,7 @@ function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
   // Create all stage directories and required files
   const dirs = [
-    '1_shard', '_ctx',
+    'S0', '_ctx',
     '2_extract/r1-explicit', '2_extract/r2-implicit', '2_extract/r3-relational', '2_extract/architecture',
     '3_graph/graph', '3_graph/analysis/subagent_prompts',
     '4_bdd/features', '5_formal/specs', '5_formal/proofs',
@@ -27,7 +27,7 @@ function createWorkDir(name: string): string {
   fs.writeFileSync(path.join(workDir, 'MINDMAP.md'), '# MINDMAP\n- [x] Module1 ✅\n- [x] Module2 ✅', 'utf-8');
   fs.writeFileSync(path.join(workDir, 'GLOSSARY.md'), '# GLOSSARY — SRS 术语表\n\n## 高置信度术语\n| 术语 | 定义 | 来源 |\n|------|------|------|\n| RBAC | Role-Based Access Control | srs.md:1 |\n', 'utf-8');
   // Write CHECKLIST.md files for each stage
-  const checklistDirs = ['1_shard', '2_extract', '3_graph', '4_bdd', '5_formal', '6_outputs'];
+  const checklistDirs = ['S0', '2_extract', '3_graph', '4_bdd', '5_formal', '6_outputs'];
   for (const d of checklistDirs) {
     fs.writeFileSync(path.join(workDir, d, 'CHECKLIST.md'), `# ${d} checklist\n\n- [x] All checks passed\n`, 'utf-8');
   }
