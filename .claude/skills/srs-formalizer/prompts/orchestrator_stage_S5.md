@@ -5,6 +5,7 @@
 2. 工具链就绪检查：
    - **TLA+**: `java -version`（不限 OS，仅需 Java 11+）
    - **Lean 4**: `lake --version`（❌ Windows 不支持，仅 Linux x86_64 / macOS ARM64）
+     首次安装后执行 `lake exe cache get` 下载 mathlib4 编译缓存（避免从源码编译）
 3. 缺失工具链 → 输出安装指引至 ERRORS.md，标记对应模块不可用
 4. **平台限制**：Lean 4 在 Windows 上禁止使用（引导用户安装 WSL2）
 

@@ -19,6 +19,7 @@
 
 ## Lean 4（条件触发）
 - [ ] 工具链就绪：`lake --version` 通过（✅ Linux x86_64 / macOS ARM64）
+- [ ] mathlib4 缓存：`lake exe cache get` 已执行（避免从源码编译）
 - [ ] `validate-lean --file <file>.lean` 通过
 - [ ] **拆分证明方法确认**：
   - [ ] Step 1: 编写证明骨架（带 sorry）✅

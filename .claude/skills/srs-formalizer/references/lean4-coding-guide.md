@@ -18,6 +18,9 @@ mkdir ~/lean4-project && cd ~/lean4-project
 lake init
 echo 'require mathlib from git "https://github.com/leanprover-community/mathlib4.git"' >> lakefile.lean
 lake update
+
+# 优先下载 mathlib4 编译缓存（避免从源码编译，节省数十分钟）
+lake exe cache get
 ```
 
 ### 0.2 macOS ARM64 (Apple Silicon)
@@ -30,6 +33,9 @@ mkdir ~/lean4-project && cd ~/lean4-project
 lake init
 echo 'require mathlib from git "https://github.com/leanprover-community/mathlib4.git"' >> lakefile.lean
 lake update
+
+# 优先下载 mathlib4 编译缓存（避免从源码编译，节省数十分钟）
+lake exe cache get
 ```
 
 ### 0.3 验证安装
