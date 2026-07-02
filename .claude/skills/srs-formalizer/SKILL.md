@@ -51,6 +51,7 @@ metadata:
     - validate-cypher
     - validate-bdd
     - validate-checklist
+    - validate-glossary
     - verify-gate
   platform_activation:
     claude-code: { hook: UserPromptSubmit, forced_eval: true }
@@ -209,7 +210,9 @@ S2 子阶段:
 | `query-graph --workdir .srs_formalizer --query <type> --params '<json>'` | 图谱只读查询 | S6 |
 | `verify-gate --workdir .srs_formalizer --stage S1\|R3\|FINAL` | 硬门禁检查 | S1/S3/S6 |
 | `validate-checklist --file <path> --workdir .srs_formalizer` | CHECKLIST 完成度校验 | S1/S3/S6 |
-| `capability-probe --mode generate\|score [--file <path>]` | LLM 能力探测（出题+判分） | S0 |
+| `pack-skill --skill-dir <path> [--force]` | 技能打包 + 加密备份 | 维护 |
+| `verify-skill-integrity --skill-dir <path> [--repair]` | 技能完整性校验 + 自动修复 | 维护 |
+| `capability-probe --mode generate\|score [--file <path>] [--workdir .srs_formalizer]` | LLM 能力探测（8 维度 50 题） | S0 |
 | `compile --skill-dir <path> --workdir .srs_formalizer` | 编译 SKILL.md → SkIR + 安全注入 + 平台发射 | 技能加载时 |
 
 ## 文件体系与加载策略
@@ -234,10 +237,12 @@ S2 子阶段:
 | 文件 | 加载时机 | 读者 |
 |------|---------|------|
 | `references/srs-chapter-guide.md` | manifest 章节识别失败时 | 编排者 |
-| `references/cypher-syntax.md` | export-cypher 输出异常时 | 编排者 |
-| `references/gherkin-syntax.md` | validate-bdd 失败时 | 编排者 |
-| `references/tlaplus-guide.md` | S5 TLA+ 触发时 | 子代理 |
-| `references/lean4-guide.md` | S5 Lean 4 触发时 | 子代理 |
+| `references/capability-adaptation.md` | capability-probe 判分后 | 编排者 |
+| `references/tlaplus-coding-guide.md` | S5 TLA+ 触发时 | 子代理 |
+| `references/lean4-coding-guide.md` | S5 Lean 4 触发时 | 子代理 |
+| `references/hooks-integration.md` | 技能安装/配置时 | 编排者 |
+| `references/auto-setup.md` | 编码智能体自配置时 | 子代理 |
+| `references/agent-integration-guide.md` | 多平台集成时 | 编排者 |
 
 ### L3-Setup：集成参考（非运行时，仅初始化/配置时加载）
 | 文件 | 加载时机 | 读者 |

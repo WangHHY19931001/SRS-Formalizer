@@ -90,6 +90,7 @@ unzip srs-formalizer-v0.5.1.zip -d /your-project/
 
 | 版本 | 日期 | 关键变更 |
 |------|------|---------|
+| **0.5.1** | 2026-07-02 | 50-probe 重写、TLA+/Lean 编码指南、递归分片(≤200行)、术语表并行提取、五层图谱体系、CLI 毒值防护、S6 收敛循环 |
 | **0.5.0** | 2026-07-01 | 分片索引化重构——`ShardEntry.locator` 格式 `{file_abspath}-{start}-{end}-{chunk_id}`，移除 `1_shard/` 目录，HTML 格式保留，`inject-prompt --shard-id` 自动解析 |
 | **0.4.0** | 2026-07-01 | SkCC 方法论集成——`compile` 命令、SkIR 中间表示、Anti-Skill 安全注入（7 条规则）、Claude XML + Generic MD 双发射器 |
 | **0.3.0** | 2026-06-30 | 分片源位置标注、安全 ID（ASCII-only）、目录结构重构（阶段前缀） |
