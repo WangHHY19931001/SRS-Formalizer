@@ -23,6 +23,9 @@ import { execSync } from "node:child_process";
 import type { CliResult } from "../types/index.js";
 import { safeParseArg, validateWorkDir } from "../lib/cli.js";
 
+// ES module __dirname polyfill
+const __dirname = new URL('.', import.meta.url).pathname.replace(/^\/(?=\w:)/, '');
+
 // ===================== Validators (3 types) =====================
 
 type ExtractType = "r1" | "r2" | "r3" | "arch";
@@ -82,7 +85,7 @@ function validateArchitectureLine(line: string): {
     errors.push("name 缺失");
   if (
     !record.type ||
-    !["Module", "Actor", "Constraint", "Component", "Interface"].includes(
+    !["Module", "Actor", "Constraint", "Component", "Interface", "module", "actor", "constraint", "component", "interface"].includes(
       String(record.type),
     )
   ) {
@@ -248,7 +251,7 @@ export async function main(args: string[]): Promise<CliResult> {
   try {
     const result = execSync(
       `npx tsx index.ts inject-prompt --template ${templatePath} --shard-id ${shardId} --workdir ${workDir} --params '{}'`,
-      { cwd: path.resolve(__dirname, ".."), stdio: "pipe", timeout: 30000, env: { ...process.env } },
+      { cwd: path.dirname(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(?=\w:)/, ''))), stdio: "pipe", timeout: 30000, env: { ...process.env } },
     ).toString().trim();
     const parsed = JSON.parse(result);
     if (parsed.status !== "ok") return { status: "error", message: `inject-prompt failed: ${parsed.message}` };
