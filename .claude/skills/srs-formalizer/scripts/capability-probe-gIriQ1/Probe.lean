@@ -1,1 +1,0 @@
-theorem perfect : True := by trivial
