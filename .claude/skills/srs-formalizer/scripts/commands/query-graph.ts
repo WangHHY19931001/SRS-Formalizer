@@ -425,3 +425,7 @@ export async function main(args: string[]): Promise<CliResult> {
     return { status: 'error', message: `Query failed: ${(err as Error).message}` };
   }
 }
+
+// Guard: refuse direct invocation (must go through index.ts)
+import { refuseDirectInvocation } from '../lib/cli.js';
+refuseDirectInvocation(import.meta.url);

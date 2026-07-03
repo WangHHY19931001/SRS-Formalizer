@@ -1,132 +1,61 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+srs-formalizer 项目——将 SRS 文档转化为形式化产出（Cypher · Gherkin · TLA+ · Lean 4）的 AI Agent 技能。
 
-## Project Rules
+## 项目指引
 
-`project_rules/` 目录包含三类强制规则，开发前必须遵守：
+- **设计文档**: `docs/DESIGN.md` 是唯一事实依据。设计决策、架构约束、规则合规均记录于此。代码变更必须先更新设计文档。
+- **规则体系**: `rules/index.md` 是入口。开发前必须遵守 `rules/skill/` 下的结构、安全、跨平台、验证规则。
+- **技能位置**: `.claude/skills/srs-formalizer/`——SKILL.md 是 L1+L2 指令（~3,800 tokens），L3 资源按需加载。
 
-| 文件                       | 内容                                                                                                                        |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `project_rules.md`         | 构建命令、代码规范（中文注释、strict TS、Prettier）、Git 规范（Conventional Commits）                                       |
-| `methodology.md`           | 四层工作方法论：决策树穷尽 + 事实交叉验证 + 渐进式文档沉淀。超过 12 万 token 上下文强制拆解子目标                           |
-| `skill-design-patterns.md` | Skill 设计五模式（Tool Wrapper/Generator/Reviewer/Inversion/Pipeline）、SkCC 编译四阶段、安全审计基线（Snyk 36.82% 漏洞率） |
-
-## Project
-
-**srs-formalizer** — 将 SRS（软件需求规格说明）文档转化为形式化产出的 AI Agent 技能：
-需求知识图谱（Cypher）· BDD（Gherkin）· TLA+ 规约 · Lean 4 证明。
-
-## Build & Test
+## 构建与测试
 
 ```bash
 cd .claude/skills/srs-formalizer/scripts
 
-# Install
-npm install
-
-# Typecheck (strict mode)
-npx tsc --noEmit
-
-# All tests (35 files, 299 tests)
-npx tsx --test __tests__/*.test.ts
-
-# Single test file
-npx tsx --test __tests__/manifest.test.ts
+npm install                          # 仅 typescript + @types/node (零运行时依赖)
+npx tsc --noEmit                     # strict 模式, 0 errors 必须
+npx tsx --test __tests__/*.test.ts   # 299 tests, 0 fail 必须
 ```
 
-## Architecture
+## 架构
 
-### 流水线 CLI
-
-| Entry     | Path                                             | Purpose                        |
-| --------- | ------------------------------------------------ | ------------------------------ |
-| Skill CLI | `.claude/skills/srs-formalizer/scripts/index.ts` | 30 commands for the skill pipeline |
-
-### Skill pipeline (S0→S6)
+七阶段流水线: `S0→S1→S2→S3→S4→S5→S6`。每阶段有 gate condition。
 
 ```
-S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱构建)
-             → S4(BDD生成) → S5(形式化/条件触发) → S6(验收闸门+收敛循环)
+scripts/
+├── index.ts       # CLI 入口 (注册表模式, 31 命令, 31/31 refuseDirectInvocation)
+├── commands/      # 31 条命令
+├── lib/           # 19 核心模块 + probe/llm/cross-graph/verify-gate/architecture
+├── types/         # JsonlRecord, CliResult, ShardIndex, SkillIR (20+ 字段)
+└── __tests__/     # 35 文件, 299 测试
 ```
 
-- **S1**: init → manifest (recursive sharding, ≤200 lines) → glossary (parallel sub-agent)
-- **S2**: R1/R2/R3 extraction (guided line-by-line via `guided-extract`), arch decomposition
-- **S3**: build-graph → analyze-structure → analyze-graph → export-cypher
-- **S4**: generate-bdd → validate-bdd (gherkin-lint 严格模式, 20 条规则) → build-behavior-graph
-- **S5**: TLA+ 严格模式 (validate-tla: -deadlock/禁止黑洞/奇迹/无限状态/死锁) / Lean 4 拆分证明四步法 (validate-lean: 0 sorry/0 axiom/0 warnings, ❌ Windows 禁止)
-- **S6**: verify-gate FINAL → build-system-architecture → 跨图一致性语义验证 (10 个根本问题, 节点标签+跨图边+最小阈值检查) → 收敛循环 (≤5 次, ≥3 次触发苏格拉底拷问)
+## 关键约束
 
-### Skill directory layout
+| # | 约束 | 说明 |
+|:--:|------|------|
+| 1 | 零运行时 npm 依赖 | 仅 `typescript` + `@types/node` 为 devDeps |
+| 2 | strict TS | `strict: true`, `noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noFallthroughCasesInSwitch` |
+| 3 | 0 `any` | 错误类型使用 `unknown` + `instanceof Error` |
+| 4 | 文件大小 | ≤300 行（目标）, ≤500 行（硬上限） |
+| 5 | `path.join()` 强制 | 禁止字符串拼接路径 |
+| 6 | 毒值拒绝 | `undefined/null/NaN/[object Object]` 在入口 `validateNoPoisonArgs` 拦截 |
+| 7 | 所有命令经 `index.ts` | `refuseDirectInvocation` 阻止直接调用 (31/31) |
+| 8 | `--output` vs `--workdir` | `init` 用 `--output`, 其余用 `--workdir` |
+| 9 | `.srs_formalizer` 强制 | `validateWorkDir` 校验 basename |
+| 10 | 所有写入限工作目录 | `isPathSafe` + `assertSafePath` 双校验 |
 
-```
-.claude/skills/srs-formalizer/
-├── SKILL.md              # Frontmatter (metadata, triggers, gates, capability tiers)
-├── CHANGELOG.md
-├── tools/                # 内置工具 (tla2tools-1.7.4.jar)
-├── scripts/
-│   ├── index.ts          # CLI entry (switch on command name)
-│   ├── commands/         # 30 commands (init, manifest, inject-prompt, build-*, validate-*, ...)
-│   ├── lib/              # lib modules (cross-graph-verifier, tla-validator, graph, jsonl, bdd, ...)
-│   ├── types/            # Shared TypeScript types
-│   └── __tests__/        # 35 test files, 299 tests
-├── prompts/              # Orchestrator (S0-S6) + executor/verifier/debug prompts
-├── references/           # Coding guides (tlaplus, lean4, gherkin-lint), integration guides
-└── templates/            # Output templates + .gherkin-lintrc-strict + stage checklists
-```
+## 常规约定
 
-### Key design constraints
+- Commit: Conventional Commits（中文或英文），`Co-Authored-By: Claude <noreply@anthropic.com>`
+- 提交前: `tsc --noEmit` 0 errors + 299 tests pass
+- CLI 参数解析: 所有命令使用 `safeParseArg` from `lib/cli.ts`
+- 代码变更: 先更新 `docs/DESIGN.md`，再改代码
+- `capability-probe` 探针仅在有工具链时生成 TLA+/Lean 4 维度
+- `security.ts` 与 `cli.ts` 路径函数重复——新代码用 `cli.ts`
+- `scripts/templates/check.sh.template` 不在主 `templates/` 下
 
-- **技能工程零运行时 npm 依赖** — 仅 `typescript` + `@types/node` 为 devDeps
-- **TypeScript strict mode** (`noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`)
-- **All CLI commands must go through `npx tsx index.ts <cmd>`** — direct .ts invocation blocked by `refuseDirectInvocation`
-- **Poison value rejection** — `undefined`, `null`, `NaN`, `[object Object]` blocked at `index.ts` entry via `validateNoPoisonArgs`
-- **`init` uses `--output`**, all other commands use `--workdir`
-- **Workdir must be named `.srs_formalizer`** (enforced by `validateWorkDir`)
-- **Guided extraction** — 两步模式：先 `--template` 获取 guided prompt 发给 LLM，再 `--line '<json>'` 逐行校验追加；agent 用 `run_command` 即可，无需交互式 I/O
-- **BDD 严格模式** — gherkin-lint 20 条规则, 禁止 GAP/PLACEHOLDER/UNDEFINED/待定
-- **TLA+ 严格模式** — 内置 tla2tools-1.7.4.jar, Java 即可, -deadlock 检测, 禁止黑洞/奇迹/无限状态/死锁/活锁
-- **Lean 4 拆分证明** — 骨架→拆分→递归至 0 sorry, 0 axiom, 0 warnings, ❌ Windows 禁止, 优先 `lake exe cache get` 避免编译 mathlib4
-- **S6 跨图语义验证** — 10 个根本问题 (Q1-Q10)，节点标签匹配 + 跨图边检测 + 最小阈值检查，不可回答→回退修复, ≥3次→苏格拉底拷问+人类决策
+## Superpowers-ZH
 
-## Key conventions
-
-- Commit messages in Chinese or English, with `Co-Authored-By: Claude <noreply@anthropic.com>`
-- After feature changes: `pack-skill --force` (skill backup), verify 299 tests pass, then commit
-- Before claiming completion: run `npx tsx --test __tests__/*.test.ts` and verify 0 failures
-- Test LLM config: copy `llm-config.template.json` → `test-llm-config.json` (gitignored)
-- `safeParseArg` from `lib/cli.ts` must be used for all CLI argument parsing
-
-<!-- superpowers-zh:begin (do not edit between these markers) -->
-
-# Superpowers-ZH 中文增强版
-
-本项目已安装 superpowers-zh 技能框架（20 个 skills）。
-
-## 核心规则
-
-1. **收到任务时，先检查是否有匹配的 skill** — 哪怕只有 1% 的可能性也要检查
-2. **设计先于编码** — 收到功能需求时，先用 brainstorming skill 做需求分析
-3. **测试先于实现** — 写代码前先写测试（TDD）
-4. **验证先于完成** — 声称完成前必须运行验证命令
-
-## 可用 Skills
-
-Skills 位于 `.claude/skills/` 目录，每个 skill 有独立的 `SKILL.md` 文件。
-
-- **brainstorming**: 在任何创造性工作之前必须使用此技能——创建功能、构建组件、添加功能或修改行为。在实现之前先探索用户意图、需求和设计。
-- **dispatching-parallel-agents**: 当面对 2 个以上可以独立进行、无共享状态或顺序依赖的任务时使用
-- **executing-plans**: 当你有一份书面实现计划需要在单独的会话中执行，并设有审查检查点时使用
-- **srs-formalizer**: 将 SRS 文档转化为需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约和 Lean 4 证明。当用户提供或引用 SRS 文档（HTML/Markdown/多目录包），要求"形式化"、"生成知识图谱"、"生成 BDD"、"TLA+ 建模"、"Lean 证明"时使用。
-- **systematic-debugging**: 遇到任何 bug、测试失败或异常行为时使用，在提出修复方案之前执行
-- **test-driven-development**: 在实现任何功能或修复 bug 时使用，在编写实现代码之前
-- **verification-before-completion**: 在宣称工作完成、已修复或测试通过之前使用，在提交或创建 PR 之前——必须运行验证命令并确认输出后才能声称成功；始终用证据支撑断言
-- **writing-plans**: 当你有规格说明或需求用于多步骤任务时使用，在动手写代码之前
-- **writing-skills**: 当创建新技能、编辑现有技能或在部署前验证技能是否有效时使用
-
-## 如何使用
-
-当任务匹配某个 skill 时，使用 `Skill` 工具加载对应 skill 并严格遵循其流程。绝不要用 Read 工具读取 SKILL.md 文件。
-
-如果你认为哪怕只有 1% 的可能性某个 skill 适用于你正在做的事情，你必须调用该 skill 检查。
-<!-- superpowers-zh:end -->
+详见 `rules/superpowers-zh.md`——技能列表、触发条件与使用方式。

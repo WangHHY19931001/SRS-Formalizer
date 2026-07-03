@@ -254,8 +254,9 @@ function restoreFromBackup(
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, content, 'utf-8');
       restored.push(relFile);
-    } catch (err: any) {
-      errors.push(`Failed to restore ${relFile}: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`Failed to restore ${relFile}: ${msg}`);
     }
   }
 
@@ -284,8 +285,8 @@ function performRepair(
   let backupFiles: Record<string, string>;
   try {
     backupFiles = decryptAndDecompress(backupPath);
-  } catch (err: any) {
-    return { repaired: [], errors: [`Backup restoration failed: ${err.message}`] };
+  } catch (err) {
+    return { repaired: [], errors: [`Backup restoration failed: ${(err instanceof Error ? err.message : String(err))}`] };
   }
 
   const { restored, errors } = restoreFromBackup(skillDir, backupFiles, toRestore);
@@ -319,8 +320,8 @@ export async function main(args: string[]): Promise<CliResult> {
   let result: VerifyResult;
   try {
     result = verify(skillDir);
-  } catch (err: any) {
-    return { status: 'error', message: err.message };
+  } catch (err) {
+    return { status: 'error', message: (err instanceof Error ? err.message : String(err)) };
   }
 
   // 修复模式
@@ -338,11 +339,11 @@ export async function main(args: string[]): Promise<CliResult> {
     let recheckResult: VerifyResult;
     try {
       recheckResult = verify(skillDir);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         status: 'error',
-        message: `Repair attempted but re-verification failed: ${err.message}`,
-        data: { repaired, errors, recheck_error: err.message },
+        message: `Repair attempted but re-verification failed: ${(err instanceof Error ? err.message : String(err))}`,
+        data: { repaired, errors, recheck_error: (err instanceof Error ? err.message : String(err)) },
       };
     }
 
@@ -362,3 +363,7 @@ export async function main(args: string[]): Promise<CliResult> {
     data: result,
   };
 }
+
+// Guard: refuse direct invocation (must go through index.ts)
+import { refuseDirectInvocation } from '../lib/cli.js';
+refuseDirectInvocation(import.meta.url);

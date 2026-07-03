@@ -11,6 +11,7 @@
 
 import * as fs from "node:fs";
 import * as os from "node:os";
+import * as path from "node:path";
 import { execSync } from "node:child_process";
 import type { CliResult } from "../types/index.js";
 import { safeParseArg } from "../lib/cli.js";
@@ -66,20 +67,23 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   // Find the Lean project root (look for lakefile.lean upward)
-  let projectDir = fileArg;
-  const stat = fs.statSync(fileArg);
-  if (stat.isFile()) {
-    projectDir = fileArg.substring(0, fileArg.lastIndexOf("/"));
-  }
+  const absolutePath = path.resolve(fileArg);
+  const stat = fs.statSync(absolutePath);
+  let projectDir = stat.isFile() ? path.dirname(absolutePath) : absolutePath;
 
-  // Search upward for lakefile.lean
+  // Search upward for lakefile.lean (max 10 levels)
   let searchDir = projectDir;
-  while (searchDir !== "/" && searchDir !== ".") {
-    if (fs.existsSync(`${searchDir}/lakefile.lean`) || fs.existsSync(`${searchDir}/lakefile.toml`)) {
+  for (let i = 0; i < 10; i++) {
+    if (
+      fs.existsSync(path.join(searchDir, 'lakefile.lean')) ||
+      fs.existsSync(path.join(searchDir, 'lakefile.toml'))
+    ) {
       projectDir = searchDir;
       break;
     }
-    searchDir = searchDir.substring(0, searchDir.lastIndexOf("/"));
+    const parent = path.dirname(searchDir);
+    if (parent === searchDir) break; // reached filesystem root
+    searchDir = parent;
   }
 
   // Run lake build

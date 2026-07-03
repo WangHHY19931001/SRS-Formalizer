@@ -23,9 +23,6 @@ import { execSync } from "node:child_process";
 import type { CliResult } from "../types/index.js";
 import { safeParseArg, validateWorkDir } from "../lib/cli.js";
 
-// ES module __dirname polyfill
-const __dirname = new URL('.', import.meta.url).pathname.replace(/^\/(?=\w:)/, '');
-
 // ===================== Validators (3 types) =====================
 
 type ExtractType = "r1" | "r2" | "r3" | "arch";

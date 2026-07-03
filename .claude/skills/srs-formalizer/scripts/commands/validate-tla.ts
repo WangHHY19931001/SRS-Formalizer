@@ -9,9 +9,12 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { execSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import type { CliResult } from "../types/index.js";
 import { safeParseArg } from "../lib/cli.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const TOOLS_DIR = path.resolve(__dirname, "..", "..", "tools");
 const BUILTIN_JAR = path.join(TOOLS_DIR, "tla2tools-1.7.4.jar");
 const JAR_PATH = path.join(TOOLS_DIR, "tla2tools.jar");
@@ -27,10 +30,8 @@ function findJar(): string {
 
 export async function main(args: string[]): Promise<CliResult> {
   let fileArg: string | null;
-  let workDirArg: string | null;
   try {
     fileArg = safeParseArg(args, "--file");
-    workDirArg = safeParseArg(args, "--workdir");
   } catch (err) {
     return { status: "error", message: (err as Error).message };
   }
@@ -85,9 +86,9 @@ export async function main(args: string[]): Promise<CliResult> {
   // TLC model check in strict mode
   // Strict mode: -deadlock (no deadlock), -checkpoint 0 (fresh run)
   // TLC checks: deadlocks, TypeOK invariant, termination, bounded state space
-  const cfgPath = fileArg.replace(/\.tla$/, ".cfg");
+  const tlaDir = path.dirname(fileArg);
   const specName = path.basename(fileArg, ".tla");
-  const cfgDir = path.dirname(fileArg);
+  const cfgPath = path.join(tlaDir, `${specName}.cfg`);
 
   if (!fs.existsSync(cfgPath)) {
     // Strict mode config: requires TypeOK invariant, enables deadlock detection
@@ -111,7 +112,7 @@ export async function main(args: string[]): Promise<CliResult> {
     tlcResult = execSync(
       `java -cp "${jar}" tlc2.TLC -deadlock -config "${cfgPath}" "${fileArg}"`,
       {
-        cwd: cfgDir,
+        cwd: tlaDir,
         stdio: "pipe",
         encoding: "utf-8",
         timeout: 120000,

@@ -1,0 +1,72 @@
+{
+  "protocolVersion": "1.0",
+  "agentCard": {
+    "name": "srs-formalizer",
+    "description": "将 SRS（软件需求规格说明）文档转化为需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约和 Lean 4 证明。TS 脚本做确定性机械工作，LLM 子代理做语义判断。",
+    "version": "0.5.2",
+    "provider": {
+      "name": "srs-formalizer",
+      "url": "https://github.com/WangHHY19931001/SRS-Formalizer"
+    },
+    "capabilities": {
+      "input": {
+        "mimeTypes": ["text/markdown", "text/html"],
+        "maxSize": "10MB",
+        "description": "SRS 文档（支持 .md / .html 单文件或多目录包）"
+      },
+      "output": {
+        "formats": [
+          "application/jsonl",
+          "text/x-cypher",
+          "text/x-gherkin",
+          "text/x-tla",
+          "text/x-lean"
+        ],
+        "description": "JSONL 需求记录、Neo4j Cypher 图谱、Gherkin .feature 文件、TLA+ 规约、Lean 4 证明"
+      }
+    },
+    "taskTypes": [
+      "srs-formalization",
+      "knowledge-graph-generation",
+      "bdd-generation",
+      "tla-specification",
+      "lean-proof"
+    ],
+    "pipelineStages": [
+      "S0-discovery",
+      "S1-preprocess",
+      "S2-extract",
+      "S3-graph",
+      "S4-bdd",
+      "S5-formal",
+      "S6-gate"
+    ],
+    "security": {
+      "level": "high",
+      "hitlRequired": true,
+      "permissions": {
+        "filesystem": { "scope": ".srs_formalizer/*", "readOnly": false },
+        "network": { "scope": "https://api.search.brave.com/*", "readOnly": true },
+        "execute": { "scope": "npx tsx .claude/skills/srs-formalizer/scripts/*", "readOnly": false }
+      }
+    },
+    "endpoint": {
+      "type": "cli",
+      "command": "npx tsx index.ts",
+      "workdir": ".srs_formalizer"
+    },
+    "gateConditions": [
+      "validate-jsonl",
+      "validate-architecture",
+      "validate-cypher",
+      "validate-bdd",
+      "validate-tla",
+      "validate-lean",
+      "validate-checklist",
+      "validate-glossary",
+      "verify-gate"
+    ],
+    "skillPattern": "pipeline",
+    "nestedPatterns": ["inversion", "generator", "reviewer", "tool-wrapper"]
+  }
+}

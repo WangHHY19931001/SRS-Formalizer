@@ -53,3 +53,9 @@ test-llm-config.json
 
 # Capability probe temporary directories
 capability-probe-*/
+
+# Package lock file (zero runtime deps, not needed)
+package-lock.json
+
+# Windows ADS artifacts
+*Zone.Identifier

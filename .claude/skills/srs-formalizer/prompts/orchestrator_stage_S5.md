@@ -1,5 +1,16 @@
 # S5 编排者指令：形式化（条件触发）
 
+## 快速退出检查（必须首先执行）
+
+读取 `.srs_formalizer/STATE.md` 中的触发判定：
+
+- [ ] `S5_TLA_TRIGGER: no` AND `S5_LEAN_TRIGGER: no` → **立即退出**，输出 `S5:SKIPPED` 到 STATE.md，直接进入 S6。不执行任何形式化步骤。
+- [ ] `S5_TLA_TRIGGER: yes` → 执行下方 TLA+ 建模流程
+- [ ] `S5_LEAN_TRIGGER: yes` → 执行下方 Lean 4 证明流程
+- [ ] 任一流程执行完毕 → 更新 STATE.md 对应状态，进入 S6
+
+**禁止在触发条件为 no 时执行形式化。** 这浪费 token 且产出无意义的形式化内容。
+
 ## 前置检查
 1. 读取 .srs_formalizer/PLAN.md 启用矩阵，确认哪些模块触发 TLA+/Lean 4
 2. 工具链就绪检查：

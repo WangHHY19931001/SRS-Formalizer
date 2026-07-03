@@ -65,11 +65,11 @@ function checkIntegrity(content: string, stage: string): string[] {
 }
 
 function getWorkDir(filePath: string): string | null {
-  // filePath is like <workdir>/1_shard/CHECKLIST.md → workdir is the parent of 1_shard
+  // filePath is like <workdir>/2_extract/CHECKLIST.md → derive workdir
   const stage = inferStage(filePath);
   if (!stage) return null;
-  const stageDir = path.dirname(filePath); // .../1_shard
-  return path.dirname(stageDir);            // <workdir>
+  const stageDir = path.dirname(filePath); // .../2_extract
+  return path.dirname(stageDir);           // <workdir>
 }
 
 // ---------------------------------------------------------------------------
@@ -151,3 +151,7 @@ export async function main(args: string[]): Promise<CliResult> {
 
   return { status: 'ok', data };
 }
+
+// Guard: refuse direct invocation (must go through index.ts)
+import { refuseDirectInvocation } from '../lib/cli.js';
+refuseDirectInvocation(import.meta.url);

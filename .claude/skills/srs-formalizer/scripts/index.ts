@@ -34,6 +34,7 @@ Commands:
   validate-lean      Validate .lean file (lake build)
   validate-checklist Validate CHECKLIST.md file
   capability-probe  LLM capability probe evaluation (--mode generate|score)
+  stability-test   Cross-LLM stability test (--config <path> [--passes 3] [--score <dir>])
   compile           Compile SKILL.md into SkIR, inject safety constraints, emit artifacts
   pack-skill        Pack skill directory into hash manifest + tar.gz backup
   verify-skill-integrity Verify skill file integrity (--repair to auto-restore)
@@ -45,6 +46,44 @@ Options:
 function printUsage(): void {
   console.log(USAGE);
 }
+
+// ── Command registry (data-driven dispatch) ──────────────────────────────
+const COMMANDS: Record<
+  string,
+  () => Promise<{ main: (args: string[]) => Promise<{ status: string; message?: string; data?: unknown }> }>
+> = {
+  init: () => import("./commands/init.js"),
+  manifest: () => import("./commands/manifest.js"),
+  "inject-prompt": () => import("./commands/inject-prompt.js"),
+  "guided-extract": () => import("./commands/guided-extract.js"),
+  "validate-jsonl": () => import("./commands/validate-jsonl.js"),
+  "build-graph": () => import("./commands/build-graph.js"),
+  "analyze-structure": () => import("./commands/analyze-structure.js"),
+  "merge-structure": () => import("./commands/merge-structure.js"),
+  "analyze-graph": () => import("./commands/analyze-graph.js"),
+  "merge-analysis": () => import("./commands/merge-analysis.js"),
+  "export-cypher": () => import("./commands/export-cypher.js"),
+  "verify-gate": () => import("./commands/verify-gate.js"),
+  "generate-bdd": () => import("./commands/generate-bdd.js"),
+  "validate-bdd": () => import("./commands/validate-bdd.js"),
+  "query-graph": () => import("./commands/query-graph.js"),
+  "build-architecture": () => import("./commands/build-architecture.js"),
+  "build-behavior-graph": () => import("./commands/build-behavior-graph.js"),
+  "build-tla-graph": () => import("./commands/build-tla-graph.js"),
+  "build-lean-graph": () => import("./commands/build-lean-graph.js"),
+  "build-system-architecture": () => import("./commands/build-system-architecture.js"),
+  "validate-architecture": () => import("./commands/validate-architecture.js"),
+  "validate-cypher": () => import("./commands/validate-cypher.js"),
+  "validate-glossary": () => import("./commands/validate-glossary.js"),
+  "validate-tla": () => import("./commands/validate-tla.js"),
+  "validate-lean": () => import("./commands/validate-lean.js"),
+  "validate-checklist": () => import("./commands/validate-checklist.js"),
+  "capability-probe": () => import("./commands/capability-probe.js"),
+  "stability-test": () => import("./commands/stability-test.js"),
+  "pack-skill": () => import("./commands/pack-skill.js"),
+  "verify-skill-integrity": () => import("./commands/verify-skill-integrity.js"),
+  compile: () => import("./commands/compile.js"),
+};
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -65,218 +104,19 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const command = args[0];
+  const command = args[0] as string;
+  const loader = COMMANDS[command];
 
-  switch (command) {
-    case "init": {
-      const { main: initMain } = await import("./commands/init.js");
-      const result = await initMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "manifest": {
-      const { main: manifestMain } = await import("./commands/manifest.js");
-      const result = await manifestMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "inject-prompt": {
-      const { main: injectMain } = await import("./commands/inject-prompt.js");
-      const result = await injectMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "guided-extract": {
-      const { main: guidedExtractMain } =
-        await import("./commands/guided-extract.js");
-      const result = await guidedExtractMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "validate-jsonl": {
-      const { main: validateMain } =
-        await import("./commands/validate-jsonl.js");
-      const result = await validateMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "build-graph": {
-      const { main: buildGraphMain } =
-        await import("./commands/build-graph.js");
-      const result = await buildGraphMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "analyze-structure": {
-      const { main: analyzeMain } =
-        await import("./commands/analyze-structure.js");
-      const result = await analyzeMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "merge-structure": {
-      const { main: mergeMain } = await import("./commands/merge-structure.js");
-      const result = await mergeMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "analyze-graph": {
-      const { main: analyzeGraphMain } =
-        await import("./commands/analyze-graph.js");
-      const result = await analyzeGraphMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "merge-analysis": {
-      const { main: mergeAnalysisMain } =
-        await import("./commands/merge-analysis.js");
-      const result = await mergeAnalysisMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "export-cypher": {
-      const { main: exportCypherMain } =
-        await import("./commands/export-cypher.js");
-      const result = await exportCypherMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "verify-gate": {
-      const { main: verifyGateMain } =
-        await import("./commands/verify-gate.js");
-      const result = await verifyGateMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "generate-bdd": {
-      const { main: generateBddMain } =
-        await import("./commands/generate-bdd.js");
-      const result = await generateBddMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "validate-bdd": {
-      const { main: validateBddMain } =
-        await import("./commands/validate-bdd.js");
-      const result = await validateBddMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "query-graph": {
-      const { main: queryGraphMain } =
-        await import("./commands/query-graph.js");
-      const result = await queryGraphMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "build-architecture": {
-      const { main: buildArchMain } =
-        await import("./commands/build-architecture.js");
-      const result = await buildArchMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "build-behavior-graph": {
-      const { main: buildBehaviorMain } =
-        await import("./commands/build-behavior-graph.js");
-      const result = await buildBehaviorMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "build-tla-graph": {
-      const { main: buildTlaMain } =
-        await import("./commands/build-tla-graph.js");
-      const result = await buildTlaMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "build-lean-graph": {
-      const { main: buildLeanMain } =
-        await import("./commands/build-lean-graph.js");
-      const result = await buildLeanMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "build-system-architecture": {
-      const { main: buildSysArchMain } =
-        await import("./commands/build-system-architecture.js");
-      const result = await buildSysArchMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "validate-architecture": {
-      const { main: validateArchMain } =
-        await import("./commands/validate-architecture.js");
-      const result = await validateArchMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "validate-cypher": {
-      const { main: validateCypherMain } =
-        await import("./commands/validate-cypher.js");
-      const result = await validateCypherMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "validate-glossary": {
-      const { main: validateGlossaryMain } =
-        await import("./commands/validate-glossary.js");
-      const result = await validateGlossaryMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "validate-tla": {
-      const { main: validateTlaMain } =
-        await import("./commands/validate-tla.js");
-      const result = await validateTlaMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "validate-lean": {
-      const { main: validateLeanMain } =
-        await import("./commands/validate-lean.js");
-      const result = await validateLeanMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "validate-checklist": {
-      const { main: validateChecklistMain } =
-        await import("./commands/validate-checklist.js");
-      const result = await validateChecklistMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "capability-probe": {
-      const { main: probeMain } =
-        await import("./commands/capability-probe.js");
-      const result = await probeMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "pack-skill": {
-      const { main: packMain } = await import("./commands/pack-skill.js");
-      const result = await packMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "verify-skill-integrity": {
-      const { main: verifyIntegrityMain } =
-        await import("./commands/verify-skill-integrity.js");
-      const result = await verifyIntegrityMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    case "compile": {
-      const { main: compileMain } = await import("./commands/compile.js");
-      const result = await compileMain(args.slice(1));
-      console.log(JSON.stringify(result));
-      process.exit(result.status === "ok" ? 0 : 1);
-    }
-    default:
-      console.error(`Unknown command: ${command}`);
-      printUsage();
-      process.exit(1);
+  if (!loader) {
+    console.error(`Unknown command: ${command}`);
+    printUsage();
+    process.exit(1);
   }
+
+  const mod = await loader();
+  const result = await mod.main(args.slice(1));
+  console.log(JSON.stringify(result));
+  process.exit(result.status === "ok" ? 0 : 1);
 }
 
 main().catch((err) => {
