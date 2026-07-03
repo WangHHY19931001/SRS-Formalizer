@@ -17,15 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **srs-formalizer** — 将 SRS（软件需求规格说明）文档转化为形式化产出的 AI Agent 技能：
 需求知识图谱（Cypher）· BDD（Gherkin）· TLA+ 规约 · Lean 4 证明。
 
-附带 `agent/` 目录包含 LLM 驱动的技能调测代理（编排者+工作者，支持递归子代理分派和上下文压缩）。
-
 ## Build & Test
-
-本项目包含两个独立工程，各有独立的构建和测试命令：
-
-### 技能工程（`.claude/skills/srs-formalizer/scripts/`）
-
-零运行时依赖，仅 devDeps: `typescript` + `@types/node`。
 
 ```bash
 cd .claude/skills/srs-formalizer/scripts
@@ -43,35 +35,13 @@ npx tsx --test __tests__/*.test.ts
 npx tsx --test __tests__/manifest.test.ts
 ```
 
-### Agent 工程（`agent/`）
-
-独立 `package.json`，依赖 LangGraph + LangChain + openai + zod。
-
-```bash
-cd agent
-
-# Install
-npm install --legacy-peer-deps
-
-# Typecheck (strict mode)
-npx tsc --noEmit
-```
-
-Agent 集成测试（需要 LLM 服务）：
-
-```bash
-cd /home/celebi/openspec_skill_create_dir
-npx tsx agent/index.ts --llm-config test-llm-config.json --task agent/task-srs-formalizer.md
-```
-
 ## Architecture
 
-### Two entry points
+### 流水线 CLI
 
-| Entry       | Path                                             | Purpose                                                                                |
-| ----------- | ------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| Skill CLI   | `.claude/skills/srs-formalizer/scripts/index.ts` | 29 commands for the skill pipeline                                                     |
-| Debug Agent | `agent/index.ts`                                 | LangGraph ReAct agent（StateGraph + ToolRegistry + A2A），读取 SKILL.md 自主发现流水线 |
+| Entry     | Path                                             | Purpose                        |
+| --------- | ------------------------------------------------ | ------------------------------ |
+| Skill CLI | `.claude/skills/srs-formalizer/scripts/index.ts` | 29 commands for the skill pipeline |
 
 ### Skill pipeline (S0→S6)
 
@@ -107,7 +77,7 @@ S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱
 
 ### Key design constraints
 
-- **技能工程零运行时 npm 依赖** — 仅 `typescript` + `@types/node` 为 devDeps；Agent 工程独立管理依赖
+- **技能工程零运行时 npm 依赖** — 仅 `typescript` + `@types/node` 为 devDeps
 - **TypeScript strict mode** (`noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`)
 - **All CLI commands must go through `npx tsx index.ts <cmd>`** — direct .ts invocation blocked by `refuseDirectInvocation`
 - **Poison value rejection** — `undefined`, `null`, `NaN`, `[object Object]` blocked at `index.ts` entry via `validateNoPoisonArgs`
@@ -118,38 +88,6 @@ S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱
 - **TLA+ 严格模式** — 内置 tla2tools-1.7.4.jar, Java 即可, -deadlock 检测, 禁止黑洞/奇迹/无限状态/死锁/活锁
 - **Lean 4 拆分证明** — 骨架→拆分→递归至 0 sorry, 0 axiom, 0 warnings, ❌ Windows 禁止, 优先 `lake exe cache get` 避免编译 mathlib4
 - **S6 跨图语义验证** — 10 个根本问题 (Q1-Q10)，节点标签匹配 + 跨图边检测 + 最小阈值检查，不可回答→回退修复, ≥3次→苏格拉底拷问+人类决策
-
-### Agent framework (`agent/`)
-
-基于 **LangGraph StateGraph** 的 ReAct Agent，替代了旧的 OpenAI 直连循环。
-
-| File                     | Role                                                                                                        |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `index.ts`               | 入口 — 解析 CLI 参数，创建 ToolRegistry/AgentDirectory，调用 `createAgent()`                                |
-| `agent.ts`               | Agent 工厂 — `createAgent()` 构建 StateGraph（agentNode → toolNode → 条件路由），动态系统提示词，JSONL 日志 |
-| `tools.ts`               | 9 基础工具 + 5 工厂 (spawn/register/unregister/MCP) — `tool()` + Zod v4，通用 CLI 代理无技能适配            |
-| `tool-registry.ts`       | ToolRegistry — 动态 register/unregister/getActiveTools，支持 LLM 运行时绑定                                 |
-| `agent-directory.ts`     | AgentDirectory — A2A 代理间通信（send/broadcast/list/markError）                                            |
-| `context.ts`             | ContextManager（auto-compress ≥80%/suggest ≥60%/allow ≥40%）+ `createContextTools()` 工厂                   |
-| `mcp.ts`                 | MCP client（stdio/HTTP，启动时自动注册 llm-config.json 中配置的 MCP 服务器，支持重连）                      |
-| `llm-config.ts`          | LLM 配置加载器（OpenAI 兼容 API）                                                                           |
-| `package.json`           | 独立依赖管理 — @langchain/core, @langchain/langgraph, @langchain/openai, openai, zod                        |
-| `task-srs-formalizer.md` | 最小任务提示词（一行），Agent 自行从 SKILL.md 发现流水线                                                    |
-
-Agent 通过 `--task` 文件接收工作提示词，**不硬编码任何技能路径或流程**。系统提示词按模板动态生成，填充当前工具列表、技能目录、项目目录和工作目录。
-
-**Agent 设计原则**：Agent 是通用命令行任务代理，不应包含任何技能特定适配。所有 CLI 调用通过 `run_command` 完成，LLM 自行从 SKILL.md 学习命令签名。
-
-**工作目录传递**：`--work-dir` 通过 `AgentConfig.workDir` 传入 `createAgent()`，注入系统提示。LLM 被告知对所有 CLI 命令使用 `--workdir <dir>`（`init` 除外，用 `--output`）。
-
-**系统提示**：`buildSystemPrompt()` 动态生成，包含：当前工具列表、技能/项目/工作目录及 CLI 参数规则、`WORK_TABOOS`（6 条禁忌）、`WORK_RULES`（3 条规则：LLM 密集任务必须用 `spawn_sub_agent`、提取用 `guided-extract --line` 两步模式、严格流水线顺序）。
-
-**安全约束**：
-
-- 子代理递归深度 ≤3（达到上限自动移除 `spawn_sub_agent` 工具）
-- MCP 自动注册可通过 `SKIP_MCP` 环境变量跳过，单服务器超时 5 秒
-
-**JSONL 日志**（`--log-dir`）：`agent_turn`（轮次/深度）、`tool_results`（工具名/成功/截断输出）、`llm_response`、`spawn_sub_agent_start/end`、`agent_done`。
 
 ## Key conventions
 

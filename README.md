@@ -80,9 +80,8 @@ cp -r .claude/skills/srs-formalizer /your-project/.claude/skills/
 
 - **TypeScript 5.5+**（strict 模式）
 - **Node.js ≥20**（ESM）
-- **零外部 npm 依赖**（仅 `typescript` + `@types/node`，技能包；agent 独立管理依赖）
+- **零外部 npm 依赖**（仅 `typescript` + `@types/node` 为 devDeps）
 - **测试**：Node.js 原生 `node:test` + `node:assert`（299 用例）
-- **Agent 框架**：LangGraph 1.4+（StateGraph ReAct 模式）+ LangChain Core 1.2+ + Zod v4
 
 ## 版本历史
 
@@ -254,25 +253,15 @@ npx tsx index.ts build-system-architecture --workdir .srs_formalizer --iteration
 
 ## 致谢
 
-### Agent 框架
-
-| 项目                                                                                                  | 使用方 | 说明                                                                                      |
-| ----------------------------------------------------------------------------------------------------- | :----: | ----------------------------------------------------------------------------------------- |
-| **LangChain.js** ([github.com/langchain-ai/langchainjs](https://github.com/langchain-ai/langchainjs)) | Agent  | Agent 框架核心——提供 Zod schema 工具定义（`tool()`）、消息系统及 LangChain Core 运行时    |
-| **LangGraph.js** ([github.com/langchain-ai/langgraphjs](https://github.com/langchain-ai/langgraphjs)) | Agent  | Agent 运行时引擎——StateGraph ReAct 循环、ToolNode 工具执行、条件路由及递归控制            |
-| **OpenAI Node.js SDK** ([github.com/openai/openai-node](https://github.com/openai/openai-node))       | Agent  | Agent 通过 OpenAI 兼容 API 调用 LLM（技能脚本为零依赖纯 CLI 工具，LLM 交互由 Agent 代理） |
-| **Zod** ([github.com/colinhacks/zod](https://github.com/colinhacks/zod))                              | Agent  | TypeScript-first schema 验证——v4.4+ 用于所有 LangChain 工具参数定义                       |
-
 ### 开发工具链
 
-| 项目                                                                                                                   |  使用方  | 说明                                                                   |
-| ---------------------------------------------------------------------------------------------------------------------- | :------: | ---------------------------------------------------------------------- |
-| **TypeScript** ([github.com/microsoft/TypeScript](https://github.com/microsoft/TypeScript))                            |   两者   | 技能 strict 模式（v5.5）· Agent strict 模式（v6.0）——全项目 TypeScript |
-| **Node.js** ([github.com/nodejs/node](https://github.com/nodejs/node))                                                 |   两者   | ≥20 ESM，技能和 Agent 的运行时环境                                     |
-| **tsx** ([github.com/privatenumber/tsx](https://github.com/privatenumber/tsx))                                         |   两者   | TypeScript 执行器——运行 CLI 命令和测试（基于 esbuild 即时编译）        |
-| **esbuild** ([github.com/evanw/esbuild](https://github.com/evanw/esbuild))                                             | tsx 依赖 | tsx 底层编译器——Go 编写，10-100× 快于传统打包器                        |
-| **Prettier** ([github.com/prettier/prettier](https://github.com/prettier/prettier))                                    |   两者   | 代码格式化——统一全项目风格                                             |
-| **DefinitelyTyped** ([github.com/DefinitelyTyped/DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped)) |   两者   | `@types/node` 类型定义——技能 v20.x · Agent v26.x                       |
+| 项目                                                                                                                   | 说明                                                            |
+| ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| **TypeScript** ([github.com/microsoft/TypeScript](https://github.com/microsoft/TypeScript))                            | strict 模式（v5.5）                                             |
+| **Node.js** ([github.com/nodejs/node](https://github.com/nodejs/node))                                                 | ≥20 ESM 运行时                                                  |
+| **tsx** ([github.com/privatenumber/tsx](https://github.com/privatenumber/tsx))                                         | TypeScript 执行器（基于 esbuild 即时编译）                      |
+| **Prettier** ([github.com/prettier/prettier](https://github.com/prettier/prettier))                                    | 代码格式化——统一全项目风格                                      |
+| **DefinitelyTyped** ([github.com/DefinitelyTyped/DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped)) | `@types/node` 类型定义（v20.x）                                  |
 
 ### 形式化工具
 
@@ -287,8 +276,6 @@ npx tsx index.ts build-system-architecture --workdir .srs_formalizer --iteration
 
 | 项目                                                                                                      | 说明                                                                                               |
 | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| **LangChain (Python)** ([github.com/langchain-ai/langchain](https://github.com/langchain-ai/langchain))   | 生态系统 Python 实现（~140k⭐），Agent 联网搜索查阅技术文档                                        |
-| **LangGraph (Python)** ([github.com/langchain-ai/langgraph](https://github.com/langchain-ai/langgraph))   | Python 版图 Agent 框架（~35.7k⭐），设计参考及跨语言概念对齐                                       |
 | **Superpowers-ZH** ([github.com/jnMetaCode/superpowers-zh](https://github.com/jnMetaCode/superpowers-zh)) | 20 个 Superpowers 技能包加速了本项目的设计流程、代码审阅和开发迭代                                 |
 | **SkCC 论文与实现**                                                                                       | 中山大学团队 SkCC 论文 (arXiv:2605.03353) 及 Nexa-Language/Skill-Compiler 开源实现——编译方法论基础 |
 | **grill-me / grill-with-docs**                                                                            | 部分方法论参考                                                                                     |
@@ -299,124 +286,6 @@ npx tsx index.ts build-system-architecture --workdir .srs_formalizer --iteration
 | ----------------------------- | -------------------- |
 | **Trae CN + GLM 5.2**         | 技能需求文档辅助编写 |
 | **Claude Code + DeepSeek V4** | 技能实际开发环境     |
-
-## 技能调测
-
-项目根目录 `agent/` 包含 **LLM 驱动的调测代理**，可完整测试技能的指令遵从、脚本正确性、状态机和门限。
-
-调测代理独立于技能本身，使用 LangGraph StateGraph（ReAct 模式）动态读取 SKILL.md、执行命令、验证产物，所有操作通过 JSONL 日志记录。代理**不硬编码任何技能路径或流程**——全部通过 `--task` 工作提示词动态配置，可调测任意技能。
-
-### 配置
-
-```bash
-cp llm-config.template.json test-llm-config.json
-# 编辑 test-llm-config.json，填入 OpenAI 兼容的 LLM 服务
-```
-
-LLM 配置文件支持 `mcp_servers` 字段，Agent 启动时自动注册配置的 MCP 服务器。默认包含：
-
-| MCP 服务器    | 命令                 | 提供工具                               |
-| ------------- | -------------------- | -------------------------------------- |
-| `bing-search` | `npx -y bing-cn-mcp` | `mcp_bing_search`, `mcp_crawl_webpage` |
-
-也可在运行时通过 `register_mcp_server` 动态注册其他 MCP 服务器。
-
-### 运行
-
-```bash
-# 安装 agent 依赖
-cd agent && npm install
-
-# 运行调测
-npx tsx agent/index.ts --llm-config test-llm-config.json --task agent/task-srs-formalizer.md
-```
-
-### 工作原理
-
-代理是**通用命令行任务代理**，不包含任何技能特定适配。所有 CLI 调用通过 `run_command` 完成，LLM 自行从 SKILL.md 学习命令签名。
-
-代理通过 `--task` 文件接收最小工作提示词（如"使用 xxx 技能，基于 xxx 路径的 SRS 文档工作"），然后：
-
-1. 启动时自动注册 LLM 配置中的 MCP 服务器（可通过 `SKIP_MCP` 环境变量跳过）
-2. 读取 SKILL.md 了解技能结构和流水线阶段
-3. 按阶段使用工具执行命令、验证产物
-4. 通过 `spawn_sub_agent` 递归分派子代理处理 LLM 任务（子代理有独立 StateGraph，最大深度 3）
-5. 动态系统提示词在每轮注入当前工具列表、技能目录、项目目录和**工作目录**（`--work-dir`），包含 CLI 参数规则和 `WORK_RULES`（子代理优先、guided-extract 两步模式、严格阶段顺序）
-6. JSONL 日志记录每一步操作：`agent_turn`（轮次/深度）、`llm_response`（LLM 响应摘要）、**`tool_results`**（每轮工具执行结果：工具名、成功/失败、截断输出）、`spawn_sub_agent_start/end`（子代理生命周期）、`agent_done`（完成）
-
-### CLI 参数
-
-| 参数                    | 必需 | 说明                                                    |
-| ----------------------- | :--: | ------------------------------------------------------- |
-| `--llm-config <path>`   |  ✅  | LLM 配置文件路径                                        |
-| `--task <path>`         |  *   | 任务提示词文件（推荐）                                  |
-| `--task-prompt "..."`   |  *   | 直接传入任务提示词                                      |
-| `--skills-dir <path>`   |      | skills 目录（默认: `.claude/skills`）                   |
-| `--project-root <path>` |      | 项目根目录（默认: CWD）                                 |
-| `--work-dir <path>`     |      | 工作目录（默认: `/tmp/srs-debug-<ts>/.srs_formalizer`） |
-| `--log-dir <path>`      |      | 日志目录（默认: `/tmp/srs-agent-traces`）               |
-
-### 架构
-
-```
-agent/
-├── index.ts              # 入口（--llm-config + --task，ToolRegistry + AgentDirectory，workDir 通过 AgentConfig 传入）
-├── agent.ts              # StateGraph ReAct 循环 + 动态系统提示词（注入 workDir + WORK_RULES）+ tool_results 日志
-├── tools.ts              # 9 基础工具 + 5 工厂（spawn/register/unregister/MCP）
-├── tool-registry.ts      # 动态工具注册/卸载（register/unregister/getActiveTools）
-├── agent-directory.ts    # A2A 代理目录（send/broadcast/list/markError）
-├── context.ts            # ContextManager（getInfo + createContextTools）
-├── llm-config.ts         # LLM 配置加载器
-├── mcp.ts                # MCP 客户端（stdio/HTTP，启动时自动注册配置的服务器）
-├── package.json          # LangGraph + LangChain + openai + zod 依赖
-├── tsconfig.json         # Strict TypeScript 配置
-└── task-srs-formalizer.md  # 最小任务提示词（一行，代理自行发现流水线）
-```
-
-### JSONL 日志格式
-
-每次 agent 运行在 `--log-dir` 下生成一个 `orchestrator-<ts>-<seq>.jsonl` 文件，每行一条 JSON：
-
-| type | 含义 | 关键字段 |
-|------|------|------|
-| `mcp_auto_register` | MCP 服务器自动注册 | `server`, `tools` |
-| `agent_turn` | 每轮开始 | `msgCount`, `depth` |
-| `tool_results` | 上轮工具执行结果 | `results[{tool, ok, result}]` |
-| `llm_response` | LLM 响应 | `content`（截断 200 字符）, `toolCalls`, `toolNames` |
-| `spawn_sub_agent_start` | 子代理启动 | `task`（截断 150 字符）, `depth` |
-| `spawn_sub_agent_end` | 子代理完成 | `outputLen` |
-| `agent_done` | Agent 结束 | `content`（截断 200 字符） |
-| `llm_error` | LLM 调用异常 | `error` |
-| `mcp_auto_register_error` | MCP 注册失败 | `server`, `error` |
-
-### 工具列表
-
-**内置工具：**
-
-| 工具                | 说明                                                                    |
-| ------------------- | ----------------------------------------------------------------------- |
-| `read_file`         | 读取文件内容                                                            |
-| `write_file`        | 创建或覆盖写入文件                                                      |
-| `edit_file`         | 精确字符串替换                                                          |
-| `search_in_file`    | 关键字/正则搜索                                                         |
-| `run_command`       | Shell 命令执行（捕获 stdout + stderr），默认 cwd 为 `SKILL_SCRIPTS_DIR`；系统提示会告知当前 `--workdir` 参数 |
-| `web_search`        | 联网搜索（DuckDuckGo，无需 API key）                                    |
-| `http_request`      | HTTP GET/POST 请求                                                      |
-| `list_directory`    | 列出目录内容                                                            |
-| `check_file_exists` | 检查文件/目录是否存在                                                   |
-
-**Agent 管理工具：**
-
-| 工具                  | 说明                                                                |
-| --------------------- | ------------------------------------------------------------------- |
-| `spawn_sub_agent`     | 递归分派子代理（独立 StateGraph，最大深度 3）                       |
-| `register_tools`      | 动态注册工具（从懒加载池激活）                                      |
-| `unregister_tools`    | 动态卸载工具                                                        |
-| `register_mcp_server` | 运行时注册 MCP 服务器（stdio/HTTP，可通过 `SKIP_MCP` 跳过启动注册） |
-| `call_mcp_tool`       | 调用 MCP 服务器工具                                                 |
-| `context_info`        | 查询上下文使用率                                                    |
-| `compress_context`    | 触发上下文压缩                                                      |
-| `complete_task`       | 任务完成信号                                                        |
 
 ## 许可
 
