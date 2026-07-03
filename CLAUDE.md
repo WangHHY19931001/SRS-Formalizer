@@ -41,7 +41,7 @@ npx tsx --test __tests__/manifest.test.ts
 
 | Entry     | Path                                             | Purpose                        |
 | --------- | ------------------------------------------------ | ------------------------------ |
-| Skill CLI | `.claude/skills/srs-formalizer/scripts/index.ts` | 29 commands for the skill pipeline |
+| Skill CLI | `.claude/skills/srs-formalizer/scripts/index.ts` | 30 commands for the skill pipeline |
 
 ### Skill pipeline (S0→S6)
 
@@ -66,7 +66,7 @@ S0(发现确认) → S1(预处理) → S2(需求提取+7子阶段) → S3(图谱
 ├── tools/                # 内置工具 (tla2tools-1.7.4.jar)
 ├── scripts/
 │   ├── index.ts          # CLI entry (switch on command name)
-│   ├── commands/         # 31 commands (init, manifest, inject-prompt, build-*, validate-*, ...)
+│   ├── commands/         # 30 commands (init, manifest, inject-prompt, build-*, validate-*, ...)
 │   ├── lib/              # lib modules (cross-graph-verifier, tla-validator, graph, jsonl, bdd, ...)
 │   ├── types/            # Shared TypeScript types
 │   └── __tests__/        # 35 test files, 299 tests
