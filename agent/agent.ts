@@ -113,53 +113,39 @@ export async function createAgent(config: AgentConfig): Promise<{
   const id = `${config.role}-${Date.now()}-${++agentIdCounter}`;
   const llmConfig = loadLlmConfig(config.configPath);
 
-  // Qwen-compatible: strip file content blocks from all messages.
-  // Proxy intercepts ALL method calls (invoke, stream, _generate, etc.)
-  // because deepagents may call internal methods that bypass invoke().
-  function stripFileBlocks(obj: unknown): unknown {
-    if (!obj || typeof obj !== "object") return obj;
-    // Skip LangChain internal objects (lc_ prefixed, kwargs, etc.)
-    if ((obj as Record<string, unknown>).lc !== undefined) return obj;
-    if (Array.isArray(obj)) return obj.map(stripFileBlocks);
-    const o = obj as Record<string, unknown>;
-    if (o.type === "file") {
-      const f = o as { file?: { name?: string; data?: unknown } };
-      const name = f.file?.name || "file";
-      const text = typeof f.file?.data === "string" ? f.file.data.slice(0, 500) : `[${name}]`;
-      return { type: "text", text };
+  // Qwen-compatible: strip file content blocks by overriding _generate.
+  // _generate is the final common path for ALL LLM calls (invoke, stream,
+  // bindTools binding) — no Proxy bypass possible.
+  class QwenCompatibleChatOpenAI extends ChatOpenAI {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async _generate(messages: BaseMessage[], options: any, runManager?: any) {
+      const sanitized = messages.map((msg) => {
+        const raw = msg as unknown as { content: unknown };
+        const content = raw.content;
+        if (!Array.isArray(content)) return msg;
+        const cleaned = content.map((block: Record<string, unknown>) => {
+          if (block.type === "file") {
+            const f = block as { file?: { name?: string; data?: unknown } };
+            const name = f.file?.name || "file";
+            const text =
+              typeof f.file?.data === "string"
+                ? f.file.data.slice(0, 2000)
+                : `[${name}]`;
+            return { type: "text", text };
+          }
+          return block;
+        });
+        return new HumanMessage({ content: cleaned as Array<{ type: string; text: string }> });
+      });
+      return super._generate(sanitized, options, runManager);
     }
-    const result: Record<string, unknown> = {};
-    for (const key of Object.keys(o)) {
-      // Skip LangChain serialization fields to avoid breaking internal wiring
-      if (key.startsWith("lc_") || key === "kwargs" || key === "id") {
-        result[key] = o[key];
-      } else {
-        result[key] = stripFileBlocks(o[key]);
-      }
-    }
-    return result;
   }
 
-  const rawLlm = new ChatOpenAI({
+  const llm = new QwenCompatibleChatOpenAI({
     model: llmConfig.name,
     temperature: 0.1,
     configuration: { baseURL: llmConfig.baseURL, apiKey: llmConfig.key },
   });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const LLM_METHODS = new Set(["invoke", "stream", "_generate", "_streamResponseChunks"]);
-  const llm = new Proxy(rawLlm, {
-    get(target, prop, _receiver) {
-      const orig = (target as unknown as Record<string, unknown>)[prop as string];
-      if (typeof orig === "function" && LLM_METHODS.has(prop as string)) {
-        return (...args: unknown[]) => {
-          const clean = args.map((a) => stripFileBlocks(a));
-          return (orig as (...a: unknown[]) => unknown).apply(target, clean);
-        };
-      }
-      return orig;
-    },
-  }) as unknown as ChatOpenAI;
 
   // ===================== MCP Auto-Registration =====================
 
