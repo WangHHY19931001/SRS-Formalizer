@@ -45,9 +45,19 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-behavior-graph --wo
 ### 步骤 6：更新 BEHAVIORS.md + STATE.md
 
 ## 约束
+
+**格式要求：**
 - 每个 .feature 文件独立（SRS §8.2）
+- **必须采用独立 `.feature` 文件格式建模，不接受 Markdown 模式描述 BDD**
+- 必须有完整步骤（Given → When → Then → And），必须完整定义状态和状态转换
+
+**质量门禁（全部必须通过）：**
 - **严格模式**：无 GAP / PLACEHOLDER / UNDEFINED / 待定 / 未定义
+- 不允许 `error`、`failed`、`undefined`、`untested`、步骤缺失——出现则需处理修正
+- 不允许占位实现（如 `<THEN_PLACEHOLDER>`、`<GIVEN_PLACEHOLDER>`）、简化实现、错误实现
 - Then 步骤全部充实，无占位符残留（gherkin-lint `no-restricted-patterns`）
 - 每个 Then 含 `# verification_method:` 标注
 - 行为图谱必须成功构建（含 Feature/Scenario/Action 节点）
 - gherkin-lint 严格模式全部通过（全部 20 条可配置规则）
+
+**SRS 一致性问题：** 建模必须符合 SRS 设计并进一步细化。出现问题先检查建模与设计一致性；一致但仍有问题则与用户交互修正设计。

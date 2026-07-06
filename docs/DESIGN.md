@@ -1,6 +1,6 @@
 # SRS-Formalizer 设计文档
 
-> **版本**: 0.5.2 | **日期**: 2026-07-03 | **状态**: Active
+> **版本**: 0.5.4 | **日期**: 2026-07-07 | **状态**: Active
 >
 > 本文档是 srs-formalizer 技能开发的**唯一事实依据**（Single Source of Truth）。
 > 所有设计决策、架构约束、规则合规、评估结果均记录于此。
@@ -57,8 +57,8 @@ S0(发现确认) → S1(预处理) → S2(需求提取) → S3(图谱构建)
 | S1 | 原始 SRS | init → manifest → glossary | shard_index.json + GLOSSARY.md | validate-glossary |
 | S2 | 分片索引 | R1显式→R2隐式→R3关系 + 架构分解(3轮) | JSONL 记录 | validate-jsonl, validate-architecture |
 | S3 | 需求 JSONL | 图谱构建→结构分析→语义分析→Cypher导出 | 知识图谱 + Cypher | validate-cypher, verify-gate(R3) |
-| S4 | 知识图谱 | BDD 生成→gherkin-lint 校验→行为图谱 | .feature + behavior-graph | validate-bdd, 20条规则严格模式 |
-| S5 | 图谱 + 触发 | TLA+ 建模 / Lean 4 证明（条件） | .tla / .lean + 交互图谱 | validate-tla, validate-lean |
+| S4 | 知识图谱 | BDD 生成→gherkin-lint 严格校验→行为图谱 | .feature + behavior-graph | validate-bdd (20条规则, 零error/failed/undefined/untested/占位) |
+| S5 | 图谱 + 触发 | TLA+ 层次化建模（L1→L2→L3, 可推广 N 级）/ Lean 4 拆分证明（四步循环, 递归至 0 sorry） | .tla / .lean + 交互图谱 | validate-tla (SANY+TLC, 零死锁/状态爆炸/占位), validate-lean (lake build, 零sorry/axiom/warning) |
 | S6 | 全阶段产物 | 系统架构合成→跨图一致性验证→收敛循环 | 架构图谱 + 一致性报告 | verify-gate(FINAL) |
 
 ### 2.2 设计模式（嵌套组合）
@@ -284,16 +284,161 @@ TLA+ 和 Lean 4 形式化对 SRS 内容有特定要求：
 | Windows 端到端测试 | P4 | TLA+ 可运行（Java），Lean 4 禁止（需 WSL2） |
 | 能力探测 TLA+ 评分器 Java 类名 | ~~P1~~ ✅ | 评分器误用 `tla2.SANY`/`tla2.TLC`（ClassNotFoundException），已修正为 `tla2sany.SANY`/`tlc2.TLC`。经 `java -cp tla2tools-1.7.4.jar` 实测：SANY Version 2.2 (2020-07-08), TLC2 Version 2026.05.18 |
 
-### 4.3 BDD 生成-校验-阻塞流程
+### 4.3 BDD 建模约束
+
+#### 4.3.1 格式要求
+
+- **必须采用独立 `.feature` 文件格式建模**，不接受 Markdown 模式描述 BDD
+- 必须有完整步骤（Given → When → Then → And），必须完整定义状态和状态转换
+- 每个 Then 含 `# verification_method:` 标注
+- 每个 .feature 文件独立（对应 SRS 各模块）
+
+#### 4.3.2 生成-校验-阻塞流程
 
 S4 阶段执行 BDD 生成后立即触发 gherkin-lint 严格模式校验。若校验失败（如存在 `THEN_PLACEHOLDER`），则会形成硬阻塞：
 
 1. `generate-bdd` → 生成 `.feature` 文件
-2. `validate-bdd` → gherkin-lint 严格模式（20 条规则）
-3. 若 `THEN_PLACEHOLDER` 存在 → `build-behavior-graph` 拒绝执行
-4. 阻塞解除条件：所有 Gherkin 文件通过 validate-bdd
+2. `validate-bdd` → gherkin-lint 严格模式（20 条规则，配置 `templates/.gherkin-lintrc-strict`）
+3. 若 `THEN_PLACEHOLDER` 或 `error`/`failed`/`undefined`/`untested` 或步骤缺失存在 → `build-behavior-graph` 拒绝执行
+4. 阻塞解除条件：所有 Gherkin 文件通过全部 20 条规则
 
 此设计确保行为图谱仅有完整的场景定义，防止占位符流入下游分析。
+
+#### 4.3.3 质量门禁
+
+| # | 检查 | 严重度 |
+|:--:|------|:------:|
+| 1 | 无 GAP / TODO / FIXME / TBD / 待定 / 未定义 / 待实现 | 硬阻塞 |
+| 2 | 无 `<THEN_PLACEHOLDER>` / `<GIVEN_PLACEHOLDER>` 等占位符 | 硬阻塞 |
+| 3 | 无 `error` / `failed` / `undefined` / `untested` | 硬阻塞 |
+| 4 | 步骤完整（无缺失 Given/When/Then） | 硬阻塞 |
+| 5 | Scenario Outline 变量全部使用 | 硬阻塞 |
+| 6 | 逻辑顺序 Given → When → Then → And | 硬阻塞 |
+| 7 | 不允许占位实现、简化实现、错误实现 | 硬阻塞 |
+| 8 | `build-behavior-graph` 成功构建（含 Feature/Scenario/Action 节点） | 硬阻塞 |
+
+#### 4.3.4 SRS 一致性处理
+
+建模必须符合 SRS 设计并进一步细化。出现问题先检查建模与设计一致性；一致但仍有问题则与用户交互修正设计。
+
+### 4.4 TLA+ 建模约束
+
+#### 4.4.1 层次化拆解方法
+
+TLA+ 建模采用层次化递进策略：
+
+```
+L1: 系统内外交互抽象
+  └─ L2: 子系统内部行为 + 上下同级交互抽象
+      └─ L3: 原子化子系统行为抽象
+          └─ L4/L5/L6... (可推广，每个下级子系统视为独立系统继续拆解)
+```
+
+**拆解判定方法：**
+1. 先写 TLA+ 规约
+2. 分析变量组合状态空间
+3. 组合结果 >1k 时考虑拆解，>1w 时必须拆解
+4. 每个下级子系统视为独立系统递归应用此方法
+
+#### 4.4.2 调试与验证流程
+
+```
+1. 删除旧的轨迹文件（.stl）和状态文件（.tlc）
+2. 先通过 SANY 语法检查
+3. SANY 通过后才允许执行 TLC 模型检查
+4. TLC 失败 → debug-tlc 子代理定位根因 → 修正后回到步骤 1
+5. 全部通过 → 冻结 .tla 文件 → 构建交互图谱
+```
+
+#### 4.4.3 质量门禁
+
+| # | 检查 | 命令/方法 | 严重度 |
+|:--:|------|------|:------:|
+| 1 | SANY 语法检查 | `validate-tla` | 硬阻塞 |
+| 2 | TLC 模型检查（-deadlock） | `validate-tla` | 硬阻塞 |
+| 3 | 无死锁（黑洞） | `-deadlock` 标志 | 硬阻塞 |
+| 4 | 无状态爆炸 | TLC 状态空间限制 | 硬阻塞 |
+| 5 | 无违法不变式 | TypeOK 不变式 | 硬阻塞 |
+| 6 | 无活锁（停滞） | Stuttering 检测 | 硬阻塞 |
+| 7 | 无奇迹（不可能的状态转换） | TLC 覆盖检查 | 硬阻塞 |
+| 8 | 无占位实现、简化实现、错误实现 | 人工 + 自动化审查 | 硬阻塞 |
+
+正常系统不允许死锁。死锁或矛盾分支需定位根因修正。
+
+#### 4.4.4 工具链条件
+
+- 工具：内置 `tla2tools-1.7.4.jar`（SANY 2.2 + TLC2 2026.05.18），仅需 Java 11+
+- 三层回退：GitHub API → 本地缓存 → 内置兜底
+- 能力探测探针仅在有工具链时生成 TLA+ 维度
+- 无工具链时评分器降级为语法检查（7 项正则检查，满分 100）
+
+### 4.5 Lean 4 建模约束
+
+#### 4.5.1 拆分证明方法（强制四步循环）
+
+```
+Step 1: 编写证明骨架（带 sorry）
+   └─ LLM 子代理编写 theorem 声明和证明策略框架
+Step 2: 将每个 sorry 变为独立文件证明
+   └─ 每个 lemma 独立文件（≤100 行）
+Step 3: 无法单文件则继续拆分
+   └─ 拆分为多个文件分别证明，然后 import
+Step 4: 递归循环
+   └─ 若仍有 sorry → 回到 Step 1，递归至 0 个 sorry
+```
+
+#### 4.5.2 硬门禁
+
+| # | 检查 | 命令 | 严重度 |
+|:--:|------|------|:------:|
+| 1 | 0 `sorry` | `grep -r "sorry" *.lean` → 空 | 硬阻塞 |
+| 2 | 0 `axiom` | `grep -r "axiom" *.lean` → 空 | 硬阻塞 |
+| 3 | 0 warnings | lake build 输出无 warning | 硬阻塞 |
+| 4 | lake build 通过 | exit 0 | 硬阻塞 |
+| 5 | theorem + 完整 proof | 每个声明含完整 tactic proof | 硬阻塞 |
+| 6 | 每个 lemma 独立文件 | 无 >100 行单体证明 | 硬阻塞 |
+| 7 | 无占位实现、简化实现、错误实现 | 人工 + 自动化审查 | 硬阻塞 |
+
+**附加约束：**
+- ✅ 允许使用 mathlib4（最新版），首次执行 `lake exe cache get`
+- ✅ 策略级联：`rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → aesop`
+- ❌ 禁止 `#eval` 替代 proof
+- ❌ 禁止 `import Mathlib`（全量导入）
+- ❌ 每个修改后立即 `lake build`，不积攒
+
+#### 4.5.3 平台限制
+
+| 平台 | 支持 |
+|------|:----:|
+| Linux x86_64 | ✅ |
+| macOS ARM64 | ✅ |
+| Windows | ❌ 禁止（引导使用 WSL2） |
+
+#### 4.5.4 工具链条件
+
+- 需要 `lake` 命令可用
+- 能力探测探针仅在有工具链时生成 Lean 4 维度
+- 无工具链时评分器降级为语法检查（7 项检查，含 lake build 时 +40 分）
+
+### 4.6 SRS 一致性升级流程（TLA+ / Lean 4 共享）
+
+当 TLA+ 或 Lean 4 建模符合 SRS 设计但仍有问题（死锁、违反不变式、状态爆炸、不可证明、类型不匹配）时：
+
+1. **不修改代码绕过问题**
+2. 写入 `SRS_PATCHES.md`，格式：
+   ```
+   ## SRS 不一致报告
+   - 矛盾: <描述>
+   - SRS 引用: <章节>
+   - 可选项:
+     A. <方案A> — 推荐 ✓
+     B. <方案B>
+     C. <方案C>
+   - 事实依据: <联网搜索的论文/开源 URL>
+   ```
+3. **允许联网搜索深度调研**，基于事实工作（不允许编造论文或 URL）
+4. 等待人类确认后按确认方案修改
+5. 若不一致涉及安全关键需求，`security_level` 临时提升至 `critical`
 
 ---
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.4] - 2026-07-07
+
+### Added
+
+- **BDD 建模约束完善**：强制独立 `.feature` 文件格式（拒绝 Markdown 模式）、完整 Given/When/Then + 状态/状态转换定义、零 `error/failed/undefined/untested`/步骤缺失门禁、SRS 一致性交互升级流程
+- **TLA+ 建模约束完善**：层次化拆解方法（L1→L2→L3 可推广至 N 级）、变量组合拆解阈值（>1k 考虑拆 / >1w 强制拆）、调试前轨迹/状态文件删除、先 SANY 语法检查后 TLC 模型检查的严格顺序、SRS 一致性升级流程（可选项 + 联网调研）
+- **Lean 4 建模约束完善**：拆分证明四步循环（骨架 sorry → 独立文件证明 → 拆分多文件 import → 递归至 0 sorry）、SRS 一致性升级流程
+- SKILL.md S4/S5 章节从一行指针展开为完整约束
+- DESIGN.md 新增 §4.3-4.6 产物建模约束章节（~120 行）
+- README.md 新增产物建模硬性约束表
+- CLAUDE.md 重构：新增建模约束章节 + 单测试运行命令 + 安全约定
+
+### Changed
+
+- `references/strict-modes.md` S4 BDD 区新增格式要求、质量门禁、SRS 一致性处理
+- `prompts/orchestrator_stage_S4.md` 约束区新增完整门禁清单 + SRS 一致性处理
+- `prompts/orchestrator_stage_S5.md` TLA+ 区新增层次化拆解、轨迹清理、SRS 升级流程；约束区统一更新
+- SKILL.md frontmatter `version` 从 0.5.2 → 0.5.4
+
 ## [0.5.2] - 2026-07-02
 
 ### Added

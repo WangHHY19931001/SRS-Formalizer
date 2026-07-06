@@ -27,20 +27,46 @@
 TLA+ 工具：技能内置 `tools/tla2tools-1.7.4.jar`，仅需 Java（不限 OS）。
 首次运行时自动尝试下载最新版；下载失败则使用内置版。
 
-1. LLM 子代理按层级编写 .tla（L1系统级→L2子系统级→L3原子级）
-2. **每级严格验证**：
+**层次化拆解方法：**
+- L1 系统内外交互抽象 → L2 子系统内部行为 + 上下同级交互抽象 → L3 原子化子系统行为抽象
+- 可推广至 4/5/6 级或更多，每个下级子系统视为独立系统继续拆解
+- 拆解判定：先写 TLA+，分析变量组合；组合结果 >1k 时考虑拆，>1w 时必须拆
+
+**执行流程：**
+
+1. LLM 子代理按层级编写 .tla
+2. **调试前先删除旧的轨迹文件（`.stl`）和状态文件（`.tlc`）**
+3. **每级严格验证（先语法检查，再模型检查）**：
    ```bash
    npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-tla --file <file>.tla --workdir .srs_formalizer
    ```
-   严格模式检查：死锁（-deadlock）/ 无限状态 / 奇迹 / 未定义(TypeOK) / 活锁
-3. 失败 → debug-tlc 子代理定位根因 → SRS设计缺陷则回写 SRS_PATCHES.md
-4. 全部通过 → 冻结 .tla 文件
-5. 构建系统交互图谱：
+   严格模式检查：SANY 语法通过 → TLC 模型检查 → 死锁（-deadlock）/ 状态爆炸 / 违法不变式(TypeOK) / 活锁 / 奇迹（不可能的状态转换）
+4. 失败 → debug-tlc 子代理定位根因 → 修正后回到步骤 2（重新验证）
+5. 全部通过 → 冻结 .tla 文件
+6. 构建系统交互图谱：
    ```bash
    npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-tla-graph --workdir .srs_formalizer
    ```
    产物: `5_formal/tla-interaction-graph.json` + `6_outputs/knowledge_graph/tla-interaction.cypher`
-6. 写入 SPECS.md 索引
+7. 写入 SPECS.md 索引
+
+**质量门禁：** 不允许占位实现、简化实现、错误实现。不允许死锁（正常系统不允许死锁，死锁或矛盾分支需定位根因修正）。
+
+**SRS 不一致升级流程：** 如果符合 SRS 设计但仍然有问题（死锁、违反不变式、状态爆炸）：
+1. **不修改 TLA+ 代码绕过问题**
+2. 写入 `SRS_PATCHES.md`，格式：
+   ```
+   ## SRS 不一致报告
+   - 矛盾: <描述>
+   - SRS 引用: <章节>
+   - 可选项:
+     A. <方案A> — 推荐 ✓
+     B. <方案B>
+     C. <方案C>
+   - 事实依据: <联网搜索的论文/开源 URL>
+   ```
+3. **允许联网搜索深度调研**，基于事实工作
+4. 等待人类确认后按确认方案修改
 
 ## Lean 4 拆分证明（条件触发）
 
@@ -120,8 +146,9 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-lean-graph --workdi
 
 ## 约束
 - 工具链缺失时优雅降级（标记不可用而非阻塞）
-- **TLA+ 严格模式**：不允许死锁（黑洞）、无限状态、奇迹、未定义、活锁
+- **TLA+ 严格模式**：不允许死锁（黑洞）、无限状态、奇迹、未定义、活锁。不允许占位实现、简化实现、错误实现。调试前先删除轨迹文件和状态文件。先通过 SANY 语法检查后才允许执行 TLC 模型检查
+- **TLA+ 拆解阈值**：变量组合 >1k 建议拆，>1w 强制拆。层次化 L1→L2→L3，可推广至 4/5/6+ 级
 - **Lean 4 平台限制**：Windows 禁止，引导使用 WSL2
-- TLA+ 拆解阈值：>1k 建议拆，>1w 强制拆（SRS §12）
+- **Lean 4 拆分证明**：四步循环——骨架 sorry → 独立文件证明 → 拆分多文件 import → 递归至 0 sorry。0 sorry、0 axiom、0 warning 必须
 - Lean 拆分递归深度无上限
-- SRS 设计缺陷必须暂停等用户确认
+- **SRS 设计缺陷**：TLA+ 和 Lean 4 均必须暂停等用户确认。写入 `SRS_PATCHES.md`（含矛盾描述、SRS 引用、可选项 A/B/C、事实依据），允许联网搜索深度调研，基于事实工作
