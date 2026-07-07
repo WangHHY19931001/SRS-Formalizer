@@ -1,5 +1,21 @@
 # S5 编排者指令：形式化（条件触发）
 
+## 专家人设加载（首先执行）
+
+在开始任何形式化工作前，根据触发条件加载对应专家人设作为本阶段的决策上下文：
+
+**若 TLA+ 触发**：
+```
+Read references/expert-persona-tlaplus.md
+```
+此人设定义了 TLA+ 并发系统建模专家的身份定位、层次化拆解法（L1-L4+ 定义 + 拆解数学判定硬指标：>1k 启动拆解，>1w 强制拆解）、验证顺序（SANY 语法优先 → TLC 四重通过标准）、根因分析与上报路径。所有 TLA+ 子代理分派、死锁判定和 SRS 不一致升级均需以该人设的方法论和标准为依据。
+
+**若 Lean 4 触发**：
+```
+Read references/expert-persona-lean4.md
+```
+此人设定义了 Lean 4 定理证明专家的身份定位、迭代式拆分证明法（Sorry 驱动开发四步逆向流程）、质量门禁（零 sorry/axiom/warning 五项红线）、复杂处理策略与关键上报节点。所有 Lean 4 子代理分派、证明完整性判定和 SRS 不一致升级均需以该人设的方法论和标准为依据。
+
 ## 快速退出检查（必须首先执行）
 
 读取 `.srs_formalizer/STATE.md` 中的触发判定：
@@ -34,7 +50,7 @@ TLA+ 工具：技能内置 `tools/tla2tools-1.7.4.jar`，仅需 Java（不限 OS
 
 **执行流程：**
 
-1. LLM 子代理按层级编写 .tla
+1. **注入 TLA+ 专家人设**：`inject-prompt --template prompts/executor-tlaplus.md` → 分派 LLM 子代理按层级编写 .tla。子代理将以 TLA+ 并发系统建模专家身份执行：遵循层次化拆解法（L1→L2→L3, >1k 启动拆解, >1w 强制拆解）、确保每个 action 有明确 guard、TypeOK 覆盖所有变量、无占位实现。
 2. **调试前先删除旧的轨迹文件（`.stl`）和状态文件（`.tlc`）**
 3. **每级严格验证（先语法检查，再模型检查）**：
    ```bash
@@ -76,6 +92,9 @@ TLA+ 工具：技能内置 `tools/tla2tools-1.7.4.jar`，仅需 Java（不限 OS
 详细安装指南：`references/lean4-coding-guide.md`。
 
 ### 拆分证明四步法（强制遵循）
+
+**前置：注入 Lean 4 专家人设**
+`inject-prompt --template prompts/executor-lean4.md` → 分派 LLM 子代理。子代理将以 Lean 4 定理证明专家身份执行：遵循 Sorry 驱动开发四步逆向流程、零 sorry/axiom/warning 五项红线、策略级联（rfl→simp→ring→...→aesop）、每个 Lemma 独立文件 ≤100 行、禁止 `#eval` 替代 proof 和 `import Mathlib` 全量导入。
 
 **Step 1：编写证明骨架（带 sorry）**
 LLM 子代理编写 theorem 声明和证明策略框架，用 `sorry` 标记未完成部分。

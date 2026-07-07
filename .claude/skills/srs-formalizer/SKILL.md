@@ -16,7 +16,7 @@ tags:
     verification,
   ]
 metadata:
-  version: "0.5.2"
+  version: "0.5.5"
   compatibility: requires Node.js>=20, typescript>=5.5, Claude Code>=1.0
   pattern: pipeline
   domain: formal-methods
@@ -367,6 +367,9 @@ S2 子阶段:
 | ------------------------------ | --------------------------------- |
 | `prompts/executor-glossary.md` | S1 术语提取（并行子代理分批复用） |
 | `prompts/executor-R*.md`       | S2 需求提取各子阶段               |
+| `prompts/executor-bdd.md`      | S4 BDD 生成（注入 BDD 专家人设） |
+| `prompts/executor-tlaplus.md`  | S5 TLA+ 建模（注入 TLA+ 专家人设） |
+| `prompts/executor-lean4.md`    | S5 Lean 4 证明（注入 Lean 4 专家人设） |
 | `prompts/verifier-R*.md`       | 校验循环（新会话执行）            |
 | `prompts/executor-arch-*.md`   | S2 架构分解三阶段                 |
 | `prompts/verifier-arch.md`     | 架构审核                          |
@@ -385,6 +388,13 @@ S2 子阶段:
 | `references/auto-setup.md`              | 编码智能体自配置时      | 子代理 |
 | `references/agent-integration-guide.md` | 多平台集成时            | 编排者 |
 | `references/a2a-integration.md`         | A2A Agent 协作时        | 编排者 |
+| `docs/DESIGN.md §24 专家人设体系`       | S4/S5 阶段开始时（编排者按需参考） | 编排者 |
+| `docs/DESIGN.md §25 专家协作契约`       | S6 跨图验证时（仲裁/分歧时必读） | 编排者 |
+| `references/expert-persona-bdd.md`      | S4 BDD 生成前（编排者加载后注入子代理） | 编排者→子代理 |
+| `references/bdd-coding-guide.md`         | S4 BDD 生成时（子代理按需加载） | 子代理 |
+| `references/expert-persona-tlaplus.md`  | S5 TLA+ 触发时（编排者加载后注入子代理） | 编排者→子代理 |
+| `references/expert-persona-lean4.md`    | S5 Lean 4 触发时（编排者加载后注入子代理） | 编排者→子代理 |
+| `references/collaboration-contract.md`  | S6 跨图验证时（仲裁/分歧时必读） | 编排者 |
 
 ### L3-Setup：集成参考（非运行时，仅初始化/配置时加载）
 

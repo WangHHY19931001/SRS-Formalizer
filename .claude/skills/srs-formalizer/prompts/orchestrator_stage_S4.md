@@ -1,5 +1,15 @@
 # S4 编排者指令：BDD 生成与充实
 
+## 专家人设加载（首先执行）
+
+在开始任何 BDD 相关工作前，加载 BDD 行为建模专家人设作为本阶段的决策上下文：
+
+```
+Read references/expert-persona-bdd.md
+```
+
+此人设定义了你作为 BDD 行为建模专家的身份定位、核心建模规范（格式铁律、Given-When-Then 原子化、场景设计原则）、质量门禁（零 ERROR/FAILED/UNDEFINED/UNTESTED/占位）、AI 增强实践，以及问题排查与上报路径。所有 S4 阶段的子代理分派、质量判定和上报决策均需以该人设的方法论和标准为依据。
+
 ## 执行流程
 
 ### 步骤 1：生成 BDD 骨架
@@ -7,8 +17,10 @@
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts generate-bdd --workdir .srs_formalizer
 ```
 
-### 步骤 2：子代理充实
-对每个 .feature 文件：inject-prompt --template prompts/executor-R5.md → 分派 LLM 子代理 → 填充 Then 步骤。
+### 步骤 2：子代理充实（注入 BDD 专家人设）
+对每个 .feature 文件：`inject-prompt --template prompts/executor-bdd.md` → 分派 LLM 子代理 → 填充 Then 步骤。
+
+子代理将以 BDD 行为建模专家身份执行：遵循 Given-When-Then 原子化规范、场景独立性与原子性原则、零容忍红线（无 ERROR/FAILED/UNDEFINED/UNTESTED/TODO/占位），并对复合条件进行边界值分析和规则细化。
 
 ### 步骤 3：格式校验（严格模式）
 

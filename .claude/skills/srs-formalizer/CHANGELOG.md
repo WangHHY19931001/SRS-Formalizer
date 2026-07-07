@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.5.5] - 2026-07-07
+
+### Added
+
+- **专家人设体系**（§24 DESIGN.md + 4 个 L3 参考文件）：
+  - `references/expert-persona-bdd.md` — BDD 行为建模专家：身份定位、Given-When-Then 原子化规范、场景设计原则（独立性/原子性/声明式风格）、零容忍红线（ERROR/FAILED/UNDEFINED/UNTESTED/TODO/占位）、AI 增强实践、问题排查与上报路径
+  - `references/expert-persona-tlaplus.md` — TLA+ 并发系统建模专家：层次化拆解法（L1-L4+ 定义 + 拆解数学判定硬指标：>1k 启动拆解, >1w 强制拆解）、SANY→TLC 验证顺序、四重通过标准、状态爆炸应对策略、根因分析与上报
+  - `references/expert-persona-lean4.md` — Lean 4 定理证明专家：Sorry 驱动开发四步逆向流程、五项红线（零 sorry/axiom/warning/偏离实现/语法糖掩盖缺陷）、策略级联（rfl→simp→ring→...→aesop）、复杂递归良基性处理、关键上报节点
+- **专家协作契约** `references/collaboration-contract.md`：
+  - 协作工作流（ASCII 流程图）、需求细化联动机制（BDD→TLA+, BDD→Lean 4, TLA+↔Lean 4）
+  - 冲突仲裁优先级（Lean 4 > TLA+ > BDD）+ 四种具体仲裁场景
+  - 统一交付标准（各自交付物 + 一致性矩阵/差异分析/SRS 修正建议联合交付物）
+  - 上报条件（SRS 缺陷/隐含假设/需求矛盾/跨专家分歧）与格式模板
+- **领域专用子代理提示词**（3 个）：
+  - `prompts/executor-bdd.md` — BDD 行为建模执行者（注入完整 BDD 专家人设，替换 executor-R5 在 S4 的调度角色）
+  - `prompts/executor-tlaplus.md` — TLA+ 并发系统建模执行者（注入完整 TLA+ 专家人设，含输出格式模板和质量自检清单）
+  - `prompts/executor-lean4.md` — Lean 4 定理证明执行者（注入完整 Lean 4 专家人设，含 Sorry 驱动开发流程和五项红线）
+- DESIGN.md 新增 §24 专家人设体系 + §25 专家协作契约（~330 行）
+- DESIGN.md §4.3/4.4/4.5 各新增专家人设交叉引用
+- DESIGN.md §16 跨图验证新增协作契约交叉引用
+- **编码参考指南完善**（3 份）：
+  - `references/bdd-coding-guide.md` — Gherkin 语法速查、声明式 vs 过程式对比、Scenario Outline 数据驱动模式、常用 BDD 框架对照表
+  - `references/tlaplus-coding-guide.md` — 重组合并：语法说明 + 编写原则 + 编码最佳实践 + 反例与 LLM 常见错误 + 工业案例 + 外部资源（~380 行）
+  - `references/lean4-coding-guide.md` — 重组合并：核心语法与声明 + 编码方法与原则 + 反例与常见陷阱 + 社区资源 + 外部资源（~290 行）
+- **渐进式披露模式**：三个 executor 提示词末尾各新增「完整人设参考」节——子代理持有精简版人设，可按需自行加载完整人设和编码指南
+
+### Changed
+
+- **编排者提示词升级**：
+  - `orchestrator_stage_S4.md`：新增「专家人设加载」步骤（Read expert-persona-bdd.md）+ 子代理改用 `inject-prompt executor-bdd.md`
+  - `orchestrator_stage_S5.md`：新增「专家人设加载」步骤（TLA+/Lean 4 双人设）+ 子代理改用 `inject-prompt executor-tlaplus.md` / `executor-lean4.md`
+  - `orchestrator_stage_S6.md`：新增「协作契约加载」步骤（Read collaboration-contract.md）
+- SKILL.md：version 0.5.2→0.5.5；L3-Ref 表 +4 行（3 人设 + 契约）；L3-Exec 表 +3 行（3 领域执行者）
+- README.md：版本历史新增 0.5.5；目录树更新（25→28 prompts, 12→16 refs）；新增「专家人设与协作」章节
+- DESIGN.md：版本号 0.5.4→0.5.5；prompt 类型表新增「执行者-领域」行
+- BDD、TLA+、Lean 4 三个领域完全分离——各有独立人设文件 + 独立执行者 prompt，编排者按阶段注入
+
 ## [0.5.4] - 2026-07-07
 
 ### Added
