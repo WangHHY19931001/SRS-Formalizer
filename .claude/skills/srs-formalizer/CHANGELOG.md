@@ -32,8 +32,8 @@
   - `orchestrator_stage_S4.md`：新增「专家人设加载」步骤（Read expert-persona-bdd.md）+ 子代理改用 `inject-prompt executor-bdd.md`
   - `orchestrator_stage_S5.md`：新增「专家人设加载」步骤（TLA+/Lean 4 双人设）+ 子代理改用 `inject-prompt executor-tlaplus.md` / `executor-lean4.md`
   - `orchestrator_stage_S6.md`：新增「协作契约加载」步骤（Read collaboration-contract.md）
-- SKILL.md：version 0.5.2→0.5.5；L3-Ref 表 +4 行（3 人设 + 契约）；L3-Exec 表 +3 行（3 领域执行者）
-- README.md：版本历史新增 0.5.5；目录树更新（25→28 prompts, 12→16 refs）；新增「专家人设与协作」章节
+- SKILL.md：version 0.5.2→0.5.5；L3-Ref 表 +7 行（3 人设 + 契约 + 3 编码指南）；L3-Exec 表 +3 行（3 领域执行者）
+- README.md：版本历史新增 0.5.5；目录树更新（25→28 prompts, 12→17 refs）；新增「专家人设与协作」章节
 - DESIGN.md：版本号 0.5.4→0.5.5；prompt 类型表新增「执行者-领域」行
 - BDD、TLA+、Lean 4 三个领域完全分离——各有独立人设文件 + 独立执行者 prompt，编排者按阶段注入
 
