@@ -95,38 +95,52 @@ S0(发现确认) → S1(预处理) → S2(需求提取) → S3(图谱构建)
 ├── scripts/                 # TypeScript 工具链（零运行时 npm 依赖）
 │   ├── index.ts             # CLI 入口（注册表模式，31 条命令）
 │   ├── commands/            # 31 条命令（每文件 ≤300 行）
-│   ├── lib/                 # 共享库模块
-│   │   ├── cli.ts           # CLI 参数安全解析
-│   │   ├── security.ts      # 路径安全校验（与 cli.ts 功能重复，保留用于 validate-jsonl/validate-architecture 的独立导入）
-│   │   ├── graph.ts         # 图数据结构
-│   │   ├── jsonl.ts         # JSONL 读写与校验
-│   │   ├── traversal.ts     # 图遍历算法
-│   │   ├── anti-skill.ts    # Anti-Skill 安全约束注入
-│   │   ├── skir-builder.ts  # SkIR 构建器
+│   ├── lib/                   # 27 核心模块 + 10 子目录
+│   │   ├── cli.ts              # CLI 参数安全解析
+│   │   ├── security.ts         # 路径安全校验（与 cli.ts 功能重复，保留用于独立导入）
+│   │   ├── graph.ts            # 图数据结构
+│   │   ├── jsonl.ts            # JSONL 读写与校验
+│   │   ├── graph-algorithms.ts # 统一图算法（BFS/连通分量/最短路径/2-hop/Jaccard/图加载）
+│   │   ├── graph-operations.ts # 图合并/冲突边/同侧面边操作
+│   │   ├── id-utils.ts         # 共享 ID 清理（sanitizeId）
+│   │   ├── fs-utils.ts         # 共享文件系统工具（ensureDir）
+│   │   ├── text-analysis.ts    # NLP 工具（分词/Jaccard/反义检测/CJK bigram）
+│   │   ├── prompt-templates.ts # 子代理审查提示词模板
+│   │   ├── chapter-parser.ts   # SRS 章节识别（HTML/Markdown）
+│   │   ├── sharder.ts          # 文档分片与递归细分
+│   │   ├── skill-integrity.ts  # 技能完整性加解密（pack + verify 共享）
+│   │   ├── anti-skill.ts       # Anti-Skill 安全约束注入
+│   │   ├── skir-builder.ts     # SkIR 构建器（→ skir/ re-export）
+│   │   ├── system-architecture.ts # 系统架构合成（→ system-architecture/ re-export）
+│   │   ├── behavior-graph.ts   # 行为图谱（→ behavior-graph/ re-export）
+│   │   ├── lean-graph.ts       # Lean 4 证明图谱（→ lean-graph/ re-export）
+│   │   ├── tla-graph.ts        # TLA+ 交互图谱（→ tla-graph/ re-export）
+│   │   ├── cross-graph-verifier.ts # 跨图一致性验证（→ cross-graph/ re-export）
 │   │   ├── compile-validator.ts # 编译时 Schema 校验
 │   │   ├── emitter-claude-xml.ts # Claude XML 发射器
 │   │   ├── emitter-generic-md.ts # 通用 Markdown 发射器
-│   │   ├── checklists.ts    # 阶段验收 CHECKLIST
-│   │   ├── tla-validator.ts # TLA+ SANY+TLC 验证
-│   │   ├── bdd.ts           # Gherkin 生成与校验
-│   │   ├── cypher.ts        # Cypher 查询生成
-│   │   ├── cross-graph-verifier.ts # 跨图一致性验证
-│   │   ├── system-architecture.ts  # 系统架构合成
-│   │   ├── behavior-graph.ts       # 行为图谱
-│   │   ├── lean-graph.ts           # Lean 4 证明图谱
-│   │   ├── tla-graph.ts            # TLA+ 交互图谱
-│   │   ├── llm/              # LLM 稳定性测试
-│   │   │   ├── config.ts     # Provider 配置
-│   │   │   └── stability.ts  # 稳定性测试引擎
-│   │   ├── probe/            # 能力探测系统
-│   │   │   ├── types.ts      # 共享类型（8 维度）
-│   │   │   ├── questions.ts  # 50 探针聚合
-│   │   │   ├── scorer.ts     # 评分 + 画像计算
-│   │   │   ├── questions/    # 8 个维度探针生成器
-│   │   │   └── scorer/       # 8 个维度评分器 + helpers
-│   │   ├── cross-graph/      # 跨图验证问题定义
-│   │   ├── verify-gate/      # 三级门禁检查
-│   │   └── architecture/     # 架构图构建
+│   │   ├── checklists.ts       # 阶段验收 CHECKLIST
+│   │   ├── tla-validator.ts    # TLA+ SANY+TLC 验证
+│   │   ├── bdd.ts              # Gherkin 生成与校验
+│   │   ├── cypher.ts           # Cypher 查询生成
+│   │   ├── skir/               # SkIR 实现（types + yaml + parser + builder）
+│   │   ├── tla-graph/          # TLA+ 图谱实现（types + parser + builder + cypher）
+│   │   ├── lean-graph/         # Lean 4 图谱实现（types + parser + builder + cypher）
+│   │   ├── behavior-graph/     # BDD 图谱实现（types + parser + builder + cypher）
+│   │   ├── system-architecture/ # 系统架构实现（types + builder + cross-layer + consistency + cypher）
+│   │   ├── llm/                # LLM 稳定性测试
+│   │   │   ├── config.ts       # Provider 配置
+│   │   │   ├── stability.ts    # 稳定性测试引擎（→ stability/ re-export）
+│   │   │   └── stability/      # 稳定性实现（types + manifest + scoring + eval + report）
+│   │   ├── probe/              # 能力探测系统
+│   │   │   ├── types.ts        # 共享类型（8 维度）
+│   │   │   ├── questions.ts    # 50 探针聚合
+│   │   │   ├── scorer.ts       # 评分 + 画像计算
+│   │   │   ├── questions/      # 8 个维度探针生成器
+│   │   │   └── scorer/         # 8 个维度评分器 + helpers
+│   │   ├── cross-graph/        # 跨图验证实现（types + questions-def + socratic + graph-loader + scorer + verifier）
+│   │   ├── verify-gate/        # 三级门禁（shared + checks-s1/r3/final）
+│   │   └── architecture/       # 架构图构建（types + graph-utils + validator + processors/arch1-3）
 │   ├── types/                # 共享 TypeScript 类型
 │   │   ├── index.ts          # JsonlRecord, CliResult, ShardIndex
 │   │   └── skir.ts           # SkIR 强类型（20+ 字段）
@@ -645,7 +659,7 @@ refuseDirectInvocation(import.meta.url);
 | 0.5.3 | 2026-07-03 | **能力探测修复**：工具链条件生成（14.5）+ TLA+/Lean 4 语法降级评分（14.6）。**路径 Bug 修复**：`validate-lean.ts` 手动字符串切割→`path.dirname/join`（Windows 兼容）；`validate-tla.ts` `__dirname`→`fileURLToPath`（ESM 兼容）；`scorer/tlaplus.ts` `findJar()` 分辨率至 `../../tools/` + 类名修正（`tla2.SANY`→`tla2sany.SANY`, `tla2.TLC`→`tlc2.TLC`，经 JAR 实测验证：SANY 2.2, TLC2 2026.05.18） |
 | 0.5.5 | 2026-07-07 | **专家人设体系**：新增三位形式化专家人设（BDD §24.1、TLA+ §24.2、Lean 4 §24.3）+ 专家协作契约 §25（协作工作流、冲突仲裁、统一交付标准、上报机制） |
 | 0.5.6 | 2026-07-09 | **verify-gate 源重扫安全修复**（§4.4.3 / §4.5.2）：FINAL 门禁与构建期不再仅凭图谱 JSON 存在放行，改为重扫源文件。Lean（B3）去注释后按词边界匹配 `sorry`/`axiom`（`axiom` 由 warn 升为 fail）；TLA+（B3-TLA+）保留注释区域匹配占位标记 `GAP/TODO/FIXME/TBD/待定/未定义/待实现`。语义型简化（弱不变式/缩状态空间/伪代码）仍由 SANY/TLC 与人工审查负责。测试 299→320 |
-| 0.5.7 | 2026-07-09 | **文件拆分 + 去重重构**：16 个超 300 行文件拆分为 39 个子模块（全部 ≤283 行）；Graph 模块统一 types→parser→builder→cypher 四文件模式；命令文件从 ~400 行精简至 ~80 行。`sanitizeId`/`ensureDir` 跨文件去重收敛；cross-graph 循环依赖修复；新增 `lib/id-utils`、`lib/fs-utils`、`lib/text-analysis`、`lib/graph-traversal`、`lib/skill-integrity`、`lib/chapter-parser`、`lib/sharder` 等共享模块；`refuseDirectInvocation` 守卫全量补全 |
+| 0.5.7 | 2026-07-09 | **文件拆分 + 去重重构**：16 个超 300 行文件拆分为 39 个子模块（全部 ≤283 行）；Graph 模块统一 types→parser→builder→cypher 四文件模式；命令文件从 ~400 行精简至 ~80 行。`sanitizeId`/`ensureDir` 跨文件去重收敛；cross-graph 循环依赖修复；新增 `lib/id-utils`、`lib/fs-utils`、`lib/text-analysis`、`lib/graph-algorithms`、`lib/skill-integrity`、`lib/chapter-parser`、`lib/sharder` 等共享模块；`refuseDirectInvocation` 守卫全量补全 |
 
 ---
 
