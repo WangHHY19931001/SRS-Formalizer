@@ -104,4 +104,14 @@ describe('build-lean-graph command', () => {
     assert.equal(result.status, 'error');
     assert.ok(result.message!.includes('.srs_formalizer'));
   });
+
+  it('does NOT error on sorry inside a comment (no false positive)', async () => {
+    const workDir = createWorkDir('comment-sorry');
+    writeLean(workDir, 'P.lean', 'theorem t : True := trivial -- sorry mentioned\n');
+
+    const { main } = await import('../commands/build-lean-graph.js');
+    const result = await main(['--workdir', workDir]);
+
+    assert.equal(result.status, 'ok');
+  });
 });
