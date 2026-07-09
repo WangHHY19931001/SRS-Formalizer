@@ -3,7 +3,12 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { scanLeanSourceForPlaceholders, stripLeanComments } from '../lib/verify-gate/shared.js';
+import {
+  scanLeanSourceForPlaceholders,
+  stripLeanComments,
+  scanTlaSourceForPlaceholders,
+  stripTlaCode,
+} from '../lib/verify-gate/shared.js';
 
 const TMP = path.join(os.tmpdir(), `srs-scan-test-${Date.now()}`);
 
@@ -48,5 +53,49 @@ describe('scanLeanSourceForPlaceholders', () => {
 
   it('stripLeanComments removes block comments', () => {
     assert.equal(stripLeanComments('a /- sorry -/ b').includes('sorry'), false);
+  });
+});
+
+function mkSpecs(name: string, files: Record<string, string>): string {
+  const dir = path.join(TMP, name, '5_formal', 'specs');
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [f, c] of Object.entries(files)) fs.writeFileSync(path.join(dir, f), c, 'utf-8');
+  return dir;
+}
+
+describe('scanTlaSourceForPlaceholders', () => {
+  it('detects TODO in a line comment', () => {
+    const dir = mkSpecs('tla-todo', { 'A.tla': 'VARIABLE x\n\\* TODO: strengthen invariant\nInit == x = 0\n' });
+    const hits = scanTlaSourceForPlaceholders(dir);
+    assert.equal(hits.length, 1);
+    assert.equal(hits[0]?.marker, 'TODO');
+    assert.equal(hits[0]?.file, 'A.tla');
+  });
+
+  it('detects CJK marker 待定 in a comment', () => {
+    const dir = mkSpecs('tla-cjk', { 'B.tla': '\\* 状态转换待定\nInit == TRUE\n' });
+    const hits = scanTlaSourceForPlaceholders(dir);
+    assert.equal(hits.length, 1);
+    assert.equal(hits[0]?.marker, '待定');
+  });
+
+  it('ignores GAP as a code identifier (not in a comment)', () => {
+    const dir = mkSpecs('tla-code', { 'C.tla': 'CONSTANT GAP\nInit == x = GAP\n' });
+    assert.deepEqual(scanTlaSourceForPlaceholders(dir), []);
+  });
+
+  it('ignores lowercase "gap" in a prose comment (case-sensitive)', () => {
+    const dir = mkSpecs('tla-prose', { 'D.tla': '\\* mind the gap between states\nInit == TRUE\n' });
+    assert.deepEqual(scanTlaSourceForPlaceholders(dir), []);
+  });
+
+  it('returns [] when specs dir missing', () => {
+    assert.deepEqual(scanTlaSourceForPlaceholders(path.join(TMP, 'nope', 'specs')), []);
+  });
+
+  it('stripTlaCode keeps block comment text and drops code', () => {
+    const out = stripTlaCode('Init == x = 0 (* TODO fix *)\nNext == TRUE');
+    assert.equal(out.includes('TODO'), true);
+    assert.equal(out.includes('Next'), false);
   });
 });
