@@ -1,6 +1,6 @@
 # SRS-Formalizer 设计文档
 
-> **版本**: 0.5.6 | **日期**: 2026-07-09 | **状态**: Active
+> **版本**: 0.5.7 | **日期**: 2026-07-09 | **状态**: Active
 >
 > 本文档是 srs-formalizer 技能开发的**唯一事实依据**（Single Source of Truth）。
 > 所有设计决策、架构约束、规则合规、评估结果均记录于此。
@@ -1795,3 +1795,109 @@ Lean 4 定理证明专家专精于使用 Lean 4 交互式证明助手 + Mathlib 
 ---
 
 *本协作契约参照联邦形式化验证（Federated Formal Verification）架构思想及多智能体验证框架的协作模式编制，旨在建立清晰、可操作的跨范式形式化验证协作规范。*
+
+---
+
+## 26. Agent 自动安装设计
+
+### 26.1 设计动机
+
+传统技能安装依赖人类开发者手动复制目录、配置 hook、编写规则。在 AI 编码智能体普及的背景下，技能应具备**自我部署能力**——AI 智能体读取技能文档后，能自主完成平台检测、目录部署、依赖安装和激活配置。
+
+本技能将 Agent 自动安装作为**一等设计关注点**，确保任何 AI 编码智能体（Claude Code、Cursor、Codex、Windsurf 等）都能在首次遇到 SRS 文档时自行完成技能部署。
+
+### 26.2 三层安装架构
+
+```
+Layer 1: 元数据单源真相（SKILL.md frontmatter）
+  ├── name, description       → 技能发现与匹配
+  ├── metadata.version        → 版本兼容性检查
+  ├── metadata.compatibility  → 运行环境约束（Node.js≥20, TS≥5.5）
+  ├── metadata.permissions    → 安全沙箱声明（filesystem/network/execute）
+  └── metadata.pre_conditions → 前置条件校验
+
+Layer 2: 机器可读清单（agent-card.json）
+  ├── protocolVersion         → A2A Protocol v1.0
+  ├── capabilities.input      → 接受的输入格式（MIME types, maxSize）
+  ├── capabilities.output     → 产出的输出格式（5 种）
+  ├── endpoint                → CLI 入口（command + workdir）
+  ├── gateConditions          → 9 门禁条件
+  └── security                → 权限声明
+
+Layer 3: 可执行安装指南（references/auto-setup.md）
+  ├── Step 1: 平台检测（15 平台，环境变量+目录启发式）
+  ├── Step 2: 激活配置生成（hook/rule/command 按平台适配）
+  ├── Step 3: 技能目录部署（跨平台路径映射）
+  ├── Step 4: AGENTS.md 注入（20+ 平台兜底）
+  ├── Step 5: 抽象兜底（无法确定平台时）
+  └── Step 6: 验证配置生效
+```
+
+### 26.3 元数据驱动的配置编译
+
+所有平台的激活配置**编译自同一份元数据**——SKILL.md 的 frontmatter `metadata` 字段。修改只需改一处，各平台配置重新生成。
+
+```
+SKILL.md metadata (单源真相)
+  │
+  ├── trigger_keywords  →  Claude Code hook / Codex Python / AGENTS.md
+  ├── file_globs        →  Cursor .mdc / Windsurf rules
+  ├── platform_activation → 各平台 Hook/Rule/Command 类型选择
+  └── pipeline_stages   →  Antigravity TOML / slash commands
+```
+
+此设计避免了多平台配置漂移问题——传统方案需为每个平台手动维护独立配置文件，技能迭代时极易产生不一致。
+
+### 26.4 多平台部署路径
+
+基于 **agentskills.io** 开放标准（2025-12 V1.0），SKILL.md 格式全平台通用。仅需将技能目录部署到各平台的技能路径：
+
+| 平台 | 项目级路径 | 触发机制 |
+|------|-----------|---------|
+| Claude Code | `.claude/skills/srs-formalizer/` | description 匹配 + 显式调用 |
+| Cursor | `.cursor/skills/srs-formalizer/` | description 匹配 |
+| Codex CLI | `.agents/skills/srs-formalizer/` | description 匹配 |
+| Windsurf | `.windsurf/skills/srs-formalizer/` | description 匹配 |
+| 其他 11 平台 | 见 `references/agent-integration-guide.md` | 各平台规则系统 |
+
+> `.agents/skills/` 是跨工具约定——Cursor、Copilot、Gemini、Codex、Windsurf 均扫描此目录。仅 Claude Code 需单独部署到 `.claude/skills/`。
+
+### 26.5 AI 智能体安装协议
+
+AI 智能体在以下时机触发自安装流程：
+
+1. **首次遇到 SRS 文档**：检测到 SRS 关键词但技能未部署 → 自动执行安装
+2. **用户显式要求**："安装 srs-formalizer" → 按 README Agent 自动安装节执行
+3. **项目初始化**：`/init` 或 CLAUDE.md 引导 → 加载 auto-setup.md
+
+安装协议步骤：
+
+```
+1. 平台检测（环境变量 + 目录启发式）
+2. 技能目录复制（源 → 平台目标路径）
+3. npm install + tsc --noEmit + 测试套件
+4. 激活配置生成（可选：hook/rule/AGENTS.md）
+5. 安装验证（向 AI 发送 SRS 消息确认激活）
+```
+
+### 26.6 与现有系统的关系
+
+| 系统 | 关系 |
+|------|------|
+| `SKILL.md` frontmatter | Layer 1——元数据源 |
+| `agent-card.json` | Layer 2——A2A 协议机器可读清单 |
+| `references/auto-setup.md` | Layer 3——自然语言可执行安装脚本 |
+| `references/agent-integration-guide.md` | 15 平台部署路径参考 |
+| `README.md § Agent 自动安装` | 人类 + AI 双受众安装入口 |
+| `verify-skill-integrity` | 安装后完整性校验命令 |
+| `pack-skill` | 加密备份与分发 |
+
+### 26.7 设计约束
+
+| 约束 | 说明 |
+|------|------|
+| 零额外依赖 | 安装过程不引入新的运行时依赖——仅需 Node.js≥20 + git |
+| 幂等安装 | 重复安装不产生副作用——`rm -rf $TARGET && cp -r` |
+| 安全沙箱声明 | `agent-card.json` 和 `SKILL.md` 均声明 filesystem/network/execute 权限边界 |
+| 版本兼容性 | `SKILL.md` frontmatter 声明 `compatibility` 字段，安装前校验 |
+| 不自动激活 | AI 智能体安装技能后不自动执行任何阶段——S0 发现阶段需用户确认 |
