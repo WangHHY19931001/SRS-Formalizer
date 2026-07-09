@@ -11,7 +11,7 @@ cd .claude/skills/srs-formalizer/scripts
 
 npm install                          # 仅 typescript + @types/node（零运行时依赖）
 npx tsc --noEmit                     # strict 模式, 0 errors 必须
-npx tsx --test __tests__/*.test.ts   # 299 tests, 0 fail 必须
+npx tsx --test __tests__/*.test.ts   # 320 tests, 0 fail 必须
 ```
 
 **运行单个测试文件：**
@@ -43,7 +43,7 @@ scripts/
 │   ├── verify-gate/     # 三级门禁（shared + checks-s1/r3/final）
 │   └── architecture/    # 架构图构建
 ├── types/         # JsonlRecord, CliResult, ShardIndex, SkillIR（20+ 字段）
-├── __tests__/     # 35 文件, 299 测试
+├── __tests__/     # 38 文件, 320 测试
 └── templates/     # check.sh.template
 ```
 
@@ -118,7 +118,7 @@ scripts/
 - **`security.ts` 与 `cli.ts` 功能重复**：`validate-jsonl` 和 `validate-architecture` 独立导入 `security.ts`，其余命令用 `cli.ts`。新代码统一用 `cli.ts`。
 - **`commands/commands/` 和 `commands/types/`** 是空目录（遗留产物），无实际内容。
 - Commit: Conventional Commits，`Co-Authored-By: Claude <noreply@anthropic.com>`
-- 提交前: `tsc --noEmit` 0 errors + 299 tests pass
+- 提交前: `tsc --noEmit` 0 errors + 320 tests pass
 - `capability-probe` 探针仅在有工具链时生成 TLA+/Lean 4 维度
 - `scripts/templates/check.sh.template` 不在主 `templates/` 下
 

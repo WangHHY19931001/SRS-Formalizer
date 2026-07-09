@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.6] - 2026-07-09
+
+### Fixed
+
+- **verify-gate 源重扫安全修复**：堵住"残留图谱 JSON 使含缺陷的形式化产物通过 FINAL 门禁"的安全盲区。门禁与构建期不再仅凭图谱 JSON 存在性放行。
+  - Lean（B3）：`checkLeanGraphExists` 与 `build-lean-graph` 在 `lean-proof-graph.json` 存在检查之外，重扫 `5_formal/proofs/*.lean`——去注释后按词边界匹配 `sorry`/`axiom`，命中即 fail；`axiom` 由 warn 提升为 fail。
+  - TLA+（B3-TLA+）：`checkTlaGraphExists` 与 `build-tla-graph` 重扫 `5_formal/specs/*.tla`——仅在注释区域匹配禁止占位标记 `GAP`/`TODO`/`FIXME`/`TBD`/`待定`/`未定义`/`待实现`（ASCII 大写词边界 + CJK 字面），命中即 fail。语义型简化（弱不变式、缩小状态空间、伪代码代替 .tla）无单一文本特征，仍由 SANY/TLC 与人工审查负责。
+
+### Added
+
+- 共享扫描器 `scanTlaSourceForPlaceholders` / `stripTlaCode`（`lib/verify-gate/shared.ts`），与 Lean 侧 `scanLeanSourceForPlaceholders` 对称（机制相反：Lean 去注释匹配代码 token，TLA+ 保留注释匹配标记，避免 `CONSTANT GAP` 等代码标识误报）。
+- 新增测试 `verify-gate-tla-source.test.ts`，并在 `verify-gate-source-scan.test.ts` / `build-tla-graph.test.ts` 追加用例。测试总数 299 → 320（38 文件）。
+
 ## [0.5.5] - 2026-07-07
 
 ### Added
