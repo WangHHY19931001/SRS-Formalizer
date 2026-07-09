@@ -4,6 +4,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { scanLeanSourceForPlaceholders } from './shared.js';
 import type { CheckResult } from './shared.js';
 
 export function checkValidateBddPasses(workDir: string): CheckResult {
@@ -190,6 +191,13 @@ export function checkLeanGraphExists(workDir: string): CheckResult {
     return { name: 'Lean proof graph exists', passed: true, detail: 'N/A (Lean 4 not triggered)' };
   }
 
+  // SECURITY: re-scan source — never trust a possibly-stale graph.json.
+  const placeholders = scanLeanSourceForPlaceholders(proofsDir);
+  if (placeholders.length > 0) {
+    const detail = placeholders.map(p => `${p.file}:${p.kind}`).join(', ');
+    return { name: 'Lean proof graph exists', passed: false, detail: `Forbidden placeholders in .lean source: ${detail}` };
+  }
+
   const hasGraph = fs.existsSync(graphPath);
   const hasCypher = fs.existsSync(cypherPath);
   if (hasGraph && hasCypher) {
@@ -198,8 +206,7 @@ export function checkLeanGraphExists(workDir: string): CheckResult {
       const nodes = g.nodes?.length ?? 0;
       const edges = g.edges?.length ?? 0;
       const depth = g.metadata?.max_proof_depth ?? 0;
-      const axiomWarn = g.metadata?.axiom_count > 0 ? ` ⚠ ${g.metadata.axiom_count} axioms` : '';
-      return { name: 'Lean proof graph exists', passed: true, detail: `${nodes} nodes, ${edges} edges, depth ${depth}${axiomWarn}` };
+      return { name: 'Lean proof graph exists', passed: true, detail: `${nodes} nodes, ${edges} edges, depth ${depth}` };
     } catch {
       return { name: 'Lean proof graph exists', passed: false, detail: 'Corrupt JSON' };
     }

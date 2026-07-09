@@ -12,6 +12,7 @@ import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { buildLeanGraphFromDir, exportLeanToCypher } from '../lib/lean-graph.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
+import { scanLeanSourceForPlaceholders } from '../lib/verify-gate/shared.js';
 
 export async function main(args: string[]): Promise<CliResult> {
   let workDirArg: string | null;
@@ -42,16 +43,11 @@ export async function main(args: string[]): Promise<CliResult> {
     return { status: 'ok', message: 'No .lean files found — skipped', data: { skipped: true } };
   }
 
-  // Check for unresolved sorry (should have been caught by lake build already)
-  let hasSorry = false;
-  for (const f of leanFiles) {
-    if (fs.readFileSync(path.join(proofsDir, f), 'utf-8').includes('sorry')) {
-      hasSorry = true;
-      break;
-    }
-  }
-  if (hasSorry) {
-    return { status: 'error', message: 'Unresolved "sorry" found — run debug-lean and fix before building graph' };
+  // Check for unresolved sorry/axiom (comment-aware; should have been caught by lake build)
+  const placeholders = scanLeanSourceForPlaceholders(proofsDir);
+  if (placeholders.length > 0) {
+    const detail = placeholders.map(p => `${p.file}:${p.kind}`).join(', ');
+    return { status: 'error', message: `Forbidden placeholders found (${detail}) — run debug-lean and fix before building graph` };
   }
 
   // Build graph
@@ -68,7 +64,6 @@ export async function main(args: string[]): Promise<CliResult> {
 
   const warnings: string[] = [];
   if (graph.metadata.axiom_count > 0) warnings.push(`${graph.metadata.axiom_count} axioms detected`);
-  if (graph.metadata.sorry_count > 0) warnings.push(`${graph.metadata.sorry_count} files contain sorry`);
 
   return {
     status: 'ok',
