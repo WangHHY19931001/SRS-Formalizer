@@ -378,6 +378,8 @@ L1: 系统内外交互抽象
 
 正常系统不允许死锁。死锁或矛盾分支需定位根因修正。
 
+> **源重扫（门禁 #8「自动化审查」落地）**: verify-gate FINAL 的 `checkTlaGraphExists` 与构建期 `build-tla-graph` 会重新读取 `5_formal/specs/*.tla`，**仅在注释区域**匹配禁止占位标记 `GAP / TODO / FIXME / TBD / 待定 / 未定义 / 待实现`，命中即 fail——不再仅凭 `tla-interaction-graph.json` 存在放行。这落地了门禁 #8 中可确定性检测的那一半；语义型简化（弱不变式、缩小状态空间、伪代码代替 .tla）无单一文本特征，仍由 SANY/TLC 与人工审查负责。与 Lean 侧 §4.5.2 源重扫机制对称（Lean 去注释匹配 `sorry`/`axiom`，TLA+ 保留注释匹配标记）。
+
 #### 4.4.4 工具链条件
 
 - 工具：内置 `tla2tools-1.7.4.jar`（SANY 2.2 + TLC2 2026.05.18），仅需 Java 11+
