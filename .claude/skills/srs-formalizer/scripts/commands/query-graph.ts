@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
-import { loadGraph, findShortestPath, getContext, nodeDetail, getNodeModule, listModules } from '../lib/graph-traversal.js';
+import { loadGraph, findShortestPath, getContext, nodeDetail, getNodeModule, listModules } from '../lib/graph-algorithms.js';
 
 type G = ReturnType<typeof loadGraph>;
 type P = Record<string, unknown>;

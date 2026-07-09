@@ -4,6 +4,9 @@
  */
 
 import { Graph } from './graph.js';
+import { jaccardSimilarity } from './graph-algorithms.js';
+
+export { jaccardSimilarity };
 
 export function tokenize(text: string): Set<string> {
   const tokens = new Set<string>();
@@ -14,14 +17,6 @@ export function tokenize(text: string): Set<string> {
   const wordRegex = /[a-z0-9_]+/g;
   while ((match = wordRegex.exec(lower)) !== null) tokens.add(match[0]);
   return tokens;
-}
-
-export function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
-  const union = new Set([...a, ...b]);
-  if (union.size === 0) return 0;
-  let intersectionSize = 0;
-  for (const token of a) { if (b.has(token)) intersectionSize++; }
-  return intersectionSize / union.size;
 }
 
 const NEGATION_PATTERNS = [/不[应能会可]/, /必须不/, /不得/, /禁止/, /严禁/, /不应/];

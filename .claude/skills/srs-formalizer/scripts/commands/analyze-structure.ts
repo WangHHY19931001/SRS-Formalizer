@@ -11,7 +11,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { Graph, type GraphData } from '../lib/graph.js';
-import { findOrphans, findDanglingEdges, findConceptIslands } from '../lib/traversal.js';
+import { findOrphans, findDanglingEdges, findConceptIslands } from '../lib/graph-algorithms.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 
 // ---------------------------------------------------------------------------
