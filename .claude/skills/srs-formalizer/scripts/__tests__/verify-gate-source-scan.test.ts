@@ -98,4 +98,17 @@ describe('scanTlaSourceForPlaceholders', () => {
     assert.equal(out.includes('TODO'), true);
     assert.equal(out.includes('Next'), false);
   });
+
+  it('detects FIXME in a block comment', () => {
+    const dir = mkSpecs('tla-block', { 'E.tla': '(* FIXME: block comment marker *)\nInit == TRUE\n' });
+    const hits = scanTlaSourceForPlaceholders(dir);
+    assert.equal(hits.length, 1);
+    assert.equal(hits[0]?.marker, 'FIXME');
+  });
+
+  it('reports each distinct ASCII marker in a file', () => {
+    const dir = mkSpecs('tla-multi', { 'F.tla': '\\* TODO: a\n\\* GAP: b\nInit == TRUE\n' });
+    const markers = scanTlaSourceForPlaceholders(dir).map(h => h.marker).sort();
+    assert.deepEqual(markers, ['GAP', 'TODO']);
+  });
 });

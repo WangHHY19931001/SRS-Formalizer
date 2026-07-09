@@ -137,8 +137,10 @@ export function scanTlaSourceForPlaceholders(
   const files = fs.readdirSync(specsDir).filter(f => f.endsWith('.tla')).sort();
   for (const file of files) {
     const comments = stripTlaCode(fs.readFileSync(path.join(specsDir, file), 'utf-8'));
-    const ascii = comments.match(/\b(TODO|FIXME|TBD|GAP)\b/)?.[0];
-    if (ascii) hits.push({ file, marker: ascii });
+    const asciiMatches = comments.match(/\b(TODO|FIXME|TBD|GAP)\b/g);
+    if (asciiMatches) {
+      for (const marker of new Set(asciiMatches)) hits.push({ file, marker });
+    }
     for (const cjk of TLA_CJK_MARKERS) {
       if (comments.includes(cjk)) hits.push({ file, marker: cjk });
     }
