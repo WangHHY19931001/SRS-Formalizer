@@ -421,6 +421,8 @@ Step 4: 递归循环
 - ❌ 禁止 `import Mathlib`（全量导入）
 - ❌ 每个修改后立即 `lake build`，不积攒
 
+**verify-gate FINAL 二级扫描防护：** 在上述硬门禁之外，verify-gate FINAL 阶段在验证 `lean-proof-graph.json` 存在性的基础上，额外对 `5_formal/proofs/*.lean` 源文件执行注释感知重扫描（剥离注释后按词边界匹配 `sorry`/`axiom`），作为第二道防线。任何命中均直接判定为门禁失败，不再仅依赖图谱文件的存在性判断。此机制中 `axiom` 与 `sorry` 同为硬阻塞（`axiom` 从原 warn 提升为 fail），与上表第 2 行一致。
+
 #### 4.5.3 平台限制
 
 | 平台 | 支持 |
