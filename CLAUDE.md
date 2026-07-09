@@ -43,7 +43,7 @@ scripts/
 │   ├── chapter-parser.ts   # SRS 章节识别（HTML/Markdown）
 │   ├── sharder.ts          # 文档分片与递归细分
 │   ├── graph-operations.ts # 图合并/冲突边/同侧面边操作
-│   ├── graph-traversal.ts  # BFS 最短路径/2-hop 上下文
+│   ├── graph-algorithms.ts  # 统一图算法（BFS/连通分量/最短路径/2-hop上下文/图加载/相似度）
 │   ├── skill-integrity.ts  # 技能完整性加解密（pack + verify 共享）
 │   ├── skir/               # SkIR 构建（types + yaml + parser + builder）
 │   ├── tla-graph/          # TLA+ 图谱（types + parser + builder + cypher）

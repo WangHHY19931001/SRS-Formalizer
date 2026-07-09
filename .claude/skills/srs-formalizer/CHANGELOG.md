@@ -15,13 +15,14 @@
   - `analyze-graph.ts` → NLP 工具提取到 `lib/text-analysis.ts`，提示词模板提取到 `lib/prompt-templates.ts`
   - `manifest.ts` → 章节解析提取到 `lib/chapter-parser.ts`，分片逻辑提取到 `lib/sharder.ts`
   - `merge-analysis.ts` + `merge-structure.ts` → 图操作提取到 `lib/graph-operations.ts`
-  - `query-graph.ts` → BFS/2-hop 遍历提取到 `lib/graph-traversal.ts`
+  - `query-graph.ts` → BFS/2-hop 遍历提取到 `lib/graph-algorithms.ts`（后合并 `traversal.ts`）
   - `verify-skill-integrity.ts` + `pack-skill.ts` → 共享加解密逻辑提取到 `lib/skill-integrity.ts`
   - `validate-architecture.ts` → 校验逻辑迁入 `lib/architecture/validator.ts`
 
 ### Fixed
 
-- **跨文件去重**：`sanitizeId`（3→1 处）收敛到 `lib/id-utils.ts`；`ensureDir`/`writeJsonlFile`（2→1 处）收敛到 `lib/fs-utils.ts`
+- **跨文件去重**：`sanitizeId`（3→1 处）收敛到 `lib/id-utils.ts`；`ensureDir`/`writeJsonlFile`（2→1 处）收敛到 `lib/fs-utils.ts`；`jaccardSimilarity`（2→1 处）收敛到 `lib/graph-algorithms.ts`
+- **图算法统一**：`traversal.ts` + `graph-traversal.ts` → `lib/graph-algorithms.ts`，移除死代码 `findPath`
 - **循环依赖修复**：`cross-graph-verifier.ts` ↔ `questions.ts` 通过共享 `lib/cross-graph/types.ts` 消除互引用
 - **`refuseDirectInvocation` 守卫补全**：6 个命令文件此前仅有 `import` 但未调用，现已全部补全
 
@@ -30,7 +31,7 @@
 - 测试：320 pass / 0 fail
 - 文件行数：全部 ≤283 行（最大 `guided-extract.ts`）
 - 命令模块：全部 ≤119 行
-- 净减少 ~2000 行（去重 + 消除冗余）
+- 净减少 ~2100 行（去重 + 消除冗余 + 死代码移除）
 
 ## [0.5.6] - 2026-07-09
 
