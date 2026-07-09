@@ -46,10 +46,11 @@ scripts/
 │   ├── graph-algorithms.ts  # 统一图算法（BFS/连通分量/最短路径/2-hop上下文/图加载/相似度）
 │   ├── skill-integrity.ts  # 技能完整性加解密（pack + verify 共享）
 │   ├── skir/               # SkIR 构建（types + yaml + parser + builder）
-│   ├── tla-graph/          # TLA+ 图谱（types + parser + builder + cypher）
-│   ├── lean-graph/         # Lean 4 图谱（types + parser + builder + cypher）
-│   ├── behavior-graph/     # BDD 图谱（types + parser + builder + cypher）
-│   ├── system-architecture/ # 系统架构图谱（types + builder + cross-layer + consistency + cypher）
+│   ├── cypher.ts            # 通用 Cypher 导出基函数（exportGraphToCypher）
+│   ├── tla-graph/          # TLA+ 图谱（types + parser + builder + cypher → 薄封装）
+│   ├── lean-graph/         # Lean 4 图谱（types + parser + builder + cypher → 薄封装）
+│   ├── behavior-graph/     # BDD 图谱（types + parser + builder + cypher → 薄封装）
+│   ├── system-architecture/ # 系统架构图谱（types + builder + cross-layer + consistency + cypher → 薄封装）
 │   ├── probe/              # 能力探测（types + 8 维度探针 + 8 评分器）
 │   ├── llm/stability/      # 稳定性测试（types + manifest + scoring + eval + report）
 │   ├── cross-graph/        # 跨图验证（types + questions-def + socratic + graph-loader + scorer + verifier）

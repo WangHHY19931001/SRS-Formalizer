@@ -122,7 +122,7 @@ S0(发现确认) → S1(预处理) → S2(需求提取) → S3(图谱构建)
 │   │   ├── checklists.ts       # 阶段验收 CHECKLIST
 │   │   ├── tla-validator.ts    # TLA+ SANY+TLC 验证
 │   │   ├── bdd.ts              # Gherkin 生成与校验
-│   │   ├── cypher.ts           # Cypher 查询生成
+│   │   ├── cypher.ts           # 通用 Cypher 导出基函数（exportGraphToCypher）
 │   │   ├── skir/               # SkIR 实现（types + yaml + parser + builder）
 │   │   ├── tla-graph/          # TLA+ 图谱实现（types + parser + builder + cypher）
 │   │   ├── lean-graph/         # Lean 4 图谱实现（types + parser + builder + cypher）
@@ -659,7 +659,7 @@ refuseDirectInvocation(import.meta.url);
 | 0.5.3 | 2026-07-03 | **能力探测修复**：工具链条件生成（14.5）+ TLA+/Lean 4 语法降级评分（14.6）。**路径 Bug 修复**：`validate-lean.ts` 手动字符串切割→`path.dirname/join`（Windows 兼容）；`validate-tla.ts` `__dirname`→`fileURLToPath`（ESM 兼容）；`scorer/tlaplus.ts` `findJar()` 分辨率至 `../../tools/` + 类名修正（`tla2.SANY`→`tla2sany.SANY`, `tla2.TLC`→`tlc2.TLC`，经 JAR 实测验证：SANY 2.2, TLC2 2026.05.18） |
 | 0.5.5 | 2026-07-07 | **专家人设体系**：新增三位形式化专家人设（BDD §24.1、TLA+ §24.2、Lean 4 §24.3）+ 专家协作契约 §25（协作工作流、冲突仲裁、统一交付标准、上报机制） |
 | 0.5.6 | 2026-07-09 | **verify-gate 源重扫安全修复**（§4.4.3 / §4.5.2）：FINAL 门禁与构建期不再仅凭图谱 JSON 存在放行，改为重扫源文件。Lean（B3）去注释后按词边界匹配 `sorry`/`axiom`（`axiom` 由 warn 升为 fail）；TLA+（B3-TLA+）保留注释区域匹配占位标记 `GAP/TODO/FIXME/TBD/待定/未定义/待实现`。语义型简化（弱不变式/缩状态空间/伪代码）仍由 SANY/TLC 与人工审查负责。测试 299→320 |
-| 0.5.7 | 2026-07-09 | **文件拆分 + 去重重构**：16 个超 300 行文件拆分为 39 个子模块（全部 ≤283 行）；Graph 模块统一 types→parser→builder→cypher 四文件模式；命令文件从 ~400 行精简至 ~80 行。`sanitizeId`/`ensureDir` 跨文件去重收敛；cross-graph 循环依赖修复；新增 `lib/id-utils`、`lib/fs-utils`、`lib/text-analysis`、`lib/graph-algorithms`、`lib/skill-integrity`、`lib/chapter-parser`、`lib/sharder` 等共享模块；`refuseDirectInvocation` 守卫全量补全 |
+| 0.5.7 | 2026-07-09 | **文件拆分 + 去重重构**：16 个超 300 行文件拆分为 39 个子模块（全部 ≤283 行）；Graph 模块统一 types→parser→builder→cypher 四文件模式（cypher 导出收敛为通用基函数）；命令文件从 ~400 行精简至 ~80 行。`sanitizeId`/`ensureDir` 跨文件去重收敛；cross-graph 循环依赖修复；新增 `lib/id-utils`、`lib/fs-utils`、`lib/text-analysis`、`lib/graph-algorithms`、`lib/skill-integrity`、`lib/chapter-parser`、`lib/sharder` 等共享模块；`refuseDirectInvocation` 守卫全量补全 |
 
 ---
 

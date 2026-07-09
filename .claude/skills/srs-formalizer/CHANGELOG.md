@@ -22,6 +22,7 @@
 ### Fixed
 
 - **跨文件去重**：`sanitizeId`（3→1 处）收敛到 `lib/id-utils.ts`；`ensureDir`/`writeJsonlFile`（2→1 处）收敛到 `lib/fs-utils.ts`；`jaccardSimilarity`（2→1 处）收敛到 `lib/graph-algorithms.ts`
+- **Cypher 导出统一**：4 个图谱模块的 CREATE node/edge 循环收敛为 `lib/cypher.ts` 通用 `exportGraphToCypher()` 基函数；各模块缩为 ~22 行薄封装。附带修复 behavior-graph 缺失空属性过滤、system-architecture 内联 `safeId`→`sanitizeId`
 - **图算法统一**：`traversal.ts` + `graph-traversal.ts` → `lib/graph-algorithms.ts`，移除死代码 `findPath`
 - **循环依赖修复**：`cross-graph-verifier.ts` ↔ `questions.ts` 通过共享 `lib/cross-graph/types.ts` 消除互引用
 - **`refuseDirectInvocation` 守卫补全**：6 个命令文件此前仅有 `import` 但未调用，现已全部补全
