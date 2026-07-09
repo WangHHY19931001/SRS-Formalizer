@@ -71,3 +71,34 @@ export function checkChecklistComplete(stageDir: string, workDir: string): Check
     return { name: `${stageDir}/CHECKLIST.md complete`, passed: false, detail: 'Could not read CHECKLIST.md' };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Lean/TLA source placeholder scanning (security gate — do not trust stale JSON)
+// ---------------------------------------------------------------------------
+
+/** 移除 Lean 注释：块注释 /- ... -/ 与单行注释 -- ... */
+export function stripLeanComments(src: string): string {
+  const noBlock = src.replace(/\/-[\s\S]*?-\//g, ' ');
+  return noBlock
+    .split('\n')
+    .map(line => {
+      const idx = line.indexOf('--');
+      return idx === -1 ? line : line.slice(0, idx);
+    })
+    .join('\n');
+}
+
+/** 扫描 proofs 目录下所有 .lean，去注释后按词边界匹配 sorry / axiom */
+export function scanLeanSourceForPlaceholders(
+  proofsDir: string,
+): { file: string; kind: 'sorry' | 'axiom' }[] {
+  if (!fs.existsSync(proofsDir)) return [];
+  const hits: { file: string; kind: 'sorry' | 'axiom' }[] = [];
+  const files = fs.readdirSync(proofsDir).filter(f => f.endsWith('.lean')).sort();
+  for (const file of files) {
+    const clean = stripLeanComments(fs.readFileSync(path.join(proofsDir, file), 'utf-8'));
+    if (/\bsorry\b/.test(clean)) hits.push({ file, kind: 'sorry' });
+    if (/\baxiom\b/.test(clean)) hits.push({ file, kind: 'axiom' });
+  }
+  return hits;
+}
