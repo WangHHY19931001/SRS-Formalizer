@@ -102,3 +102,48 @@ export function scanLeanSourceForPlaceholders(
   }
   return hits;
 }
+
+// ---------------------------------------------------------------------------
+// TLA+ source placeholder-marker scanning (security gate — do not trust stale JSON)
+// ---------------------------------------------------------------------------
+
+/**
+ * 保留 TLA+ 注释区域（块注释 (* ... *) + 行注释 \* ...）、丢弃代码，供匹配前净化。
+ * 导出以便单测。注：嵌套块注释 (* (* *) *) 用非贪婪匹配，不追内层（TLA+ 中罕见）。
+ */
+export function stripTlaCode(src: string): string {
+  const parts: string[] = [];
+  for (const block of src.match(/\(\*[\s\S]*?\*\)/g) ?? []) parts.push(block);
+  for (const line of src.split('\n')) {
+    const idx = line.indexOf('\\*');
+    if (idx !== -1) parts.push(line.slice(idx));
+  }
+  return parts.join('\n');
+}
+
+/** CJK 禁止占位标记（DESIGN behavior 门禁行 1）。ASCII 标记在下方按大写词边界匹配。 */
+const TLA_CJK_MARKERS = ['待定', '未定义', '待实现'] as const;
+
+/**
+ * 扫描 specsDir 下所有 .tla，仅在注释区域匹配禁止占位标记。
+ * ASCII：大写、词边界（散文小写 gap/tbd 不触发）；CJK：字面子串。
+ * 目录不存在或无 .tla 时返回 []。
+ */
+export function scanTlaSourceForPlaceholders(
+  specsDir: string,
+): { file: string; marker: string }[] {
+  if (!fs.existsSync(specsDir)) return [];
+  const hits: { file: string; marker: string }[] = [];
+  const files = fs.readdirSync(specsDir).filter(f => f.endsWith('.tla')).sort();
+  for (const file of files) {
+    const comments = stripTlaCode(fs.readFileSync(path.join(specsDir, file), 'utf-8'));
+    const asciiMatches = comments.match(/\b(TODO|FIXME|TBD|GAP)\b/g);
+    if (asciiMatches) {
+      for (const marker of new Set(asciiMatches)) hits.push({ file, marker });
+    }
+    for (const cjk of TLA_CJK_MARKERS) {
+      if (comments.includes(cjk)) hits.push({ file, marker: cjk });
+    }
+  }
+  return hits;
+}

@@ -90,4 +90,15 @@ describe('build-tla-graph command', () => {
     assert.equal(result.status, 'error');
     assert.ok(result.message!.includes('.srs_formalizer'));
   });
+
+  it('returns error when a .tla contains a TODO marker in a comment', async () => {
+    const workDir = createWorkDir('marker');
+    writeTla(workDir, 'Bad.tla', '---- MODULE Bad ----\nVARIABLE x\n\\* TODO: finish this\nInit == x = 0\n====\n');
+
+    const { main } = await import('../commands/build-tla-graph.js');
+    const result = await main(['--workdir', workDir]);
+
+    assert.equal(result.status, 'error');
+    assert.ok(result.message!.includes('Forbidden placeholders'));
+  });
 });

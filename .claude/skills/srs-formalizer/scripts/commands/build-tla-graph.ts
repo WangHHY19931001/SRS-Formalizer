@@ -12,6 +12,7 @@ import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { buildTlaGraphFromDir, exportTlaToCypher } from '../lib/tla-graph.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
+import { scanTlaSourceForPlaceholders } from '../lib/verify-gate/shared.js';
 
 export async function main(args: string[]): Promise<CliResult> {
   let workDirArg: string | null;
@@ -40,6 +41,13 @@ export async function main(args: string[]): Promise<CliResult> {
   const tlaFiles = fs.readdirSync(specsDir).filter(f => f.endsWith('.tla'));
   if (tlaFiles.length === 0) {
     return { status: 'error', message: 'No .tla files found in 5_formal/specs/' };
+  }
+
+  // Check for unresolved placeholder markers (comment-aware; should have been caught by review)
+  const placeholders = scanTlaSourceForPlaceholders(specsDir);
+  if (placeholders.length > 0) {
+    const detail = placeholders.map(p => `${p.file}:${p.marker}`).join(', ');
+    return { status: 'error', message: `Forbidden placeholders found (${detail}) — resolve markers before building graph` };
   }
 
   // Build graph
