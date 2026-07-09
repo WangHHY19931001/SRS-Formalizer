@@ -4,7 +4,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { scanLeanSourceForPlaceholders } from './shared.js';
+import { scanLeanSourceForPlaceholders, scanTlaSourceForPlaceholders } from './shared.js';
 import type { CheckResult } from './shared.js';
 
 export function checkValidateBddPasses(workDir: string): CheckResult {
@@ -162,6 +162,13 @@ export function checkTlaGraphExists(workDir: string): CheckResult {
 
   if (!hasTlaSpecs) {
     return { name: 'TLA interaction graph exists', passed: true, detail: 'N/A (TLA+ not triggered)' };
+  }
+
+  // SECURITY: re-scan source — never trust a possibly-stale graph.json.
+  const placeholders = scanTlaSourceForPlaceholders(specsDir);
+  if (placeholders.length > 0) {
+    const detail = placeholders.map(p => `${p.file}:${p.marker}`).join(', ');
+    return { name: 'TLA interaction graph exists', passed: false, detail: `Forbidden placeholders in .tla source: ${detail}` };
   }
 
   const hasGraph = fs.existsSync(graphPath);
