@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.5.7] - 2026-07-09
+
+### Changed
+
+- **文件拆分重构**：16 个超 300 行的文件按自然边界拆分为 39 个子模块，全部 ≤283 行。
+  - **Graph 模块统一四文件模式**（`tla-graph/`、`lean-graph/`、`behavior-graph/`）：`types.ts` → `parser.ts` → `builder.ts` → `cypher.ts`，原始文件缩为 re-export 聚合。
+  - **SkIR 拆分**（`skir/`）：独立 YAML 解析器 `yaml.ts`（142 行）→ `parser.ts` → `builder.ts`。
+  - **Architecture 拆分**：`graph-utils.ts` + `validator.ts`（从 `commands/validate-architecture.ts` 迁入）+ `processors/{arch1,arch2,arch3}.ts`。
+  - **Cross-graph 拆分**：`graph-loader.ts` + `scorer.ts` + `verifier.ts` + `questions-def.ts` + `socratic.ts`。
+  - **Stability 拆分**（`llm/stability/`）：`types.ts` + `manifest.ts` + `scoring.ts` + `eval.ts` + `report.ts`。
+  - **System-architecture 拆分**：`builder.ts` + `cross-layer.ts` + `consistency.ts` + `cypher.ts`。
+- **命令文件精简**（7 个）：业务逻辑提取到 `lib/`，`main()` 函数平均从 ~400 行减至 ~80 行。
+  - `analyze-graph.ts` → NLP 工具提取到 `lib/text-analysis.ts`，提示词模板提取到 `lib/prompt-templates.ts`
+  - `manifest.ts` → 章节解析提取到 `lib/chapter-parser.ts`，分片逻辑提取到 `lib/sharder.ts`
+  - `merge-analysis.ts` + `merge-structure.ts` → 图操作提取到 `lib/graph-operations.ts`
+  - `query-graph.ts` → BFS/2-hop 遍历提取到 `lib/graph-traversal.ts`
+  - `verify-skill-integrity.ts` + `pack-skill.ts` → 共享加解密逻辑提取到 `lib/skill-integrity.ts`
+  - `validate-architecture.ts` → 校验逻辑迁入 `lib/architecture/validator.ts`
+
+### Fixed
+
+- **跨文件去重**：`sanitizeId`（3→1 处）收敛到 `lib/id-utils.ts`；`ensureDir`/`writeJsonlFile`（2→1 处）收敛到 `lib/fs-utils.ts`
+- **循环依赖修复**：`cross-graph-verifier.ts` ↔ `questions.ts` 通过共享 `lib/cross-graph/types.ts` 消除互引用
+- **`refuseDirectInvocation` 守卫补全**：6 个命令文件此前仅有 `import` 但未调用，现已全部补全
+
+### Metrics
+
+- 测试：320 pass / 0 fail
+- 文件行数：全部 ≤283 行（最大 `guided-extract.ts`）
+- 命令模块：全部 ≤119 行
+- 净减少 ~2000 行（去重 + 消除冗余）
+
 ## [0.5.6] - 2026-07-09
 
 ### Fixed

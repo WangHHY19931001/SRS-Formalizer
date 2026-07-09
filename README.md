@@ -210,6 +210,7 @@ cp -r .claude/skills/srs-formalizer /your-project/.claude/skills/
 
 | 版本 | 日期 | 关键变更 |
 |------|------|----------|
+| 0.5.7 | 2026-07-09 | **文件拆分 + 去重重构**：16 个超 300 行文件拆分为 39 个子模块（全部 ≤283 行）；`sanitizeId`/`ensureDir` 跨文件去重；cross-graph 循环依赖修复；新增 `lib/id-utils`、`lib/fs-utils`、`lib/text-analysis`、`lib/graph-traversal`、`lib/skill-integrity` 等共享模块；`refuseDirectInvocation` 守卫补全 |
 | 0.5.6 | 2026-07-09 | **verify-gate 源重扫安全修复**：`checkLeanGraphExists`/`checkTlaGraphExists` 与 `build-lean-graph`/`build-tla-graph` 重扫源文件——Lean 命中 `sorry`/`axiom`、TLA+ 命中占位标记（GAP/TODO/FIXME/TBD/待定/未定义/待实现）即 fail，不再仅凭残留图谱 JSON 放行 |
 | 0.5.5 | 2026-07-07 | **专家人设体系**：三位形式化专家人设 + 协作契约内置为 L3 参考资料；3 份编码参考指南（BDD/TLA+/Lean 4）；领域专用子代理提示词（executor-bdd/tlaplus/lean4）；渐进式披露模式（精简人设→完整人设→编码指南）；编排者 S4/S5/S6 按阶段注入 |
 | 0.5.4 | 2026-07-07 | 产物建模约束完善：BDD 格式/状态转换强制、TLA+ 层次化拆解+轨迹清理、Lean 4 拆分证明四步循环、SRS 一致性升级流程 |

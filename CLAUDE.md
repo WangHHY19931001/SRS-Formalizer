@@ -28,23 +28,36 @@ npx tsx --test __tests__/validate-jsonl.test.ts
 
 ```
 scripts/
-├── index.ts       # CLI 入口（注册表模式, 31 命令, 全部 refuseDirectInvocation）
-├── commands/      # 31 条命令（每文件 ≤300 行目标, ≤500 行硬上限）
-├── lib/           # 19 核心模块 + 5 子模块
-│   ├── cli.ts           # 参数解析、毒值拒绝、路径安全校验（新代码用此文件）
-│   ├── security.ts      # 路径安全校验（与 cli.ts 功能重复，保留用于独立导入场景）
-│   ├── graph.ts         # 图数据结构
-│   ├── jsonl.ts         # JSONL 读写与校验
-│   ├── anti-skill.ts    # Anti-Skill 安全约束注入
-│   ├── skir-builder.ts  # SkIR 构建
-│   ├── probe/           # 能力探测（types + 8 维度探针 + 8 评分器）
-│   ├── llm/             # 稳定性测试（config + stability）
-│   ├── cross-graph/     # 跨图验证问题定义
-│   ├── verify-gate/     # 三级门禁（shared + checks-s1/r3/final）
-│   └── architecture/    # 架构图构建
-├── types/         # JsonlRecord, CliResult, ShardIndex, SkillIR（20+ 字段）
-├── __tests__/     # 38 文件, 320 测试
-└── templates/     # check.sh.template
+├── index.ts            # CLI 入口（注册表模式, 31 命令, 全部 refuseDirectInvocation）
+├── commands/           # 31 条命令（全部 ≤300 行）
+├── lib/                # 28 核心模块 + 10 子目录
+│   ├── cli.ts              # 参数解析、毒值拒绝、路径安全校验（新代码用此文件）
+│   ├── security.ts         # 路径安全校验（与 cli.ts 功能重复，保留用于独立导入场景）
+│   ├── graph.ts            # 图数据结构
+│   ├── jsonl.ts            # JSONL 读写与校验
+│   ├── anti-skill.ts       # Anti-Skill 安全约束注入
+│   ├── id-utils.ts         # 共享 ID 清理（sanitizeId 收敛）
+│   ├── fs-utils.ts         # 共享文件系统工具（ensureDir 收敛）
+│   ├── text-analysis.ts    # NLP 工具（分词/Jaccard/反义检测/CJK bigram）
+│   ├── prompt-templates.ts # 子代理审查提示词模板
+│   ├── chapter-parser.ts   # SRS 章节识别（HTML/Markdown）
+│   ├── sharder.ts          # 文档分片与递归细分
+│   ├── graph-operations.ts # 图合并/冲突边/同侧面边操作
+│   ├── graph-traversal.ts  # BFS 最短路径/2-hop 上下文
+│   ├── skill-integrity.ts  # 技能完整性加解密（pack + verify 共享）
+│   ├── skir/               # SkIR 构建（types + yaml + parser + builder）
+│   ├── tla-graph/          # TLA+ 图谱（types + parser + builder + cypher）
+│   ├── lean-graph/         # Lean 4 图谱（types + parser + builder + cypher）
+│   ├── behavior-graph/     # BDD 图谱（types + parser + builder + cypher）
+│   ├── system-architecture/ # 系统架构图谱（types + builder + cross-layer + consistency + cypher）
+│   ├── probe/              # 能力探测（types + 8 维度探针 + 8 评分器）
+│   ├── llm/stability/      # 稳定性测试（types + manifest + scoring + eval + report）
+│   ├── cross-graph/        # 跨图验证（types + questions-def + socratic + graph-loader + scorer + verifier）
+│   ├── verify-gate/        # 三级门禁（shared + checks-s1/r3/final）
+│   └── architecture/       # 架构图构建（types + graph-utils + validator + processors/arch1-3）
+├── types/             # JsonlRecord, CliResult, ShardIndex, SkillIR（20+ 字段）
+├── __tests__/         # 38 文件, 320 测试
+└── templates/         # check.sh.template
 ```
 
 ## 关键约束
@@ -54,7 +67,7 @@ scripts/
 | 1 | 零运行时 npm 依赖 | 仅 `typescript` + `@types/node` 为 devDeps |
 | 2 | strict TS | `strict: true`, `noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noFallthroughCasesInSwitch` |
 | 3 | 0 `any` | 错误类型使用 `unknown` + `instanceof Error` |
-| 4 | 文件大小 | ≤300 行（目标）, ≤500 行（硬上限） |
+| 4 | 文件大小 | ≤300 行（全部达标，最大 283 行） |
 | 5 | `path.join()` 强制 | 禁止字符串拼接路径。手写路径切割（如 `validate-lean.ts` 曾用 `split('/')`）已修复为 `path.dirname`/`path.join` |
 | 6 | 毒值拒绝 | `undefined/null/NaN/[object Object]` 在入口 `validateNoPoisonArgs` 拦截 |
 | 7 | 所有命令经 `index.ts` | `refuseDirectInvocation` 阻止直接调用（31/31） |
@@ -116,7 +129,7 @@ scripts/
 - **错误处理**: 所有命令使用 `try { safeParseArg() } catch { return { status: 'error', message } }` 模式，错误通过 `CliResult` 返回而非抛出异常。
 - **CLI 输出格式**: 所有命令输出 JSON 到 stdout（`{ status, message?, data? }`），成功 `exit(0)`，失败 `exit(1)`。
 - **`security.ts` 与 `cli.ts` 功能重复**：`validate-jsonl` 和 `validate-architecture` 独立导入 `security.ts`，其余命令用 `cli.ts`。新代码统一用 `cli.ts`。
-- **`commands/commands/` 和 `commands/types/`** 是空目录（遗留产物），无实际内容。
+- **`commands/commands/` 和 `commands/types/`** 遗留空目录已于 0.5.7 清理。
 - Commit: Conventional Commits，`Co-Authored-By: Claude <noreply@anthropic.com>`
 - 提交前: `tsc --noEmit` 0 errors + 320 tests pass
 - `capability-probe` 探针仅在有工具链时生成 TLA+/Lean 4 维度
