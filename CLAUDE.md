@@ -30,7 +30,7 @@ npx tsx --test __tests__/validate-jsonl.test.ts
 scripts/
 ├── index.ts            # CLI 入口（注册表模式, 31 命令, 全部 refuseDirectInvocation）
 ├── commands/           # 31 条命令（全部 ≤300 行）
-├── lib/                # 28 核心模块 + 10 子目录
+├── lib/                # 27 核心模块 + 10 子目录
 │   ├── cli.ts              # 参数解析、毒值拒绝、路径安全校验（新代码用此文件）
 │   ├── security.ts         # 路径安全校验（与 cli.ts 功能重复，保留用于独立导入场景）
 │   ├── graph.ts            # 图数据结构
