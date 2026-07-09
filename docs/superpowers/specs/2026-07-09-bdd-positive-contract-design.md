@@ -1,8 +1,14 @@
-# 设计文档：将 SKILL.md 的 S4 BDD 禁令改造为正面契约
+# 设计文档：BDD 正面契约 + 图谱一致性阶段四缺陷修复
 
 > **日期**: 2026-07-09 | **状态**: 待审阅
 > **方法学**: superpowers:writing-skills（RED-GREEN-REFACTOR）+ superpowers:brainstorming
-> **改动范围**: 仅 `.claude/skills/srs-formalizer/SKILL.md` 的 S4 BDD 段（第 276–289 行）
+> **改动范围**:
+> - Part A（技能措辞）: `SKILL.md` 的 S4 BDD 段（第 276–289 行）
+> - Part B（代码缺陷）: `lib/verify-gate/checks-final.ts`、`lib/system-architecture.ts`、`lib/cross-graph/*`、`prompts/orchestrator_stage_S1.md`
+
+---
+
+# Part A：BDD 禁令改正面契约
 
 ---
 
@@ -88,3 +94,54 @@ BDD 的失败是**塑形型**（认知模型错误），不是纪律型（知道
 - 单文件、单段落改动，不触及 TS 代码、测试、编译管线。
 - 需同步：CLAUDE.md「BDD 建模」段与 DESIGN.md §4.3 若与新措辞冲突需一并核对（DESIGN.md 是 SSOT，按项目约定"代码变更须先更新设计文档"——本 spec 即承担该职责）。
 - 文件体积：新增约 4–6 行，远低于 150% 上限。
+
+---
+
+# Part B：图谱一致性阶段（S5/S6）四缺陷修复
+
+> 与 Part A 不同：这些是**代码实现缺陷**，不是措辞问题，压力测试无法覆盖。逐条已定位到源码行。
+
+## B0. 缺陷清单与代码定位
+
+| # | 缺陷 | 根因（代码定位） | 严重度 |
+|---|---|---|---|
+| B3 | Lean 有 sorry 但 verify-gate FINAL 仍通过 | `checks-final.ts:183 checkLeanGraphExists` 仅判断 `lean-proof-graph.json` 文件存在即 `passed:true`，**从不重扫 .lean 源**。build-lean-graph 遇 sorry 会 error 且不写 json（`build-lean-graph.ts:54`），但若存在**上一次成功遗留的 json**，门禁照过。axiom 仅当 `⚠ warn`（`checks-final.ts:201`），不 fail。 | **高（安全门禁盲区）** |
+| B1 | TLA+/Lean 图谱缺需求映射边 → 一致性矩阵覆盖 0 | `cross-graph/questions.ts` 的 Q1–Q10 边映射只含 IMPLEMENTS/FORMALIZES/REFINES；TLA/Lean 节点**从未生成到 :Requirement 的跨图边**，源数据结构里就没有这类边。 | 中 |
+| B2 | 系统架构图 PROVES 边恒为 0 | `system-architecture.ts:196` 用**字符级 Jaccard 相似度 >0.5**（`similarity()` @L328）匹配 Lean Theorem name ↔ TLA Invariant name。真实命名如 `mutex_safety` vs `AtMostOneLock` 几乎无共同字符，相似度 <0.5，永不匹配。 | 中 |
+| B4 | 命令名不匹配 | 用户报告的 `build-bdd-graph` **仓库内不存在任何引用**（已全仓库 grep 确认）；实际命令是 `build-behavior-graph`。但发现**另一处真实不匹配**：`prompts/orchestrator_stage_S1.md:88` 引用了不存在的 `build-glossary`（index.ts 未注册；真实流程是 executor 产出 glossary JSON → `validate-glossary`）。 | 低 |
+
+## B1/B2. 图谱质量缺陷修复方案
+
+### B3（优先，安全）：verify-gate 重扫源，而非只信产物文件
+- 修改 `checks-final.ts` 的 `checkLeanGraphExists`（及对称的 `checkTlaGraphExists`）：
+  1. 除文件存在检查外，**重新读取 `5_formal/proofs/*.lean`**，若任一文件含未注释的 `sorry` 或 `axiom` → `passed:false`，detail 指明命中文件。
+  2. sorry/axiom 检测复用一处 helper（避免与 build-lean-graph.ts:48 的朴素 `.includes` 重复），并**排除注释/字符串内的假阳性**（当前 `.includes('sorry')` 会误伤 `-- sorry 是保留字` 之类注释）。
+  3. axiom 从 warn 升为 fail（DESIGN.md §4.5.2 硬门禁第 2 条「0 axiom」要求如此）。
+- **同时修 build-lean-graph.ts:48**：把朴素 `.includes('sorry')` 替换为同一 helper（去注释后再匹配词边界），消除误报；删除死代码 L71（sorry_count warn 在 L54 已提前 return，永不可达）。
+
+### B1：为 TLA/Lean 节点补需求映射边
+- 在 `system-architecture.ts` 跨层边生成处，除现有 Lean→TLA 的 PROVES 外，增加 TLA Invariant / Lean Theorem → :Requirement 的 FORMALIZES/PROVES 映射边。
+- **来源不靠名称启发式**：映射关系应来自**显式溯源字段**——executor 生成 .tla/.lean 时在文件头或伴生 metadata 记录其 `derived_from: <requirement_id>`（S2 JSONL 的 ID）。build-tla-graph/build-lean-graph 解析该字段写入节点 property，架构合成时据此连边。
+- 若当前 .tla/.lean 无该字段：这是**数据结构缺口**，需在 executor 提示词（executor-tlaplus.md / executor-lean4.md）加一行"必须标注 `-- derived_from: <req_id>`"，属跨阶段改动，须在计划中显式列为子任务。
+
+### B2：PROVES 边改用显式来源标注
+- 废弃 `similarity() >0.5` 的名称匹配启发式（原理上不可靠）。
+- 改为：Lean Theorem 在证明文件中显式标注它所证的 TLA Invariant（如 `-- proves_invariant: AtMostOneLock`），build-lean-graph 解析后作为节点 property，架构合成据此连 PROVES 边，`properties.match` 从 `name_heuristic` 改为 `explicit`。
+- 保留 similarity 作为**兜底提示**（生成 low-confidence 候选边并标注 `match: heuristic_suggested`），但不计入 total_cross_edges 的"已验证"计数。
+
+### B4：命令名修正
+- `prompts/orchestrator_stage_S1.md:88`：`build-glossary 产出` → 改为准确描述（GLOSSARY.md 的真实产出机制，需先核实是 manifest 还是 validate-glossary 副产物）。
+- 向用户澄清：`build-bdd-graph` 仓库内不存在，正确命令是 `build-behavior-graph`；若用户手头文档写了 build-bdd-graph，那是外部文档错误，非本仓库问题。
+
+## B5. 验证计划
+- B3：构造一个含 sorry 的 .lean fixture + 残留 json，跑 verify-gate FINAL，断言 `passed:false`；含 axiom 同理。新增单元测试到 `__tests__/verify-gate-final.test.ts`。
+- B1/B2：构造带 `derived_from`/`proves_invariant` 标注的 fixture，断言映射边/PROVES 边 >0；一致性矩阵 TLA+/Lean 覆盖 >0。
+- B4：grep 断言 prompts 内所有 `build-*`/`validate-*` 引用均在 index.ts 注册（可加为 CI 校验脚本）。
+- 全量：`npx tsc --noEmit` 0 errors + `npx tsx --test __tests__/*.test.ts` 299+ 全绿。
+
+## B6. 影响面与顺序
+- B3 独立、优先、安全关键，可先做。
+- B1/B2 依赖 executor 提示词加溯源字段（跨阶段），工程量最大，需 MANIFEST.json 重新 pack（`pack-skill --force`，人类执行）。
+- B4 纯文档，最小。
+- 所有代码改动遵守 CLAUDE.md 约束：strict TS、0 any、path.join、文件 ≤300 行、经 index.ts。
+- **DESIGN.md 需同步**：§4.5.2（axiom 门禁落地到 verify-gate）、§11.3（图谱边类型新增来源字段）、§16（一致性矩阵覆盖来源）。按 SSOT 约定先改 DESIGN.md。
