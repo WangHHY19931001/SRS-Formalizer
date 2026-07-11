@@ -16,9 +16,17 @@ interface VerdictRecord { pair_id: string; verdict: 'duplicate' | 'conflict' | '
 interface DuplicatePair { pairId: string; nodeA: string; nodeB: string; similarity: number; statementA: string; statementB: string; }
 interface ConflictPair extends DuplicatePair { negationInA: boolean; negationInB: boolean; }
 interface AspectCluster { clusterId: string; object: string; nodes: string[]; statements: string[]; }
-interface MergeLogEntry { pair_id: string; verdict: string; action: string; reason: string; timestamp: string; }
+interface MergeLogEntry { pair_id: string; verdict: string; action: string; details: string; timestamp: string; }
+interface Counters { verdictsProcessed: number; applied: number; skipped: number; }
 
 const VERDICT_KEYS = ['pair_id', 'verdict', 'reasoning', 'recommended_action'] as const;
+
+function bumpCounter(logEntries: MergeLogEntry[], counters: Counters): void {
+  const lastAction = logEntries[logEntries.length - 1]!.action;
+  counters.verdictsProcessed++;
+  if (lastAction === 'merged' || lastAction === 'applied') counters.applied++;
+  else if (lastAction === 'skipped') counters.skipped++;
+}
 
 function readJsonlRecords<T>(filePath: string): T[] {
   if (!fs.existsSync(filePath)) return [];
@@ -54,8 +62,13 @@ export async function main(args: string[]): Promise<CliResult> {
 
   let graph = Graph.fromJSON(graphData);
   const logEntries: MergeLogEntry[] = [];
+  const counters: Counters = { verdictsProcessed: 0, applied: 0, skipped: 0 };
   const ts = new Date().toISOString();
   const analysisDir = path.join(workDir, '3_graph', 'analysis');
+
+  if (!fs.existsSync(analysisDir)) {
+    return { status: 'ok', data: { merged_graph: graph.toJSON(), log_entries: 0, verdicts_processed: 0, applied: 0, skipped: 0 } };
+  }
 
   const duplicateLookup = new Map(readJsonlRecords<DuplicatePair>(path.join(analysisDir, 'suspected_duplicates.jsonl')).map(r => [r.pairId, r]));
   const conflictLookup = new Map(readJsonlRecords<ConflictPair>(path.join(analysisDir, 'suspected_conflicts.jsonl')).map(r => [r.pairId, r]));
@@ -70,37 +83,40 @@ export async function main(args: string[]): Promise<CliResult> {
     const records = readJsonlRecords<unknown>(file);
     for (const rec of records) {
       const r = rec as Record<string, unknown>;
-      if (!isValidVerdict(r)) { logEntries.push({ pair_id: String(r.pair_id ?? 'unknown'), verdict: String(r.verdict ?? 'unknown'), action: 'skipped', reason: 'Invalid verdict record', timestamp: ts }); continue; }
-      if (r.recommended_action === 'skip') { logEntries.push({ pair_id: r.pair_id, verdict: r.verdict, action: 'skipped', reason: 'Sub-agent recommended skip', timestamp: ts }); continue; }
+      if (!isValidVerdict(r)) { logEntries.push({ pair_id: String(r.pair_id ?? 'unknown'), verdict: String(r.verdict ?? 'unknown'), action: 'skipped', details: 'Invalid verdict record', timestamp: ts }); bumpCounter(logEntries, counters); continue; }
+      if (r.recommended_action === 'skip') { logEntries.push({ pair_id: r.pair_id, verdict: r.verdict, action: 'skipped', details: 'Sub-agent recommended skip', timestamp: ts }); bumpCounter(logEntries, counters); continue; }
 
       switch (r.verdict) {
         case 'duplicate': {
           const dup = duplicateLookup.get(r.pair_id);
-          if (!dup) { logEntries.push({ pair_id: r.pair_id, verdict: 'duplicate', action: 'skipped', reason: 'Pair not found in duplicates', timestamp: ts }); continue; }
+          if (!dup) { logEntries.push({ pair_id: r.pair_id, verdict: 'duplicate', action: 'skipped', details: 'Pair not found in duplicates', timestamp: ts }); bumpCounter(logEntries, counters); continue; }
           try {
             const { edgesRewired, graph: newGraph } = applyMergeNodes(graph, dup.nodeA, dup.nodeB);
             graph = newGraph;
-            logEntries.push({ pair_id: r.pair_id, verdict: 'duplicate', action: 'merged', reason: `Rewired ${edgesRewired} edges`, timestamp: ts });
-          } catch (err) { logEntries.push({ pair_id: r.pair_id, verdict: 'duplicate', action: 'error', reason: (err as Error).message, timestamp: ts }); }
+            logEntries.push({ pair_id: r.pair_id, verdict: 'duplicate', action: 'applied', details: `Rewired ${edgesRewired} edges`, timestamp: ts });
+          } catch (err) { logEntries.push({ pair_id: r.pair_id, verdict: 'duplicate', action: 'skipped', details: (err as Error).message, timestamp: ts }); }
+          bumpCounter(logEntries, counters);
           break;
         }
         case 'conflict': {
           const con = conflictLookup.get(r.pair_id);
-          if (!con) { logEntries.push({ pair_id: r.pair_id, verdict: 'conflict', action: 'skipped', reason: 'Pair not found in conflicts', timestamp: ts }); continue; }
-          try { applyAddConflictEdge(graph, con.nodeA, con.nodeB, r.reasoning); logEntries.push({ pair_id: r.pair_id, verdict: 'conflict', action: 'applied', reason: 'Added :CONFLICTS_WITH edge', timestamp: ts }); }
-          catch (err) { logEntries.push({ pair_id: r.pair_id, verdict: 'conflict', action: 'error', reason: (err as Error).message, timestamp: ts }); }
+          if (!con) { logEntries.push({ pair_id: r.pair_id, verdict: 'conflict', action: 'skipped', details: 'Pair not found in conflicts', timestamp: ts }); bumpCounter(logEntries, counters); continue; }
+          try { applyAddConflictEdge(graph, con.nodeA, con.nodeB, r.reasoning); logEntries.push({ pair_id: r.pair_id, verdict: 'conflict', action: 'applied', details: 'Added :CONFLICTS_WITH edge', timestamp: ts }); }
+          catch (err) { logEntries.push({ pair_id: r.pair_id, verdict: 'conflict', action: 'skipped', details: (err as Error).message, timestamp: ts }); }
+          bumpCounter(logEntries, counters);
           break;
         }
         case 'same_aspect': {
           const cluster = aspectLookup.get(r.pair_id);
-          if (!cluster) { logEntries.push({ pair_id: r.pair_id, verdict: 'same_aspect', action: 'skipped', reason: 'Cluster not found', timestamp: ts }); continue; }
+          if (!cluster) { logEntries.push({ pair_id: r.pair_id, verdict: 'same_aspect', action: 'skipped', details: 'Cluster not found', timestamp: ts }); bumpCounter(logEntries, counters); continue; }
           for (let i = 0; i < cluster.nodes.length; i++) {
             for (let j = i + 1; j < cluster.nodes.length; j++) {
               try { applyAddSameAspectEdge(graph, cluster.nodes[i]!, cluster.nodes[j]!, r.reasoning); }
               catch { /* skip edge errors */ }
             }
           }
-          logEntries.push({ pair_id: r.pair_id, verdict: 'same_aspect', action: 'applied', reason: `Processed cluster with ${cluster.nodes.length} nodes`, timestamp: ts });
+          logEntries.push({ pair_id: r.pair_id, verdict: 'same_aspect', action: 'applied', details: `Processed cluster with ${cluster.nodes.length} nodes`, timestamp: ts });
+          bumpCounter(logEntries, counters);
           break;
         }
       }
@@ -112,7 +128,7 @@ export async function main(args: string[]): Promise<CliResult> {
   fs.writeFileSync(path.join(graphDir, 'graph.merged.json'), JSON.stringify(graph.toJSON(), null, 2), 'utf-8');
   fs.writeFileSync(path.join(graphDir, 'merge_log.jsonl'), logEntries.map(e => JSON.stringify(e)).join('\n') + '\n', 'utf-8');
 
-  return { status: 'ok', data: { merged_graph: graph.toJSON(), log_entries: logEntries.length } };
+  return { status: 'ok', data: { merged_graph: graph.toJSON(), log_entries: logEntries.length, verdicts_processed: counters.verdictsProcessed, applied: counters.applied, skipped: counters.skipped } };
 }
 
 import { refuseDirectInvocation } from '../lib/cli.js';
