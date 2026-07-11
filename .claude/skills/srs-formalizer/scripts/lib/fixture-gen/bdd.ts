@@ -9,10 +9,10 @@ import type { Framework, FixtureFile, ParsedScenario } from './types.js';
 /** Parse Gherkin scenarios from .feature content */
 export function parseFeature(content: string): ParsedScenario[] {
   const scenarios: ParsedScenario[] = [];
-  const scenarioBlocks = content.split(/(?=^\s{2}Scenario:)/m);
+  const scenarioBlocks = content.split(/(?=^\s+Scenario:)/m);
 
   for (const block of scenarioBlocks) {
-    const headerMatch = block.match(/^\s{2}Scenario:\s+(.+)$/m);
+    const headerMatch = block.match(/^\s+Scenario:\s+(.+)$/m);
     if (!headerMatch?.[1]) continue;
 
     const header = headerMatch[1].trim();
@@ -162,7 +162,7 @@ export { expect };
 function generatePytest(scenarios: ParsedScenario[], module: string): FixtureFile[] {
   const tests = scenarios.map(s => {
     const paramLines = s.params.map(p => `    ${p} = "LLM_FILL_VALUE"  # LLM_FILL: replace`).join('\n');
-    const body = paramLines.length > 0 ? paramLines + '\n    ' : '    ';
+    const body = s.params.length > 0 ? paramLines + '\n    ' : '    ';
     return `def test_${toSnakeCase(s.requirementId)}():\n${body}# LLM_FILL: implement assertion\n    pass`;
   }).join('\n\n');
 
@@ -221,7 +221,7 @@ function generateFastCheck(scenarios: ParsedScenario[], module: string): Fixture
 ${arbitraries}
 
     fc.assert(
-      fc.property(fc.tuple(/* LLM_FILL: tuple of arbitraries */), (${s.params.join(', ')}) => {
+      fc.property(${s.params.length > 0 ? `fc.tuple(/* LLM_FILL: tuple of arbitraries */)` : `fc.constant(null)`}, (${s.params.join(', ')}) => {
         // LLM_FILL: implement property
         return true;
       })
