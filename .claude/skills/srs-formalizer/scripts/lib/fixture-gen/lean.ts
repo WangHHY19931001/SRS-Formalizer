@@ -24,7 +24,7 @@ export function parseLeanFile(content: string): ParsedTheorem[] {
     if (match[1] && match[3]) {
       theorems.push({
         name: match[1],
-        typeSignature: (match[2] + ' : ' + match[3]).trim(),
+        typeSignature: (match[2] + match[3]).trim(),
         imports: [...imports],
       });
     }

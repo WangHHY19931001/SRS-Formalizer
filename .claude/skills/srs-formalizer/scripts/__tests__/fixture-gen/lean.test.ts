@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
+import type { Framework } from '../../lib/fixture-gen/types.js';
 import { generateLeanFixtures, parseLeanFile } from '../../lib/fixture-gen/lean.js';
 
 const SAMPLE_LEAN = `import Mathlib
@@ -48,5 +49,9 @@ describe('generateLeanFixtures', () => {
     const testFile = files.find(f => f.path.includes('Test.java'));
     assert.ok(testFile);
     assert.ok(testFile!.content.includes('@Test'));
+  });
+
+  it('throws on unknown framework', () => {
+    assert.throws(() => generateLeanFixtures(SAMPLE_LEAN, 'vitest' as Framework));
   });
 });
