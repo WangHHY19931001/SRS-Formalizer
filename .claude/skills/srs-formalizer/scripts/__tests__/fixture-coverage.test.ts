@@ -1,4 +1,4 @@
-import { describe, it, after } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -33,5 +33,36 @@ describe('computeCoverage', () => {
     const report = computeCoverage(workDir);
     assert.equal(report.total_requirements, 2);
     assert.ok(report.bdd_fixtures_generated > 0);
+  });
+});
+
+describe('fixture-coverage CLI', () => {
+  before(() => {
+    fs.mkdirSync(path.join(TMP, '.srs_formalizer'), { recursive: true });
+  });
+
+  after(() => {
+    fs.rmSync(TMP, { recursive: true, force: true });
+  });
+
+  it('returns coverage report for empty workdir', async () => {
+    const workDir = path.join(TMP, '.srs_formalizer');
+    const { main } = await import('../commands/fixture-coverage.js');
+    const result = await main(['--workdir', workDir]);
+
+    assert.equal(result.status, 'ok');
+    const data = result.data as Record<string, unknown>;
+    assert.equal(data.total_requirements, 0);
+    assert.equal(data.coverage_pct, 0);
+  });
+
+  it('rejects non-srs-formalizer workdir', async () => {
+    const otherDir = path.join(TMP, 'other');
+    fs.mkdirSync(otherDir, { recursive: true });
+
+    const { main } = await import('../commands/fixture-coverage.js');
+    const result = await main(['--workdir', otherDir]);
+
+    assert.equal(result.status, 'error');
   });
 });

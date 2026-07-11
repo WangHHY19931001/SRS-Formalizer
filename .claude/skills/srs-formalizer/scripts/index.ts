@@ -39,6 +39,7 @@ Commands:
   pack-skill        Pack skill directory into hash manifest + tar.gz backup
   verify-skill-integrity Verify skill file integrity (--repair to auto-restore)
   generate-test-fixtures Generate test fixtures from source artifacts (--level --framework)
+  fixture-coverage   Compute fixture coverage report
 
 Options:
   --help    Show this help message
@@ -85,6 +86,7 @@ const COMMANDS: Record<
   "verify-skill-integrity": () => import("./commands/verify-skill-integrity.js"),
   compile: () => import("./commands/compile.js"),
   "generate-test-fixtures": () => import("./commands/generate-test-fixtures.js"),
+  "fixture-coverage": () => import("./commands/fixture-coverage.js"),
 };
 
 async function main(): Promise<void> {
