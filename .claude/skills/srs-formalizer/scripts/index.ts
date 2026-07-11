@@ -38,6 +38,7 @@ Commands:
   compile           Compile SKILL.md into SkIR, inject safety constraints, emit artifacts
   pack-skill        Pack skill directory into hash manifest + tar.gz backup
   verify-skill-integrity Verify skill file integrity (--repair to auto-restore)
+  generate-test-fixtures Generate test fixtures from source artifacts (--level --framework)
 
 Options:
   --help    Show this help message
@@ -83,6 +84,7 @@ const COMMANDS: Record<
   "pack-skill": () => import("./commands/pack-skill.js"),
   "verify-skill-integrity": () => import("./commands/verify-skill-integrity.js"),
   compile: () => import("./commands/compile.js"),
+  "generate-test-fixtures": () => import("./commands/generate-test-fixtures.js"),
 };
 
 async function main(): Promise<void> {
