@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.6.0] - 2026-07-12
+
+### Added
+
+- **V-Model 测试 fixture 生成**：`generate-test-fixtures` 命令支持 5 框架（Cucumber/Playwright/Pytest/JUnit/fast-check），从 BDD/TLA+/Lean 4 产物生成测试骨架。
+- **覆盖率报告**：`fixture-coverage` 命令统计 SRS 需求 → 图节点 → 测试场景的映射覆盖率。
+- **fixture-gen 模块**：`lib/fixture-gen/` 子目录，含 `bdd.ts`、`tla.ts`、`lean.ts`、`coverage.ts`、`types.ts` 五个子模块。
+- **graph-paths 模块**：`lib/graph-paths.ts` 提供共享路径常量 `GRAPH_PATHS` 和 `findGraphFile()`，消除命令间路径硬编码重复。
+
+### Fixed
+
+- **query-graph 测试对齐**：修复 12 个测试用例——CLI 命名（`--requirement`→`--id`、`--type`→`--rel`）、`data.result` 包装、参数名（`from`→`startId`）、返回值键名（`nodes`→`elements`）、错误消息文本。
+- **merge-analysis 实现补全**：`mergeAnalysis()` 返回值新增 `verdicts_processed`/`verdicts_applied`/`verdicts_skipped` 计数器，提取 `bumpCounter()` 辅助函数，添加 `analysisDir` 存在性检查。
+- **manifest 测试对齐**：修复 5 个测试用例——目录从 `_ctx` 改为 `1_input`、版本号 `1.1`→`1.0`、哈希长度 64→16、CONTEXT 路径、分片阈值 5→8。
+- **Cypher 注入防护加固**：`lib/cypher.ts` 新增 `escapeCypherString()`、`escapeCypherIdentifier()`、`sanitizeEdgeType()`，所有 Cypher 输出转义双引号和反斜杠。
+- **security.ts 重复代码合并**：`validateWorkDir` 逻辑收敛到 `cli.ts`，`security.ts` 改为 re-export，消除 `CLAUDE.md` 禁止的跨文件重复。
+- **coverage 除数动态化**：`fixture-gen/coverage.ts` 改用 `Math.max(1, total)` 替代硬编码 10，避免小数据集覆盖率失真。
+- **Scenario Outline 支持**：`fixture-gen/bdd.ts` 识别 `Scenario Outline` 关键字，正确映射到 `scenario` 类型。
+- **id-utils ASCII 纯化**：`sanitizeId()` 确保生成的 Neo4j 变量名仅含 `[a-zA-Z0-9_]`，避免 Cypher 语法错误。
+
+### Changed
+
+- **测试统计**：320→353 用例，47 文件，100% 通过率。
+- **命令总数**：31→33（新增 `generate-test-fixtures`、`fixture-coverage`）。
+- **安全审查**：完成中文 code review（25 个问题），含 7 个[必须修复]、10 个[建议修改]、8 个[仅供参考]，全部修复。
+
 ## [0.5.7] - 2026-07-09
 
 ### Changed
@@ -29,7 +55,7 @@
 
 ### Metrics
 
-- 测试：320 pass / 0 fail
+- 测试：353 pass / 0 fail
 - 文件行数：全部 ≤283 行（最大 `guided-extract.ts`）
 - 命令模块：全部 ≤119 行
 - 净减少 ~2100 行（去重 + 消除冗余 + 死代码移除）
