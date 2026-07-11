@@ -11,7 +11,7 @@ cd .claude/skills/srs-formalizer/scripts
 
 npm install                          # 仅 typescript + @types/node（零运行时依赖）
 npx tsc --noEmit                     # strict 模式, 0 errors 必须
-npx tsx --test __tests__/*.test.ts   # 320 tests, 0 fail 必须
+npx tsx --test __tests__/*.test.ts   # 353 tests, 0 fail 必须
 ```
 
 **运行单个测试文件：**
@@ -28,8 +28,8 @@ npx tsx --test __tests__/validate-jsonl.test.ts
 
 ```
 scripts/
-├── index.ts            # CLI 入口（注册表模式, 31 命令, 全部 refuseDirectInvocation）
-├── commands/           # 31 条命令（全部 ≤300 行）
+├── index.ts            # CLI 入口（注册表模式, 33 命令, 全部 refuseDirectInvocation）
+├── commands/           # 33 条命令（全部 ≤300 行）
 ├── lib/                # 27 核心模块 + 10 子目录
 │   ├── cli.ts              # 参数解析、毒值拒绝、路径安全校验（新代码用此文件）
 │   ├── security.ts         # 路径安全校验（与 cli.ts 功能重复，保留用于独立导入场景）
@@ -45,8 +45,10 @@ scripts/
 │   ├── graph-operations.ts # 图合并/冲突边/同侧面边操作
 │   ├── graph-algorithms.ts  # 统一图算法（BFS/连通分量/最短路径/2-hop上下文/图加载/相似度）
 │   ├── skill-integrity.ts  # 技能完整性加解密（pack + verify 共享）
+│   ├── graph-paths.ts      # 共享路径常量 + findGraphFile()
 │   ├── skir/               # SkIR 构建（types + yaml + parser + builder）
-│   ├── cypher.ts            # 通用 Cypher 导出基函数（exportGraphToCypher）
+│   ├── cypher.ts            # 通用 Cypher 导出基函数（exportGraphToCypher）+ 转义防护
+│   ├── fixture-gen/         # V-Model 测试 fixture 生成（bdd/tla/lean/coverage/types）
 │   ├── tla-graph/          # TLA+ 图谱（types + parser + builder + cypher → 薄封装）
 │   ├── lean-graph/         # Lean 4 图谱（types + parser + builder + cypher → 薄封装）
 │   ├── behavior-graph/     # BDD 图谱（types + parser + builder + cypher → 薄封装）
@@ -57,7 +59,7 @@ scripts/
 │   ├── verify-gate/        # 三级门禁（shared + checks-s1/r3/final）
 │   └── architecture/       # 架构图构建（types + graph-utils + validator + processors/arch1-3）
 ├── types/             # JsonlRecord, CliResult, ShardIndex, SkillIR（20+ 字段）
-├── __tests__/         # 38 文件, 320 测试
+├── __tests__/         # 47 文件, 353 测试
 └── templates/         # check.sh.template
 ```
 
@@ -71,7 +73,7 @@ scripts/
 | 4 | 文件大小 | ≤300 行（全部达标，最大 283 行） |
 | 5 | `path.join()` 强制 | 禁止字符串拼接路径。手写路径切割（如 `validate-lean.ts` 曾用 `split('/')`）已修复为 `path.dirname`/`path.join` |
 | 6 | 毒值拒绝 | `undefined/null/NaN/[object Object]` 在入口 `validateNoPoisonArgs` 拦截 |
-| 7 | 所有命令经 `index.ts` | `refuseDirectInvocation` 阻止直接调用（31/31） |
+| 7 | 所有命令经 `index.ts` | `refuseDirectInvocation` 阻止直接调用（33/33） |
 | 8 | `--output` vs `--workdir` | `init` 用 `--output`, 其余用 `--workdir`。例外：`validate-lean` 不使用 `--workdir`，从 `--file` 路径向上查找 lakefile |
 | 9 | `.srs_formalizer` 强制 | `validateWorkDir` 校验 basename |
 | 10 | 所有写入限工作目录 | `isPathSafe` + `assertSafePath` 双校验 |
@@ -130,9 +132,9 @@ scripts/
 - **错误处理**: 所有命令使用 `try { safeParseArg() } catch { return { status: 'error', message } }` 模式，错误通过 `CliResult` 返回而非抛出异常。
 - **CLI 输出格式**: 所有命令输出 JSON 到 stdout（`{ status, message?, data? }`），成功 `exit(0)`，失败 `exit(1)`。
 - **`security.ts` 与 `cli.ts` 功能重复**：`validate-jsonl` 和 `validate-architecture` 独立导入 `security.ts`，其余命令用 `cli.ts`。新代码统一用 `cli.ts`。
-- **`commands/commands/` 和 `commands/types/`** 遗留空目录已于 0.5.7 清理。
+- **`_ctx/` vs `1_input/` 不一致**：`manifest.ts` 写分片索引到 `1_input/`，但 `inject-prompt.ts:60` 从 `_ctx/shard_index.json` 读取。端到端流水线可能断裂。
 - Commit: Conventional Commits，`Co-Authored-By: Claude <noreply@anthropic.com>`
-- 提交前: `tsc --noEmit` 0 errors + 320 tests pass
+- 提交前: `tsc --noEmit` 0 errors + 353 tests pass
 - `capability-probe` 探针仅在有工具链时生成 TLA+/Lean 4 维度
 - `scripts/templates/check.sh.template` 不在主 `templates/` 下
 
