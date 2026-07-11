@@ -1,6 +1,6 @@
 # SRS-Formalizer 设计文档
 
-> **版本**: 0.5.7 | **日期**: 2026-07-09 | **状态**: Active
+> **版本**: 0.6.0 | **日期**: 2026-07-11 | **状态**: Active
 >
 > 本文档是 srs-formalizer 技能开发的**唯一事实依据**（Single Source of Truth）。
 > 所有设计决策、架构约束、规则合规、评估结果均记录于此。
@@ -20,7 +20,7 @@
 | 领域 | `formal-methods` |
 | 安全等级 | `high` |
 | HITL | 强制 |
-| 版本 | 0.5.6（语义化版本） |
+| 版本 | 0.6.0（语义化版本） |
 
 ### 1.2 核心能力
 
@@ -606,7 +606,7 @@ refuseDirectInvocation(import.meta.url);
 
 ---
 
-## 9. CLI 命令清单（31 条）
+## 9. CLI 命令清单（33 条）
 
 | 命令 | 阶段 | 功能 |
 |------|:----:|------|
@@ -641,6 +641,8 @@ refuseDirectInvocation(import.meta.url);
 | `compile` | 编译 | SKILL.md → SkIR + 安全注入 + 平台发射 |
 | `pack-skill` | 维护 | 技能打包 + 加密备份 |
 | `verify-skill-integrity` | 维护 | 技能完整性校验 + 自动修复 |
+| `generate-test-fixtures` | S4-S6 | 形式化产出 → 测试夹具骨架（5 框架） |
+| `fixture-coverage` | S6 | 测试夹具覆盖率报告 |
 
 ---
 
@@ -777,6 +779,7 @@ S3 → 3_graph/graph/*.json + analysis/*.json, 6_outputs/knowledge_graph/*.cyphe
 S4 → 4_bdd/features/*.feature, 4_bdd/behavior-graph.json, behavior.cypher
 S5 → 5_formal/specs/*.tla + 5_formal/proofs/*.lean + tla-interaction-graph.json + lean-proof-graph.json
 S6 → 6_outputs/system-architecture.json, cross-graph-report.json, convergence-log.jsonl
+test_fixtures → test_fixtures/<level>/<framework>/ (generate-test-fixtures 产出)
 ```
 
 ---
@@ -1901,3 +1904,147 @@ AI 智能体在以下时机触发自安装流程：
 | 安全沙箱声明 | `agent-card.json` 和 `SKILL.md` 均声明 filesystem/network/execute 权限边界 |
 | 版本兼容性 | `SKILL.md` frontmatter 声明 `compatibility` 字段，安装前校验 |
 | 不自动激活 | AI 智能体安装技能后不自动执行任何阶段——S0 发现阶段需用户确认 |
+
+---
+
+## 27. V-Model Test Fixture 生成
+
+> **Issue**: [#1 V-Model Integration](https://github.com/WangHHY19931001/SRS-Formalizer/issues/1)
+> **版本**: 0.6.0 | **日期**: 2026-07-11
+
+### 27.1 目标与范围
+
+将 SRS-Formalizer 升级为 V-Model 完整工具链的一部分：从形式化产出（BDD/TLA+/Lean 4）到 runnable 测试夹具的零隙指导。
+
+**迭代策略**：分阶段交付，BDD 为首版重点。
+
+### 27.2 架构决策
+
+| 决策 | 选择 | 理由 |
+|------|------|------|
+| TS/LLM 分工 | 混合模式 | TS 做结构骨架 + 简单映射，LLM 做语义填充。与现有 THEN_PLACEHOLDER 模式一致 |
+| 命令架构 | 薄编排 + lib 分层 | 一个入口命令 dispatch 到 `lib/fixture-gen/` 模块，与 `index.ts → commands/ → lib/` 一致 |
+| 框架支持 | 全量 | Cucumber、Playwright、Pytest、JUnit、fast-check |
+| 输出位置 | 独立目录 | `<workdir>/test_fixtures/<level>/<framework>/` |
+
+### 27.3 CLI 命令
+
+#### 27.3.1 `generate-test-fixtures`
+
+```
+generate-test-fixtures
+  --level <acceptance|integration|unit|property>   # 必选
+  --framework <cucumber|playwright|pytest|junit|fast-check>  # 必选
+  --workdir <path>    # 必选
+  --source <bdd|tla|lean|auto>  # 可选，默认 auto
+```
+
+**level ↔ source 默认映射**：
+
+| level | 默认 source | 理由 |
+|-------|------------|------|
+| acceptance | bdd | BDD .feature → acceptance test fixtures |
+| integration | tla | TLA+ counterexample → integration test sequences |
+| unit | bdd | BDD scenarios → unit test 骨架 |
+| property | lean | Lean theorems → property-based test fixtures |
+
+**返回**：`{ status, data: { files_created, output_dir, source_files_used } }`
+
+#### 27.3.2 `fixture-coverage`
+
+```
+fixture-coverage --workdir <path>
+```
+
+计数级覆盖率报告：扫描 `test_fixtures/` 与源产出交叉，返回 `{ total_requirements, bdd_fixtures_generated, tla_fixtures_generated, lean_fixtures_generated, coverage_pct, missing[] }`。
+
+### 27.4 BDD Fixture 生成（首版重点）
+
+**输入**：`<workdir>/4_bdd/features/*.feature`
+
+**TS 确定性层**（`lib/fixture-gen/bdd.ts`）：
+1. 解析 Gherkin AST：提取 Feature、Scenario、Given/When/Then steps
+2. 提取参数占位符：识别 `<参数名>` 模式
+3. 按框架生成结构骨架
+
+**框架产物**：
+
+| 框架 | 产物 |
+|------|------|
+| Cucumber | `steps/<module>_steps.ts`、`support/world.ts`、`fixtures/<module>_data.ts` |
+| Playwright | `tests/<module>.spec.ts`、`fixtures/<module>.fixtures.ts` |
+| Pytest | `tests/test_<module>.py`、`conftest.py` |
+| JUnit | `src/test/java/<Module>Test.java`、`fixtures/<Module>Fixture.java` |
+| fast-check | `properties/<module>.property.ts` |
+
+**LLM 语义层**：TS 骨架包含 `<!-- LLM_FILL: 描述 -->` 注释标记，LLM 子代理在 S4/S5/S6 阶段填充语义内容（断言逻辑、页面交互、arbitrary 定义等）。
+
+**输出示例**（Cucumber）：
+```typescript
+// <!-- LLM_FILL: Given the user is logged in with role "admin" -->
+Given('the user is logged in with role {string}', async function (role: string) {
+  // LLM_FILL: 实现登录逻辑，设置 this.currentUser
+  throw new Error('Not implemented — LLM must fill');
+});
+```
+
+### 27.5 TLA+ Fixture 生成
+
+**输入**：`<workdir>/5_formal/specs/*.tla`
+
+**TS 确定性层**（`lib/fixture-gen/tla.ts`）：
+1. 解析 .tla：提取 VARIABLES、CONSTANTS、INIT、NEXT、INVARIANT
+2. 利用 `validate-tla.ts` 的 6 种 violation 枚举
+3. 按框架生成：VARIABLES → fixture 参数, INVARIANT → assert, CONSTANTS → @Parameterized
+
+**LLM 语义层**：TLC counterexample 轨迹 → 可重现并发测试场景；不变量 → 共享 assertion library。
+
+**约束**：仅在 .tla 文件存在时生成，不依赖 Java/TLC 运行时。
+
+### 27.6 Lean 4 Fixture 生成
+
+**输入**：`<workdir>/5_formal/proofs/*.lean`
+
+**TS 确定性层**（`lib/fixture-gen/lean.ts`）：
+1. 解析 .lean：提取 theorem/lemma 名称、类型签名、import 列表
+2. 提取 pre/post conditions
+3. 按框架生成：theorem → test 函数名, 类型签名 → 参数化输入
+
+**LLM 语义层**：Theorem 类型签名 → QuickCheck-style property 定义。
+
+**约束**：仅在 .lean 文件存在时生成，不依赖 elan/lake，Platform-gated（Linux x86_64 / macOS ARM64）。
+
+### 27.7 目录结构与文件清单
+
+**新增文件**：
+```
+scripts/commands/generate-test-fixtures.ts  # ~80 行（薄编排）
+scripts/commands/fixture-coverage.ts        # ~60 行
+scripts/lib/fixture-gen/types.ts            # ~40 行
+scripts/lib/fixture-gen/bdd.ts              # ~250 行
+scripts/lib/fixture-gen/tla.ts              # ~180 行
+scripts/lib/fixture-gen/lean.ts             # ~160 行
+scripts/lib/fixture-gen/coverage.ts         # ~80 行
+scripts/__tests__/generate-test-fixtures.test.ts  # ~120 行
+scripts/__tests__/fixture-coverage.test.ts        # ~60 行
+scripts/__tests__/fixture-gen/bdd.test.ts         # ~100 行
+scripts/__tests__/fixture-gen/tla.test.ts         # ~80 行
+scripts/__tests__/fixture-gen/lean.test.ts        # ~80 行
+scripts/templates/test-fixtures/{cucumber,playwright,pytest,junit,fast-check}/
+```
+
+**更新文件**：`index.ts`（+2 命令注册）、`types/index.ts`（+2 类型）、checklists（+fixture 检查项）
+
+### 27.8 测试策略
+
+- 单元测试：3 种 Gherkin 输入 × 5 框架、mock .tla/.lean 文件
+- 集成测试：扩展 `tests/assertions/eval-spec.yaml`
+- 回归：现有 320 测试 0 fail + `tsc --noEmit` 0 errors
+
+### 27.9 实现顺序
+
+1. Phase 1：BDD fixture 生成（`lib/fixture-gen/bdd.ts` + 模板 + 测试）
+2. Phase 2：TLA+ fixture 生成
+3. Phase 3：Lean 4 fixture 生成
+4. Phase 4：覆盖报告 + checklist 更新 + 集成测试
+5. Phase 5：CLI 命令注册 + 端到端验证
