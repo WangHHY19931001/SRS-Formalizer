@@ -84,10 +84,10 @@ function writeFixtureFiles(
   files: FixtureFile[],
 ): string[] {
   const outputDir = path.join(workDir, 'test_fixtures', level, framework);
+  assertSafePath(outputDir, workDir);
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }
-  assertSafePath(outputDir, workDir);
 
   const written: string[] = [];
   for (const file of files) {
@@ -96,7 +96,7 @@ function writeFixtureFiles(
     if (!fs.existsSync(fileDir)) {
       fs.mkdirSync(fileDir, { recursive: true });
     }
-    assertSafePath(filePath, workDir);
+    assertSafePath(filePath, outputDir);
     fs.writeFileSync(filePath, file.content, 'utf-8');
     written.push(file.path);
   }
