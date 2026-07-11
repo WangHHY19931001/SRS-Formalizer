@@ -25,13 +25,9 @@ export async function main(args: string[]): Promise<CliResult> {
     return { status: 'error', message: (err as Error).message };
   }
 
-  if (!workDirArg) {
-    return { status: 'error', message: 'Missing required argument: --workdir' };
-  }
-
   let workDir: string;
   try {
-    workDir = validateWorkDir(workDirArg);
+    workDir = validateWorkDir(workDirArg ?? process.cwd());
   } catch (err) {
     return { status: 'error', message: (err as Error).message };
   }
