@@ -1,0 +1,19 @@
+// TLC Counterexample: {{INVARIANT}} violated.
+// {{TRACE}}
+//
+// LLM_FILL: reproduce this counterexample and fix the TLA+ spec.
+
+import * as fc from 'fast-check';
+
+describe('Counterexample: {{INVARIANT}}', () => {
+  it('reproduces violation', () => {
+    // LLM_FILL: encode counterexample trace as property
+
+    fc.assert(
+      fc.property(fc.constant(null), () => {
+        // LLM_FILL: reproduce {{INVARIANT}} violation
+        return false; // LLM_FILL: TLC found counterexample — implement assertion
+      })
+    );
+  });
+});

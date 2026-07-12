@@ -1,0 +1,17 @@
+// TLC Counterexample: {{INVARIANT}} violated.
+// {{TRACE}}
+//
+// LLM_FILL: reproduce this counterexample and fix the TLA+ spec.
+
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class {{CLASS_NAME}} {
+
+    @Test
+    void reproduceCounterexample() {
+        // LLM_FILL: reproduce counterexample for invariant {{INVARIANT}}
+        fail("LLM_FILL: TLC found counterexample — implement assertion");
+    }
+
+}

@@ -1,0 +1,13 @@
+"""TLC Counterexample: {{INVARIANT}} violated.
+
+{{TRACE}}
+LLM_FILL: reproduce this counterexample and fix the TLA+ spec.
+"""
+
+import pytest
+
+def test_counterexample_{{INVARIANT_LOWER}}():
+    """Reproduce TLC counterexample for invariant {{INVARIANT}}."""
+{{STATES}}
+    # LLM_FILL: assert the invariant violation pattern
+    assert False, "LLM_FILL: TLC found counterexample — implement assertion"
