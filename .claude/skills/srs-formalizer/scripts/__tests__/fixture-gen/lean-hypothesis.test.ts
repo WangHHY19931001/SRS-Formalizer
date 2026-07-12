@@ -27,4 +27,9 @@ describe('parseTheorem - Hypothesis pattern', () => {
     const result = parseTheorem(HYPOTHESIS_THEOREM);
     assert.ok(result.hypothesisVars.some(h => h.includes('List')));
   });
+
+  it('extracts induction hypothesis (ih)', () => {
+    const result = parseTheorem(HYPOTHESIS_THEOREM);
+    assert.ok(result.hypothesisVars.some(h => h.includes('ih')));
+  });
 });

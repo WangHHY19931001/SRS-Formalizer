@@ -78,6 +78,19 @@ export function parseTheorem(content: string): TheoremDetail {
     }
   }
 
+  const patternArmRegex = /\|\s*\w+\s+((?:\w+\s*)+)=>\s/g;
+  let armMatch: RegExpExecArray | null;
+  while ((armMatch = patternArmRegex.exec(content)) !== null) {
+    if (armMatch[1]) {
+      const vars = armMatch[1].trim().split(/\s+/);
+      for (const v of vars) {
+        if (v && !hypothesisVars.some(h => h.startsWith(v + ' ')) && !hypothesisVars.includes(v)) {
+          hypothesisVars.push(v);
+        }
+      }
+    }
+  }
+
   return { name, tactics, hypothesisVars };
 }
 
