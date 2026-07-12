@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { generateBddFixtures, parseFeature } from '../../lib/fixture-gen/bdd.js';
+import { generateBddFixtures, generateFixtures, parseFeature } from '../../lib/fixture-gen/bdd.js';
 import type { Framework } from '../../lib/fixture-gen/types.js';
 
 const SAMPLE_FEATURE = `# SYSTEM: SRS
@@ -78,5 +78,15 @@ describe('generateBddFixtures', () => {
       () => generateBddFixtures(SAMPLE_FEATURE, 'mod', 'unknown' as Framework),
       /Unknown framework/,
     );
+  });
+});
+
+describe('generateFixtures (routing)', () => {
+  it('routes playwright to page object generator', () => {
+    const scenarios = parseFeature(SAMPLE_FEATURE);
+    const files = generateFixtures(scenarios, 'playwright');
+    const pageFile = files.find(f => f.path.includes('page.ts'));
+    assert.ok(pageFile, 'Should generate page.ts via page object');
+    assert.ok(pageFile!.content.includes('export class'));
   });
 });

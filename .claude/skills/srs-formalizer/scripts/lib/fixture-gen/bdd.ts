@@ -1,12 +1,13 @@
 /**
  * BDD fixture generator.
  * Parses .feature files and generates framework-specific test skeletons
- * with LLM_FILL markers for semantic content.
+ * with LLM_FILL markers for semantic content. All output via template-engine.
  */
 
 import type { Framework, FixtureFile, ParsedScenario } from './types.js';
 import { generatePlaywrightPageObjectFixtures } from './playwright-page.js';
 import { toCamelCase, toPascalCase, toSnakeCase, escapeStr } from './helpers.js';
+import { loadTemplate, renderTemplate } from './template-engine.js';
 
 /** Alias for parseFeature — parses Gherkin scenarios from .feature content */
 export function parseScenario(content: string): ParsedScenario[] {
@@ -91,15 +92,75 @@ export function generateBddFixtures(
 
   switch (framework) {
     case 'cucumber': return generateCucumber(scenarios, safeName);
-    case 'playwright': return generatePlaywright(scenarios, safeName);
-    case 'pytest': return generatePytest(scenarios, safeName);
-    case 'junit': return generateJunit(scenarios, safeName);
-    case 'fast-check': return generateFastCheck(scenarios, safeName);
+    case 'playwright': return generatePlaywrightPageObjectFixtures(scenarios);
+    case 'pytest': return generateFromTemplate(scenarios, safeName, 'pytest');
+    case 'junit': return generateFromTemplate(scenarios, safeName, 'junit');
+    case 'fast-check': return generateFromTemplate(scenarios, safeName, 'fast-check');
     default: throw new Error(`Unknown framework: ${String(framework)}`);
   }
 }
 
-// ── Cucumber ──────────────────────────────────────────────────────────────
+// ── Template-based generation (pytest / junit / fast-check) ──────────────
+
+function generateFromTemplate(
+  scenarios: ParsedScenario[],
+  module: string,
+  framework: 'pytest' | 'junit' | 'fast-check',
+): FixtureFile[] {
+  const template = loadTemplate(framework, 'scenario');
+
+  const renderVars: Record<string, string> = {
+    MODULE: module,
+    CLASS_NAME: toPascalCase(module).replace(/[^\w]/g, ''),
+  };
+
+  if (framework === 'pytest') {
+    const tests = scenarios.map(s => {
+      const paramLines = s.params.map(p => `    ${p} = "LLM_FILL_VALUE"  # LLM_FILL: replace`).join('\n');
+      const body = s.params.length > 0 ? paramLines + '\n    ' : '    ';
+      return `def test_${toSnakeCase(s.requirementId)}():\n${body}# LLM_FILL: implement assertion\n    pass`;
+    }).join('\n\n');
+    renderVars['TESTS'] = tests;
+    const content = renderTemplate(template, renderVars);
+    return [{ path: `tests/test_${module}.py`, content }];
+  }
+
+  if (framework === 'junit') {
+    const methods = scenarios.map(s => {
+      const body = s.params.length > 0
+        ? s.params.map(p => `        // LLM_FILL: setup ${p}`).join('\n')
+        : '        // LLM_FILL: implement test';
+      return `    @Test\n    void ${toCamelCase(s.requirementId)}() {\n${body}\n    }`;
+    }).join('\n\n');
+    renderVars['METHODS'] = methods;
+    const content = renderTemplate(template, renderVars);
+    return [{ path: `src/test/java/${renderVars['CLASS_NAME']}Test.java`, content }];
+  }
+
+  // fast-check
+  const props = scenarios.map(s => {
+    const arbitraries = s.params.length > 0
+      ? s.params.map(p => `  const ${p}Arb = fc.string();  // LLM_FILL: refine arbitrary`).join('\n')
+      : '  // LLM_FILL: define arbitraries';
+    return `describe('${s.requirementId}', () => {
+  it('${escapeStr(s.name)}', () => {
+${arbitraries}
+
+    fc.assert(
+      fc.property(${s.params.length > 0 ? `fc.tuple(/* LLM_FILL: tuple of arbitraries */)` : `fc.constant(null)`}, (${s.params.join(', ')}) => {
+        // LLM_FILL: implement property
+        return true;
+      })
+    );
+  });
+});`;
+  }).join('\n\n');
+  renderVars['PROPERTIES'] = props;
+  const content = renderTemplate(template, renderVars);
+  return [{ path: `properties/${module}.property.ts`, content }];
+}
+
+// ── Cucumber (keep inline — structure unique, not suited to generic template) ─────────────
 
 function generateCucumber(scenarios: ParsedScenario[], module: string): FixtureFile[] {
   const steps = scenarios.map(s => {
@@ -141,125 +202,4 @@ function buildStepDef(keyword: string, stepText: string): string {
   const params = [...stepText.matchAll(/<(\w+)>/g)].map(m => m[1]);
   const args = params.map(p => `${p}: string`).join(', ');
   return `${keyword}('${pattern}', async function (${args}) {\n  // LLM_FILL: implement step\n  throw new Error('Not implemented — LLM must fill');\n});`;
-}
-
-// ── Playwright ────────────────────────────────────────────────────────────
-
-function generatePlaywright(scenarios: ParsedScenario[], module: string): FixtureFile[] {
-  const tests = scenarios.map(s => {
-    const body = s.params.length > 0
-      ? s.params.map(p => `    // LLM_FILL: setup ${p}`).join('\n')
-      : '    // LLM_FILL: implement test';
-    return `  test('${escapeStr(s.name)}', async ({ page }) => {\n${body}\n  });`;
-  }).join('\n\n');
-
-  const spec = `import { test, expect } from '@playwright/test';
-
-test.describe('${module}', () => {
-
-${tests}
-
-});
-`;
-
-  const fixtures = `import { test as base } from '@playwright/test';
-
-export const test = base.extend<{/* LLM_FILL: custom fixtures */}>({
-  // LLM_FILL: define custom fixtures
-});
-
-export { expect };
-`;
-
-  return [
-    { path: `tests/${module}.spec.ts`, content: spec },
-    { path: `fixtures/${module}.fixtures.ts`, content: fixtures },
-  ];
-}
-
-// ── Pytest ────────────────────────────────────────────────────────────────
-
-function generatePytest(scenarios: ParsedScenario[], module: string): FixtureFile[] {
-  const tests = scenarios.map(s => {
-    const paramLines = s.params.map(p => `    ${p} = "LLM_FILL_VALUE"  # LLM_FILL: replace`).join('\n');
-    const body = s.params.length > 0 ? paramLines + '\n    ' : '    ';
-    return `def test_${toSnakeCase(s.requirementId)}():\n${body}# LLM_FILL: implement assertion\n    pass`;
-  }).join('\n\n');
-
-  const testFile = `"""${module} test fixtures — generated by srs-formalizer"""\n\n${tests}\n`;
-
-  const conftest = `"""Shared fixtures for ${module}"""\n\nimport pytest\n\n# LLM_FILL: define shared fixtures\n`;
-
-  return [
-    { path: `tests/test_${module.replace(/[/\\?%*:|"<>]/g, '_')}.py`, content: testFile },
-    { path: 'conftest.py', content: conftest },
-  ];
-}
-
-// ── JUnit ─────────────────────────────────────────────────────────────────
-
-function generateJunit(scenarios: ParsedScenario[], module: string): FixtureFile[] {
-  const className = toPascalCase(module).replace(/[^\w]/g, '') + 'Test';
-  const methods = scenarios.map(s => {
-    const body = s.params.length > 0
-      ? s.params.map(p => `        // LLM_FILL: setup ${p}`).join('\n')
-      : '        // LLM_FILL: implement test';
-    return `    @Test\n    void ${toCamelCase(s.requirementId)}() {\n${body}\n    }`;
-  }).join('\n\n');
-
-  const testClass = `import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
-
-class ${className} {
-
-${methods}
-
-}
-`;
-
-  const fixtureClass = `// LLM_FILL: define shared test fixtures for ${module}
-public class ${toPascalCase(module)}Fixture {
-    // LLM_FILL: fixture methods
-}
-`;
-
-  return [
-    { path: `src/test/java/${className}.java`, content: testClass },
-    { path: `fixtures/${toPascalCase(module).replace(/[^\w]/g, '')}Fixture.java`, content: fixtureClass },
-  ];
-}
-
-// ── fast-check ────────────────────────────────────────────────────────────
-
-function generateFastCheck(scenarios: ParsedScenario[], module: string): FixtureFile[] {
-  const props = scenarios.map(s => {
-    const arbitraries = s.params.length > 0
-      ? s.params.map(p => `  const ${p}Arb = fc.string();  // LLM_FILL: refine arbitrary`).join('\n')
-      : '  // LLM_FILL: define arbitraries';
-    return `describe('${s.requirementId}', () => {
-  it('${escapeStr(s.name)}', () => {
-${arbitraries}
-
-    fc.assert(
-      fc.property(${s.params.length > 0 ? `fc.tuple(/* LLM_FILL: tuple of arbitraries */)` : `fc.constant(null)`}, (${s.params.join(', ')}) => {
-        // LLM_FILL: implement property
-        return true;
-      })
-    );
-  });
-});`;
-  }).join('\n\n');
-
-  const propFile = `import * as fc from 'fast-check';
-
-describe('${module}', () => {
-
-${props}
-
-});
-`;
-
-  return [
-    { path: `properties/${module.replace(/[/\\?%*:|"<>]/g, '_')}.property.ts`, content: propFile },
-  ];
 }
