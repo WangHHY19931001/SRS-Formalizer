@@ -1,0 +1,5 @@
+"""Shared fixtures for {{MODULE}}"""
+
+import pytest
+
+# LLM_FILL: define shared fixtures

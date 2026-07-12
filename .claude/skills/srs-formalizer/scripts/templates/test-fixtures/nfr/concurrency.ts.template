@@ -1,0 +1,12 @@
+import * as fc from 'fast-check';
+
+describe('{{MODULE}} concurrency', () => {
+  it('no race conditions', () => {
+    fc.assert(
+      fc.property(fc.integer(), (seed) => {
+        // LLM_FILL: test concurrent access safety
+        return true;
+      })
+    );
+  });
+});

@@ -1,0 +1,5 @@
+"""{{MODULE}} property tests — Hypothesis based"""
+
+from hypothesis import given, strategies as st
+
+{{HYPOTHESIS_TESTS}}

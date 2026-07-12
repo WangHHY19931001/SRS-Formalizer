@@ -1,0 +1,12 @@
+"""{{MODULE}} performance tests — NFR fixtures"""
+import pytest
+import time
+
+@pytest.mark.performance
+def test_response_time():
+    """Verify response time < threshold."""
+    # LLM_FILL: define SUT and threshold
+    start = time.time()
+    # result = sut.operation()
+    elapsed = time.time() - start
+    assert elapsed < 1.0  # LLM_FILL: adjust threshold

@@ -1,0 +1,15 @@
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class {{CLASS_NAME}}SecurityTest {
+
+    @Test
+    void rejectsSqlInjection() {
+        // LLM_FILL: test SQL injection prevention
+    }
+
+    @Test
+    void rejectsXssPayload() {
+        // LLM_FILL: test XSS prevention
+    }
+}

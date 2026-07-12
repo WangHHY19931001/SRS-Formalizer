@@ -1,0 +1,7 @@
+import { test as base } from '@playwright/test';
+
+export const test = base.extend<{/* LLM_FILL: custom fixtures */}>({
+  // LLM_FILL: define custom fixtures
+});
+
+export { expect };

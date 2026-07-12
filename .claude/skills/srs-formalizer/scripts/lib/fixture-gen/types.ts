@@ -42,14 +42,6 @@ export interface FixtureFile {
   content: string;
 }
 
-/** Result of fixture generation */
-export interface FixtureGenResult {
-  files_created: number;
-  output_dir: string;
-  source_files_used: string[];
-  files: FixtureFile[];
-}
-
 /** Coverage report entry for a missing requirement */
 export interface MissingEntry {
   requirement: string;
@@ -64,4 +56,23 @@ export interface CoverageReport {
   lean_fixtures_generated: number;
   coverage_pct: number;
   missing: MissingEntry[];
+}
+
+/** A single entry from a TLC counterexample trace */
+export interface TlcTraceEntry {
+  step: number;
+  state: Record<string, string>;
+  violatedInvariant?: string;
+}
+
+/** A row in the V-Model traceability matrix */
+export interface TraceabilityEntry {
+  requirementId: string;
+  requirementTitle: string;
+  graphNodes: string[];
+  bddScenarios: string[];
+  tlaInvariants: string[];
+  leanTheorems: string[];
+  fixtureFiles: string[];
+  coverageStatus: 'full' | 'partial' | 'none';
 }

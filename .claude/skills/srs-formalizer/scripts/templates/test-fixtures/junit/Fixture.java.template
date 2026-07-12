@@ -1,0 +1,4 @@
+// LLM_FILL: define shared test fixtures for {{MODULE}}
+public class {{FIXTURE_CLASS}} {
+    // LLM_FILL: fixture methods
+}

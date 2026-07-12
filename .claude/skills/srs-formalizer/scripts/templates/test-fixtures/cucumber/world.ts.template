@@ -1,0 +1,9 @@
+import { setWorldConstructor } from '@cucumber/cucumber';
+
+class CustomWorld {
+  currentUser?: { id: string; role: string };
+  // LLM_FILL: add world state properties
+}
+
+setWorldConstructor(CustomWorld);
+export default CustomWorld;
