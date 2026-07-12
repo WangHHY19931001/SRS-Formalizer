@@ -1,0 +1,7 @@
+"""{{MODULE}} invariant tests — generated from TLA+ spec"""
+
+import pytest
+
+{{FIXTURES}}
+
+{{TESTS}}
