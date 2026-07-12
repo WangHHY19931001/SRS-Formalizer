@@ -3,6 +3,9 @@
 /** Supported test frameworks */
 export type Framework = 'cucumber' | 'playwright' | 'pytest' | 'junit' | 'fast-check';
 
+/** Framework for counterexample fixture generation */
+export type CounterexampleFramework = 'tla' | 'lean' | 'pytest';
+
 /** Fixture generation levels */
 export type FixtureLevel = 'acceptance' | 'integration' | 'unit' | 'property';
 

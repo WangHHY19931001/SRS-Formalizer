@@ -4,7 +4,7 @@
  * Zero dependencies.
  */
 
-import type { TlcTraceEntry } from './types.js';
+import type { TlcTraceEntry, CounterexampleFramework } from './types.js';
 
 /**
  * Parse a TLC counterexample trace string into structured entries.
@@ -37,10 +37,13 @@ export function parseTlcTrace(traceText: string): TlcTraceEntry[] {
       }
     }
 
-    if (violatedInvariant) {
-      entries.push({ step, state, violatedInvariant });
-    } else {
-      entries.push({ step, state });
+    entries.push({ step, state });
+  }
+
+  if (violatedInvariant && entries.length > 0) {
+    const lastEntry = entries[entries.length - 1];
+    if (lastEntry) {
+      lastEntry.violatedInvariant = violatedInvariant;
     }
   }
 
@@ -52,7 +55,7 @@ export function parseTlcTrace(traceText: string): TlcTraceEntry[] {
  */
 export function generateCounterexampleFixtures(
   trace: TlcTraceEntry[],
-  framework: 'tla' | 'lean' | 'pytest',
+  framework: CounterexampleFramework,
 ): string {
   if (trace.length === 0) return '// Empty trace — no counterexample to reproduce\n';
 
@@ -116,7 +119,7 @@ function generateLeanFixture(trace: TlcTraceEntry[], varNames: string[]): string
 
   for (const entry of trace) {
     for (const v of varNames) {
-      lines.push(`  ("${v}", ${entry.state[v] ?? 'UNDEF'}),`);
+      lines.push(`  ("${v}", "${entry.state[v] ?? 'UNDEF'}"),`);
     }
   }
 
@@ -126,6 +129,12 @@ function generateLeanFixture(trace: TlcTraceEntry[], varNames: string[]): string
   return lines.join('\n');
 }
 
+/**
+ * Generate a pytest fixture from a TLC counterexample trace.
+ * @note TLA+ compound values (e.g. sets, tuples, records) are embedded as raw strings and
+ *       may not be valid Python literals. Only scalar values (numbers, strings, booleans)
+ *       are guaranteed to produce valid Python code.
+ */
 function generatePytestFixture(
   trace: TlcTraceEntry[],
   varNames: string[],

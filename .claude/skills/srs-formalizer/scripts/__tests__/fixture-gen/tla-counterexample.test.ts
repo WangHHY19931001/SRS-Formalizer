@@ -30,16 +30,52 @@ describe('parseTlcTrace', () => {
     assert.equal(s1.state['vars_0'], '"bar"');
   });
 
-  it('extracts violated invariant', () => {
+  it('extracts violated invariant only on last entry', () => {
     const trace = parseTlcTrace(SAMPLE_TRACE);
+    assert.equal(trace.length, 2);
+    const s0 = trace[0];
     const s1 = trace[1];
+    assert.ok(s0);
     assert.ok(s1);
+    assert.equal(s0.violatedInvariant, undefined);
     assert.equal(s1.violatedInvariant, 'TypeInvariant');
   });
 
   it('handles empty trace', () => {
     const trace = parseTlcTrace('');
     assert.equal(trace.length, 0);
+  });
+
+  it('returns empty array for garbage text', () => {
+    const trace = parseTlcTrace('not a trace at all\njust random text');
+    assert.equal(trace.length, 0);
+  });
+
+  it('handles trace with no violated invariant', () => {
+    const traceText = `State 1: <Initial predicate>
+x = 1
+y = 2`;
+    const trace = parseTlcTrace(traceText);
+    assert.equal(trace.length, 1);
+    const s0 = trace[0];
+    assert.ok(s0);
+    assert.equal(s0.violatedInvariant, undefined);
+    assert.equal(s0.state['x'], '1');
+    assert.equal(s0.state['y'], '2');
+  });
+
+  it('handles single state trace', () => {
+    const traceText = `State 1: <Initial predicate>
+flag = true
+
+Error: Invariant SafetyCheck is violated.`;
+    const trace = parseTlcTrace(traceText);
+    assert.equal(trace.length, 1);
+    const s0 = trace[0];
+    assert.ok(s0);
+    assert.equal(s0.step, 1);
+    assert.equal(s0.state['flag'], 'true');
+    assert.equal(s0.violatedInvariant, 'SafetyCheck');
   });
 });
 
@@ -64,5 +100,10 @@ describe('generateCounterexampleFixtures', () => {
     const result = generateCounterexampleFixtures(trace, 'pytest');
     assert.ok(result.includes('test_counterexample'));
     assert.ok(result.includes('foo'));
+  });
+
+  it('returns empty trace message for empty input', () => {
+    const result = generateCounterexampleFixtures([], 'tla');
+    assert.ok(result.includes('Empty trace'));
   });
 });
