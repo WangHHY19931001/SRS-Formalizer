@@ -39,4 +39,9 @@ describe('generateNfrFixtures', () => {
     const result = generateNfrFixtures('reliability', 'test');
     assert.ok(result.includes('reliability') || result.includes('ReliabilityTest'));
   });
+
+  it('generates usability test fixtures', () => {
+    const result = generateNfrFixtures('usability', 'test');
+    assert.ok(result.includes('usability') || result.includes('UsabilityTest'));
+  });
 });
