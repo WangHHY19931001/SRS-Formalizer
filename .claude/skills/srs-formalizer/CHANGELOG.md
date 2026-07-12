@@ -17,7 +17,15 @@
 - `lib/fixture-gen/types.ts`: Added `TlcTraceEntry`, `TraceabilityEntry`, `CounterexampleFramework` types
 - `lib/fixture-gen/lean.ts`: Added `hypothesisVars` to `ParsedTheorem`
 - `lib/fixture-gen/bdd.ts`: Added Page Object generation for Playwright framework
-- Test fixtures expanded: 9 test files in `__tests__/fixture-gen/`
+- Test fixtures expanded: 10 test files in `__tests__/fixture-gen/` (73 tests)
+
+### Fixed
+
+- **usability NFR test coverage**: Added missing usability test case to `nfr.test.ts`
+- **helpers boundary tests**: Added 19 comprehensive boundary tests for `toCamelCase`/`toPascalCase`/`toSnakeCase`/`escapeStr`
+- **toSnakeCase consecutive capitals bug**: Fixed `HTMLParser` producing `h_t_m_l_parser` instead of `html_parser`
+- **lean.ts toLowerCase optimization**: Extracted `toLowerCase()` outside inner loop in tactic detection
+- **bdd.ts trailing blank line**: Removed trailing blank line
 
 ## [0.6.0] - 2026-07-12
 

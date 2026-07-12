@@ -9,13 +9,13 @@ An AI agent skill that formalizes SRS documents into Cypher graphs, Gherkin BDD,
 ```bash
 npm install                         # zero runtime deps — only typescript + @types/node
 npx tsc --noEmit                    # strict mode, must be 0 errors
-npx tsx --test __tests__/*.test.ts  # 353 tests, must be 0 failures
+npx tsx --test __tests__/*.test.ts  # ~426 tests, must be 0 failures
 npm run typecheck && npm test       # shortcuts
 ```
 
 Single test file: `npx tsx --test __tests__/init.test.ts`
 
-**Before any commit**: `tsc --noEmit` 0 errors + 353 tests pass. Non-negotiable.
+**Before any commit**: `tsc --noEmit` 0 errors + ~426 tests pass. Non-negotiable.
 
 ## Hard constraints
 
@@ -43,9 +43,9 @@ Seven-stage pipeline `S0→S1→S2→S3→S4→S5→S6`, each with gate conditio
 
 - `scripts/index.ts` — CLI entrypoint (registry pattern, 33 commands)
 - `scripts/commands/` — one file per command, all ≤300 lines
-- `scripts/lib/` — 27 core modules + 10 subdirectories (includes `fixture-gen/` for V-Model test generation)
+- `scripts/lib/` — 27 core modules + 10 subdirectories (includes `fixture-gen/` for V-Model test generation: template-engine, tla-counterexample, playwright-page, nfr, traceability, helpers)
 - `scripts/types/` — shared types (JsonlRecord, CliResult, etc.)
-- `scripts/__tests__/` — 47 test files, 353 tests
+- `scripts/__tests__/` — 50 test files, ~426 tests (47 base + 10 fixture-gen)
 
 ## Where to find detailed docs
 
