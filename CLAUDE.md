@@ -48,7 +48,7 @@ scripts/
 │   ├── graph-paths.ts      # 共享路径常量 + findGraphFile()
 │   ├── skir/               # SkIR 构建（types + yaml + parser + builder）
 │   ├── cypher.ts            # 通用 Cypher 导出基函数（exportGraphToCypher）+ 转义防护
-│   ├── fixture-gen/         # V-Model 测试 fixture 生成（bdd/tla/lean/coverage/types）
+│   ├── fixture-gen/         # V-Model 测试 fixture 生成（bdd/tla/lean/coverage/types + template-engine/tla-counterexample/playwright-page/nfr/traceability/helpers）
 │   ├── tla-graph/          # TLA+ 图谱（types + parser + builder + cypher → 薄封装）
 │   ├── lean-graph/         # Lean 4 图谱（types + parser + builder + cypher → 薄封装）
 │   ├── behavior-graph/     # BDD 图谱（types + parser + builder + cypher → 薄封装）
@@ -59,8 +59,8 @@ scripts/
 │   ├── verify-gate/        # 三级门禁（shared + checks-s1/r3/final）
 │   └── architecture/       # 架构图构建（types + graph-utils + validator + processors/arch1-3）
 ├── types/             # JsonlRecord, CliResult, ShardIndex, SkillIR（20+ 字段）
-├── __tests__/         # 47 文件, 353 测试
-└── templates/         # check.sh.template
+├── __tests__/         # 47 文件, 353 测试（含 fixture-gen 9 个测试文件）
+└── templates/         # check.sh.template + test-fixtures/（16 个框架模板）
 ```
 
 ## 关键约束

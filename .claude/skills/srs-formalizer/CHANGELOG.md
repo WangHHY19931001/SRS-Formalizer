@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.0] - 2026-07-12
+
+### Added
+
+- **Template engine for fixture generation** (`lib/fixture-gen/template-engine.ts`): generic variable interpolation engine supporting `{{VAR}}` syntax, 16 template files across 6 test frameworks (Cucumber, Playwright, Pytest, JUnit, fast-check, NFR)
+- **TLC counterexample trace parser** (`lib/fixture-gen/tla-counterexample.ts`): parses TLC output traces and state dumps into structured `TlcTraceEntry[]` for automated regression test generation
+- **Hypothesis pattern recognition in Lean parser** (`lib/fixture-gen/lean.ts`): identifies `hypothesisVars` in Lean 4 theorem statements for property-based testing support
+- **Playwright Page Object generation** (`lib/fixture-gen/playwright-page.ts`): generates Page Object classes from BDD scenarios with element selectors and action methods
+- **V-Model traceability matrix builder** (`lib/fixture-gen/traceability.ts`): builds SRS requirement → graph node → test scenario traceability with gap detection
+- **NFR fixture generator** (`lib/fixture-gen/nfr.ts`): generates performance/security/reliability test fixtures from non-functional requirements
+- **Shared helpers** (`lib/fixture-gen/helpers.ts`): common utilities for fixture-gen submodules
+
+### Changed
+
+- `lib/fixture-gen/types.ts`: Added `TlcTraceEntry`, `TraceabilityEntry`, `CounterexampleFramework` types
+- `lib/fixture-gen/lean.ts`: Added `hypothesisVars` to `ParsedTheorem`
+- `lib/fixture-gen/bdd.ts`: Added Page Object generation for Playwright framework
+- Test fixtures expanded: 9 test files in `__tests__/fixture-gen/`
+
 ## [0.6.0] - 2026-07-12
 
 ### Added
