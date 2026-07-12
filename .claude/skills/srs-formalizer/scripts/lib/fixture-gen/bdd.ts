@@ -111,7 +111,7 @@ function generateFromTemplate(
 
   const renderVars: Record<string, string> = {
     MODULE: module,
-    CLASS_NAME: toPascalCase(module).replace(/[^\w]/g, ''),
+    CLASS_NAME: toPascalCase(module).replace(/[^\w]/g, '') || 'GeneratedFixture',
   };
 
   if (framework === 'pytest') {
@@ -199,7 +199,7 @@ function buildStepDef(keyword: string, stepText: string): string {
   const pattern = stepText
     .replace(/<(\w+)>/g, '{string}')
     .replace(/"/g, '\\"');
-  const params = [...stepText.matchAll(/<(\w+)>/g)].map(m => m[1]);
+  const params = [...stepText.matchAll(/<(\w+)>/g)].map(m => m[1]).filter((x): x is string => x !== undefined);
   const args = params.map(p => `${p}: string`).join(', ');
   return `${keyword}('${pattern}', async function (${args}) {\n  // LLM_FILL: implement step\n  throw new Error('Not implemented — LLM must fill');\n});`;
 }
