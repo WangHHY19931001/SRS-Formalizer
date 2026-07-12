@@ -15,18 +15,8 @@ import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { Graph, type GraphData } from '../lib/graph.js';
 import { generateFullScript } from '../lib/cypher.js';
-import { safeParseArg, validateWorkDir } from '../lib/cli.js';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Graph files to try, in priority order. */
-const GRAPH_PATHS = [
-  '3_graph/graph/graph.merged.json',
-  '3_graph/graph/graph.structure_fixed.json',
-  '3_graph/graph/graph.json',
-];
+import { safeParseArg, validateWorkDir, assertSafePath } from '../lib/cli.js';
+import { GRAPH_PATHS, findGraphFile } from '../lib/graph-paths.js';
 
 // ---------------------------------------------------------------------------
 // Main entry point
@@ -51,15 +41,7 @@ export async function main(args: string[]): Promise<CliResult> {
     return { status: 'error', message: (err as Error).message };
   }
 
-  // Find the first existing graph file in priority order
-  let graphPath: string | null = null;
-  for (const relPath of GRAPH_PATHS) {
-    const candidate = path.join(workDir, relPath);
-    if (fs.existsSync(candidate)) {
-      graphPath = candidate;
-      break;
-    }
-  }
+  const graphPath = findGraphFile(workDir);
 
   if (!graphPath) {
     const tried = GRAPH_PATHS.map(p => path.join(workDir, p)).join(', ');
@@ -84,6 +66,7 @@ export async function main(args: string[]): Promise<CliResult> {
     fs.mkdirSync(outputDir, { recursive: true });
   }
   const outputPath = path.join(outputDir, 'schema.cypher');
+  assertSafePath(outputPath, workDir);
   fs.writeFileSync(outputPath, cypherScript, 'utf-8');
 
   return {
@@ -91,7 +74,7 @@ export async function main(args: string[]): Promise<CliResult> {
     data: {
       node_count: graph.nodeCount,
       edge_count: graph.edgeCount,
-      output_path: outputPath,
+      output_path: path.relative(workDir, outputPath),
     },
   };
 }

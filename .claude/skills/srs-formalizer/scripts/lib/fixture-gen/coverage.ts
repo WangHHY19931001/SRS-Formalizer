@@ -83,7 +83,9 @@ export function computeCoverage(workDir: string): CoverageReport {
   }
 
   const covered = bddFixtures + tlaFixtures + leanFixtures;
-  const coveragePct = Math.round((covered / 20) * 100);
+  const coveragePct = totalRequirements > 0
+    ? Math.round((covered / totalRequirements) * 100)
+    : 0;
 
   const missing: MissingEntry[] = [];
   if (bddFixtures === 0 && totalRequirements > 0) {

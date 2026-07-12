@@ -117,7 +117,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const mod = await loader();
+  let mod;
+  try {
+    mod = await loader();
+  } catch (err) {
+    console.error(
+      JSON.stringify({ status: "error", message: `Failed to load command "${command}": ${(err as Error).message}` })
+    );
+    process.exit(1);
+  }
   const result = await mod.main(args.slice(1));
   console.log(JSON.stringify(result));
   process.exit(result.status === "ok" ? 0 : 1);

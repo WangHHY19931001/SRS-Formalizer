@@ -69,8 +69,8 @@ export async function main(args: string[]): Promise<CliResult> {
     featureFiles = fs.readdirSync(featuresDir)
       .filter(f => f.endsWith('.feature'))
       .sort();
-  } catch {
-    return { status: 'ok', data: { valid: true, errors: [], warnings: [], files_checked: 0, file_results: [] } };
+  } catch (err) {
+    return { status: 'ok', data: { valid: true, errors: [], warnings: [`Failed to read features dir: ${(err as Error).message}`], files_checked: 0, file_results: [] } };
   }
 
   // Validate each file

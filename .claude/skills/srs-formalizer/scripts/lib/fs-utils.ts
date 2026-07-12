@@ -14,6 +14,9 @@ export function ensureDir(dirPath: string): void {
 export function writeJsonlFile(filePath: string, records: unknown[]): void {
   const dir = path.dirname(filePath);
   ensureDir(dir);
-  const content = records.map(r => JSON.stringify(r)).join('\n');
+  const content = records
+    .filter(r => r !== undefined && r !== null)
+    .map(r => JSON.stringify(r))
+    .join('\n');
   fs.writeFileSync(filePath, content + (records.length > 0 ? '\n' : ''), 'utf-8');
 }

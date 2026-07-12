@@ -12,7 +12,7 @@ export function parseTlaSpec(content: string): ParsedTlaSpec {
   const specName = specNameMatch?.[1] ?? 'UnknownSpec';
 
   const variables: string[] = [];
-  const varMatch = content.match(/VARIABLES\s+([^\n]+)/);
+  const varMatch = content.match(/VARIABLES\s+([\s\S]*?)(?=\n\w)/);
   if (varMatch?.[1]) {
     variables.push(...varMatch[1].split(',').map(v => v.trim()).filter(Boolean));
   }
@@ -24,7 +24,7 @@ export function parseTlaSpec(content: string): ParsedTlaSpec {
   }
 
   const invariants: string[] = [];
-  const invRegex = /^(\w+)\s*==/gm;
+  const invRegex = /^(\w*(?:Inv|TypeOK|Safety|Liveness)\w*)\s*==/gm;
   let m: RegExpExecArray | null;
   while ((m = invRegex.exec(content)) !== null) {
     if (m[1] && m[1] !== 'Init' && m[1] !== 'Next' && m[1] !== specName) {
@@ -32,8 +32,8 @@ export function parseTlaSpec(content: string): ParsedTlaSpec {
     }
   }
 
-  const initMatch = content.match(/Init\s*==\s*(.+)/);
-  const nextMatch = content.match(/Next\s*==\s*(.+)/);
+  const initMatch = content.match(/Init\s*==\s*([\s\S]*?)(?=\n(?:Next|VARIABLES|====|\w+\s*==))/);
+  const nextMatch = content.match(/Next\s*==\s*([\s\S]*?)(?=\n(?:Init|VARIABLES|====|\w+\s*==))/);
 
   return {
     specName,

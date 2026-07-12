@@ -9,13 +9,13 @@ An AI agent skill that formalizes SRS documents into Cypher graphs, Gherkin BDD,
 ```bash
 npm install                         # zero runtime deps — only typescript + @types/node
 npx tsc --noEmit                    # strict mode, must be 0 errors
-npx tsx --test __tests__/*.test.ts  # ~426 tests, must be 0 failures
+npx tsx --test __tests__/*.test.ts  # ~407 tests, must be 0 failures
 npm run typecheck && npm test       # shortcuts
 ```
 
 Single test file: `npx tsx --test __tests__/init.test.ts`
 
-**Before any commit**: `tsc --noEmit` 0 errors + ~426 tests pass. Non-negotiable.
+**Before any commit**: `npm run typecheck` 0 errors + `npm test` 0 failures. Non-negotiable.
 
 ## Hard constraints
 
@@ -45,7 +45,7 @@ Seven-stage pipeline `S0→S1→S2→S3→S4→S5→S6`, each with gate conditio
 - `scripts/commands/` — one file per command, all ≤300 lines
 - `scripts/lib/` — 27 core modules + 10 subdirectories (includes `fixture-gen/` for V-Model test generation: template-engine, tla-counterexample, playwright-page, nfr, traceability, helpers)
 - `scripts/types/` — shared types (JsonlRecord, CliResult, etc.)
-- `scripts/__tests__/` — 50 test files, ~426 tests (47 base + 10 fixture-gen)
+- `scripts/__tests__/` — 50 test files, ~407 tests (40 base + 10 fixture-gen)
 
 ## Where to find detailed docs
 
@@ -61,6 +61,7 @@ Seven-stage pipeline `S0→S1→S2→S3→S4→S5→S6`, each with gate conditio
 
 ## Gotchas
 
+- `package-lock.json` is **gitignored** — no lockfile in repo. Run `npm install` to generate one locally.
 - `scripts/templates/check.sh.template` is NOT in the main `templates/` dir — it's a separate path.
 - **`_ctx/` vs `1_input/` inconsistency**: `manifest.ts` writes shard index to `1_input/` but `inject-prompt.ts:60` reads from `_ctx/shard_index.json`. End-to-end pipeline may be broken.
 - TLA+ validation: delete old trace/state files before debugging.

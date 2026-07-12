@@ -1,6 +1,25 @@
 import type { Graph, GraphNode, GraphEdge } from './graph.js';
 import { sanitizeId } from './id-utils.js';
 
+/** Escape single quotes and backslashes for Cypher single-quoted string literals. */
+function escapeCypherString(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+/** Escape double quotes for Cypher double-quoted identifiers. */
+function escapeCypherIdentifier(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/** Sanitize an edge type to only contain alphanumeric characters and underscores. */
+function sanitizeEdgeType(type: string): string {
+  const clean = type.replace(/[^a-zA-Z0-9_]/g, '');
+  if (clean.length === 0) {
+    throw new Error(`Invalid edge type "${type}": contains no valid characters.`);
+  }
+  return clean;
+}
+
 /** 生成 CREATE 节点语句 */
 export function generateCreateNode(node: GraphNode): string {
   const labels = node.labels.map(l => `:${l}`).join('');
@@ -12,8 +31,10 @@ export function generateCreateNode(node: GraphNode): string {
 
 /** 生成 CREATE 边语句 */
 export function generateCreateEdge(edge: GraphEdge): string {
-  // MATCH (a), (b) WHERE a.id = 'source' AND b.id = 'target' CREATE (a)-[:TYPE]->(b)
-  return `MATCH (a), (b) WHERE a.id = '${edge.source}' AND b.id = '${edge.target}' CREATE (a)-[:${edge.type}]->(b)`;
+  const src = escapeCypherString(edge.source);
+  const tgt = escapeCypherString(edge.target);
+  const edgeType = sanitizeEdgeType(edge.type);
+  return `MATCH (a), (b) WHERE a.id = '${src}' AND b.id = '${tgt}' CREATE (a)-[:${edgeType}]->(b)`;
 }
 
 /** 生成唯一性约束 */
@@ -76,7 +97,8 @@ export function exportGraphToCypher(
       .map(([k, v]) => typeof v === 'string' ? `${k}: ${JSON.stringify(v)}` : `${k}: ${v}`)
       .join(', ');
     const sid = sanitizeId(node.id);
-    lines.push(`CREATE (${sid}${labels} {id: "${node.id}", ${props}${extra ? `, ${extra}` : ''}});`);
+    const safeId = escapeCypherIdentifier(node.id);
+    lines.push(`CREATE (${sid}${labels} {id: "${safeId}", ${props}${extra ? `, ${extra}` : ''}});`);
   }
 
   lines.push('');
@@ -84,11 +106,12 @@ export function exportGraphToCypher(
   for (const edge of edges) {
     const src = sanitizeId(edge.source);
     const tgt = sanitizeId(edge.target);
+    const edgeType = sanitizeEdgeType(edge.type);
     const eProps = edge.properties
       ? Object.entries(edge.properties).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(', ')
       : '';
     const eStr = eProps ? ` {${eProps}}` : '';
-    lines.push(`CREATE (${src})-[:${edge.type}${eStr}]->(${tgt});`);
+    lines.push(`CREATE (${src})-[:${edgeType}${eStr}]->(${tgt});`);
   }
 
   return lines.join('\n');

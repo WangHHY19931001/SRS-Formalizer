@@ -39,7 +39,6 @@ const SOURCE_DIR_MAP: Record<Exclude<FixtureSource, 'auto'>, string[]> = {
   lean: ['5_formal', 'proofs'],
 };
 
-const BDD_FRAMEWORKS: readonly Framework[] = ['cucumber', 'playwright', 'pytest', 'junit', 'fast-check'];
 const TLA_LEAN_FRAMEWORKS: readonly Framework[] = ['pytest', 'junit', 'fast-check'];
 
 // ---------------------------------------------------------------------------
@@ -153,7 +152,7 @@ export async function main(args: string[]): Promise<CliResult> {
     ? sourceArg as Exclude<FixtureSource, 'auto'>
     : LEVEL_SOURCE_MAP[level];
 
-  const compatibleFrameworks = (source === 'bdd') ? BDD_FRAMEWORKS : TLA_LEAN_FRAMEWORKS;
+  const compatibleFrameworks = (source === 'bdd') ? VALID_FRAMEWORKS : TLA_LEAN_FRAMEWORKS;
   if (!isValidEnum(framework, compatibleFrameworks)) {
     return {
       status: 'error',

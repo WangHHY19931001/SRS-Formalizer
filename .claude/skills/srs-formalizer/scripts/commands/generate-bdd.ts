@@ -14,18 +14,8 @@ import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { Graph, type GraphData, type GraphNode } from '../lib/graph.js';
 import { generateFeature, type BddScenario, type BddFeature } from '../lib/bdd.js';
-import { safeParseArg, validateWorkDir } from '../lib/cli.js';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Graph files to try, in priority order. */
-const GRAPH_PATHS = [
-  '3_graph/graph/graph.merged.json',
-  '3_graph/graph/graph.structure_fixed.json',
-  '3_graph/graph/graph.json',
-];
+import { safeParseArg, validateWorkDir, assertSafePath } from '../lib/cli.js';
+import { GRAPH_PATHS, findGraphFile } from '../lib/graph-paths.js';
 
 /**
  * Determine the module name for a graph node.
@@ -95,15 +85,7 @@ export async function main(args: string[]): Promise<CliResult> {
     return { status: 'error', message: (err as Error).message };
   }
 
-  // Find the first existing graph file in priority order
-  let graphPath: string | null = null;
-  for (const relPath of GRAPH_PATHS) {
-    const candidate = path.join(workDir, relPath);
-    if (fs.existsSync(candidate)) {
-      graphPath = candidate;
-      break;
-    }
-  }
+  const graphPath = findGraphFile(workDir);
 
   if (!graphPath) {
     const tried = GRAPH_PATHS.map(p => path.join(workDir, p)).join(', ');
@@ -162,6 +144,7 @@ export async function main(args: string[]): Promise<CliResult> {
     const featureContent = generateFeature(feature);
     const safeName = sanitizeModuleName(moduleName);
     const outputPath = path.join(featuresDir, `${safeName}.feature`);
+    assertSafePath(outputPath, workDir);
     fs.writeFileSync(outputPath, featureContent, 'utf-8');
     featuresCreated++;
   }

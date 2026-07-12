@@ -1,6 +1,6 @@
 # SRS-Formalizer 设计文档
 
-> **版本**: 0.7.0 | **日期**: 2026-07-13 | **状态**: Active
+> **版本**: 0.7.1 | **日期**: 2026-07-13 | **状态**: Active
 >
 > 本文档是 srs-formalizer 技能开发的**唯一事实依据**（Single Source of Truth）。
 > 所有设计决策、架构约束、规则合规、评估结果均记录于此。
@@ -1936,7 +1936,7 @@ AI 智能体在以下时机触发自安装流程：
 
 ```
 generate-test-fixtures
-  --level <acceptance|integration|unit|property>   # 必选
+  --level <acceptance|integration|unit|property|nfr>   # 必选
   --framework <cucumber|playwright|pytest|junit|fast-check>  # 必选
   --workdir <path>    # 必选
   --source <bdd|tla|lean|auto>  # 可选，默认 auto
@@ -1950,6 +1950,7 @@ generate-test-fixtures
 | integration | tla | TLA+ counterexample → integration test sequences |
 | unit | bdd | BDD scenarios → unit test 骨架 |
 | property | lean | Lean theorems → property-based test fixtures |
+| nfr | auto | 从 JSONL/BDD 提取非功能需求 → NFR 测试夹具 |
 
 **返回**：`{ status, data: { files_created, output_dir, source_files_used } }`
 
@@ -1959,7 +1960,29 @@ generate-test-fixtures
 fixture-coverage --workdir <path>
 ```
 
-计数级覆盖率报告：扫描 `test_fixtures/` 与源产出交叉，返回 `{ total_requirements, bdd_fixtures_generated, tla_fixtures_generated, lean_fixtures_generated, coverage_pct, missing[] }`。
+调用 `traceability.ts` 按需求逐条匹配覆盖状态。返回 `{ total_requirements, full, partial, none, coverage_pct, entries[] }`，其中 `entries` 包含逐需求的覆盖详情与缺失原因。
+
+#### 27.3.3 `generate-counterexample-fixtures`
+
+```
+generate-counterexample-fixtures
+  --trace <path>           # TLC .trace 文件路径
+  --framework <pytest|junit|fast-check>  # 必选
+  --workdir <path>         # 必选
+```
+
+解析 TLC 状态序列（`State N:` 格式），为被违反的不变量生成可复现测试夹具。写入 `test_fixtures/counterexample/<framework>/`。
+
+#### 27.3.4 `generate-vmodel-matrix`
+
+```
+generate-vmodel-matrix
+  --workdir <path>         # 必选
+  --format <markdown|cypher>  # 可选，默认 markdown
+  --output <file>          # 可选，默认 stdout
+```
+
+扫描全阶段产物，构建需求 ID × 5 维度（图谱节点/BDD/TLA+/Lean 4/测试夹具）的追溯矩阵。`markdown` 格式输出表格；`cypher` 格式输出 Neo4j MERGE 语句，与现有知识图谱联动。
 
 ### 27.4 BDD Fixture 生成（首版重点）
 
@@ -2021,39 +2044,102 @@ Given('the user is logged in with role {string}', async function (role: string) 
 
 **新增文件**：
 ```
-scripts/commands/generate-test-fixtures.ts  # ~80 行（薄编排）
-scripts/commands/fixture-coverage.ts        # ~60 行
-scripts/lib/fixture-gen/types.ts            # ~80 行（TlcTraceEntry, TraceabilityEntry, CounterexampleFramework）
-scripts/lib/fixture-gen/bdd.ts              # ~267 行
-scripts/lib/fixture-gen/tla.ts              # ~109 行
-scripts/lib/fixture-gen/lean.ts             # ~172 行
-scripts/lib/fixture-gen/coverage.ts         # ~52 行
-scripts/lib/fixture-gen/template-engine.ts  # ~42 行（模板加载 + {{var}} 渲染）
-scripts/lib/fixture-gen/tla-counterexample.ts # ~170 行（TLC trace 解析 + 3 种框架反例测试生成）
-scripts/lib/fixture-gen/playwright-page.ts  # ~60 行（Page Object 生成）
-scripts/lib/fixture-gen/traceability.ts     # ~68 行（V-Model 追溯矩阵）
-scripts/lib/fixture-gen/nfr.ts              # ~116 行（NFR 类型检测 + fixture 生成）
-scripts/lib/fixture-gen/helpers.ts          # ~19 行（toCamelCase/toPascalCase/toSnakeCase/escapeStr）
+scripts/commands/generate-test-fixtures.ts        # ~80 行（薄编排）
+scripts/commands/fixture-coverage.ts              # ~60 行
+scripts/commands/generate-counterexample-fixtures.ts  # <100 行（G2，待接入）
+scripts/commands/generate-vmodel-matrix.ts        # ~150 行（G5，待接入）
+scripts/lib/fixture-gen/types.ts                  # ~80 行（TlcTraceEntry, TraceabilityEntry, CounterexampleFramework）
+scripts/lib/fixture-gen/bdd.ts                    # ~267 行（待迁移至 template-engine）
+scripts/lib/fixture-gen/tla.ts                    # ~109 行（待迁移至 template-engine）
+scripts/lib/fixture-gen/lean.ts                   # ~172 行（待迁移至 template-engine）
+scripts/lib/fixture-gen/coverage.ts               # ~52 行
+scripts/lib/fixture-gen/template-engine.ts        # ~42 行（模板加载 + {{var}} 渲染，库已实现，待接入）
+scripts/lib/fixture-gen/tla-counterexample.ts     # ~170 行（TLC trace 解析 + 3 种框架反例测试生成，库已实现，待接入）
+scripts/lib/fixture-gen/playwright-page.ts        # ~60 行（Page Object 生成，库已实现，路由待修正）
+scripts/lib/fixture-gen/traceability.ts           # ~68 行（V-Model 追溯矩阵，库已实现，待接入）
+scripts/lib/fixture-gen/nfr.ts                    # ~116 行（NFR 类型检测 + fixture 生成，库已实现，待接入）
+scripts/lib/fixture-gen/helpers.ts                # ~19 行（toCamelCase/toPascalCase/toSnakeCase/escapeStr）
 scripts/__tests__/generate-test-fixtures.test.ts  # ~120 行
 scripts/__tests__/fixture-coverage.test.ts        # ~60 行
+scripts/__tests__/generate-counterexample-fixtures.test.ts  # ~50 行（G2，待新增）
+scripts/__tests__/generate-vmodel-matrix.test.ts  # ~80 行（G5，待新增）
 scripts/__tests__/fixture-gen/bdd.test.ts         # ~100 行
 scripts/__tests__/fixture-gen/tla.test.ts         # ~80 行
 scripts/__tests__/fixture-gen/lean.test.ts        # ~80 行
+scripts/__tests__/fixture-gen/nfr.test.ts         # ~60 行（G4，待新增）
 scripts/templates/test-fixtures/{cucumber,playwright,pytest,junit,fast-check}/
+scripts/templates/test-fixtures/{pytest,junit,fast-check}/counterexample.template  # G2，待新增
+scripts/templates/test-fixtures/{pytest,fast-check}/nfr_*.template                 # G4，待新增
 ```
 
 **更新文件**：`index.ts`（+2 命令注册）、`types/index.ts`（+2 类型）、checklists（+fixture 检查项）
 
 ### 27.8 测试策略
 
-- 单元测试：3 种 Gherkin 输入 × 5 框架、mock .tla/.lean 文件
+- 单元测试：3 种 Gherkin 输入 × 5 框架、mock .tla/.lean 文件、反例 trace mock、NFR 关键词矩阵、追溯矩阵健全性
 - 集成测试：扩展 `tests/assertions/eval-spec.yaml`
-- 回归：现有 320 测试 0 fail + `tsc --noEmit` 0 errors
+- 回归：~407 测试 0 fail + `tsc --noEmit` 0 errors
 
 ### 27.9 实现顺序
 
-1. Phase 1：BDD fixture 生成（`lib/fixture-gen/bdd.ts` + 模板 + 测试）
-2. Phase 2：TLA+ fixture 生成
-3. Phase 3：Lean 4 fixture 生成
-4. Phase 4：覆盖报告 + checklist 更新 + 集成测试
-5. Phase 5：CLI 命令注册 + 端到端验证
+1. Phase 1：BDD fixture 生成（`lib/fixture-gen/bdd.ts` + 模板 + 测试）✅
+2. Phase 2：TLA+ fixture 生成 ✅
+3. Phase 3：Lean 4 fixture 生成 ✅
+4. Phase 4：覆盖报告 + checklist 更新 + 集成测试 ✅
+5. Phase 5：CLI 命令注册 + 端到端验证 ✅
+6. Phase 6（v0.8.0，待实施）：5 个库模块接入 CLI（见 §27.10）
+
+### 27.10 Phase 6 — 库模块 CLI 接入（Zero-Gap Wiring）
+
+> **设计文档**: `docs/superpowers/specs/2026-07-13-vmodel-zero-gap-wiring-design.md`
+> **来源**: [Issue #3](https://github.com/WangHHY19931001/SRS-Formalizer/issues/3)
+
+v0.7.0 已将 template-engine、tla-counterexample、playwright-page、nfr、traceability 五个模块编写为独立 TypeScript 库文件，但均未接入 CLI 命令层。Phase 6 完成接线。
+
+**Gap 清单：**
+
+| Gap | 模块 | 问题 |
+|:---:|------|------|
+| G1 | `template-engine.ts` | bdd/tla/lean 仍用内联字符串构造，未使用模板引擎 |
+| G2 | `tla-counterexample.ts` | 无 CLI 调用路径，无法从 trace 文件生成反例夹具 |
+| G3 | `playwright-page.ts` | bdd.ts 内联 `generatePlaywright()` 优先于 Page Object 路径 |
+| G4 | `nfr.ts` | 无 `--level nfr` 参数，未接入 generate-test-fixtures |
+| G5 | `traceability.ts` | 无 `generate-vmodel-matrix` 命令，未接入 index.ts |
+
+**实施策略：** G1 前置（模板迁移是其余模块的基础），G2-G5 并行。
+
+**Phase 6a（G1 前置）：**
+- bdd/tla/lean/playwright-page 四个模块从内联字符串迁移到 `template-engine`
+- Playwright 路由修正：`generateBddFixtures()` 在 `framework === 'playwright'` 时调用 `generatePlaywrightPageObjectFixtures()`
+- 16 个现有模板逐文件校验 `{{PLACEHOLDER}}` 与渲染参数一致
+- 验收：迁移前后 fixture 输出语义等价 + 全部现有测试通过
+
+**Phase 6b（G2-G5 并行）：**
+- **G2**: `generate-counterexample-fixtures` 命令 + 3 个 `counterexample.template` 文件
+- **G4**: `--level nfr` 扩展（`FixtureLevel` 加 `'nfr'`）+ NFR 类型自动检测 + 4 个新 `nfr_*.template` 文件 + NFR 模板从 `nfr/` 迁移到各框架目录
+- **G5**: `generate-vmodel-matrix` 命令 + `traceability.ts` 增强为接受 `workDir` 的独立扫描入口
+- **附加**: `fixture-coverage` 从目录级布尔值增强为调用 `buildTraceabilityMatrix()` 输出逐需求明细
+
+**新增命令注册（`index.ts`）：**
+```typescript
+"generate-counterexample-fixtures": () => import("./commands/generate-counterexample-fixtures.js"),
+"generate-vmodel-matrix": () => import("./commands/generate-vmodel-matrix.js"),
+```
+
+**NFR 类型 ↔ 框架兼容矩阵：**
+
+| NFR 类型 | cucumber | playwright | pytest | junit | fast-check |
+|----------|:--:|:--:|:--:|:--:|:--:|
+| performance | — | — | 支持 | 支持 | 支持 |
+| security | — | — | 支持 | 支持 | 支持 |
+| reliability | — | — | 支持 | 支持 | 支持 |
+| usability | 支持 | 支持 | — | — | — |
+
+**验收标准：**
+- [ ] G1: 迁移后 bdd/tla/lean 全部走 template-engine，无内联字符串残留
+- [ ] G2: `generate-counterexample-fixtures --trace <.trace> --framework pytest` 生成合规夹具
+- [ ] G3: Playwright 路径走 `playwright-page.ts`，删除 bdd.ts 内联实现
+- [ ] G4: `--level nfr` 生成 NFR 夹具 + 不兼容框架报友好错误
+- [ ] G5: `generate-vmodel-matrix --format markdown|cypher` 各自输出正确格式
+- [ ] 新增 4 测试文件（generate-counterexample-fixtures / generate-vmodel-matrix / nfr / counterexample templates）全部通过
+- [ ] `npm run typecheck && npm test` 零失败

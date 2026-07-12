@@ -142,8 +142,12 @@ export class Graph {
 
   /** Deserialise from a GraphData object and return a new Graph instance. */
   static fromJSON(data: GraphData): Graph {
+    if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+      throw new Error('Invalid GraphData: nodes and edges must be arrays');
+    }
     const g = new Graph();
     for (const n of data.nodes) {
+      if (!n.id) throw new Error('Invalid node: missing id');
       g.addNode(n);
     }
     for (const e of data.edges) {

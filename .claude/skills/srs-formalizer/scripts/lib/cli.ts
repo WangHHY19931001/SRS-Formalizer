@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 /**
@@ -73,9 +74,27 @@ export function validateWorkDir(outputArg: string): string {
 /**
  * Backward-compatible: isPathSafe and assertSafePath.
  */
+function resolvePath(targetPath: string): string {
+  const parts = targetPath.split(path.sep);
+  let resolved = '';
+  for (const part of parts) {
+    if (part === '' && resolved === '') {
+      resolved = path.sep;
+      continue;
+    }
+    const candidate = resolved + (resolved === path.sep ? '' : path.sep) + part;
+    try {
+      resolved = fs.realpathSync(candidate);
+    } catch {
+      resolved = candidate;
+    }
+  }
+  return resolved;
+}
+
 export function isPathSafe(targetPath: string, workDir: string): boolean {
-  const resolved = path.resolve(targetPath);
-  const workDirResolved = path.resolve(workDir);
+  const resolved = resolvePath(targetPath);
+  const workDirResolved = resolvePath(workDir);
   return resolved.startsWith(workDirResolved + path.sep) || resolved === workDirResolved;
 }
 
@@ -107,7 +126,7 @@ export function refuseDirectInvocation(importMetaUrl: string): void {
   // e.g. file:///.../scripts/commands/init.ts → check if argv[1] ends with commands/init.ts
   const urlPath = new URL(importMetaUrl).pathname;
 
-  if (endsWith(scriptPath, urlPath) || scriptPath.includes(urlPath)) {
+  if (endsWith(scriptPath, urlPath)) {
     const cmdName = urlPath.split('/').pop()?.replace(/\.(ts|js)$/, '') ?? '?';
     console.error(
       `\n⛔ DIRECT INVOCATION REFUSED\n` +
