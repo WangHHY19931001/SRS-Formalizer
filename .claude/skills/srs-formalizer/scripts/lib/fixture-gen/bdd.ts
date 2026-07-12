@@ -263,5 +263,3 @@ ${props}
     { path: `properties/${module.replace(/[/\\?%*:|"<>]/g, '_')}.property.ts`, content: propFile },
   ];
 }
-
-
