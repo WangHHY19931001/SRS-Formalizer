@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-export class {{PAGE_OBJECT_CLASS}} {
+export class {{PAGE_CLASS}} {
   constructor(private page: Page) {}
 
   async navigate() {
