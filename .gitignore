@@ -57,5 +57,8 @@ capability-probe-*/
 # Package lock file (zero runtime deps, not needed)
 package-lock.json
 
+# Git worktrees
+.worktrees/
+
 # Windows ADS artifacts
 *Zone.Identifier
