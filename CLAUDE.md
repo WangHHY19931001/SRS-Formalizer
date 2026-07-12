@@ -11,7 +11,7 @@ cd .claude/skills/srs-formalizer/scripts
 
 npm install                          # 仅 typescript + @types/node（零运行时依赖）
 npx tsc --noEmit                     # strict 模式, 0 errors 必须
-npx tsx --test __tests__/*.test.ts   # ~426 tests, 0 fail 必须
+npx tsx --test __tests__/*.test.ts   # ~342 tests, 0 fail 必须
 ```
 
 **运行单个测试文件：**
@@ -28,8 +28,8 @@ npx tsx --test __tests__/validate-jsonl.test.ts
 
 ```
 scripts/
-├── index.ts            # CLI 入口（注册表模式, 33 命令, 全部 refuseDirectInvocation）
-├── commands/           # 33 条命令（全部 ≤300 行）
+├── index.ts            # CLI 入口（注册表模式, 35 命令, 全部 refuseDirectInvocation）
+├── commands/           # 35 条命令（全部 ≤300 行）
 ├── lib/                # 27 核心模块 + 10 子目录
 │   ├── cli.ts              # 参数解析、毒值拒绝、路径安全校验（新代码用此文件）
 │   ├── security.ts         # 路径安全校验（与 cli.ts 功能重复，保留用于独立导入场景）
@@ -59,7 +59,7 @@ scripts/
 │   ├── verify-gate/        # 三级门禁（shared + checks-s1/r3/final）
 │   └── architecture/       # 架构图构建（types + graph-utils + validator + processors/arch1-3）
 ├── types/             # JsonlRecord, CliResult, ShardIndex, SkillIR（20+ 字段）
-├── __tests__/         # 50 文件, ~426 测试（47 基础 + 10 fixture-gen）
+├── __tests__/         # 52 文件, ~342 测试（42 基础 + 10 fixture-gen）
 └── templates/         # check.sh.template + test-fixtures/（16 个框架模板）
 ```
 
@@ -73,7 +73,7 @@ scripts/
 | 4 | 文件大小 | ≤300 行（全部达标，最大 267 行） |
 | 5 | `path.join()` 强制 | 禁止字符串拼接路径。手写路径切割（如 `validate-lean.ts` 曾用 `split('/')`）已修复为 `path.dirname`/`path.join` |
 | 6 | 毒值拒绝 | `undefined/null/NaN/[object Object]` 在入口 `validateNoPoisonArgs` 拦截 |
-| 7 | 所有命令经 `index.ts` | `refuseDirectInvocation` 阻止直接调用（33/33） |
+| 7 | 所有命令经 `index.ts` | `refuseDirectInvocation` 阻止直接调用（35/35） |
 | 8 | `--output` vs `--workdir` | `init` 用 `--output`, 其余用 `--workdir`。例外：`validate-lean` 不使用 `--workdir`，从 `--file` 路径向上查找 lakefile |
 | 9 | `.srs_formalizer` 强制 | `validateWorkDir` 校验 basename |
 | 10 | 所有写入限工作目录 | `isPathSafe` + `assertSafePath` 双校验 |
@@ -134,7 +134,7 @@ scripts/
 - **`security.ts` 与 `cli.ts` 功能重复**：`validate-jsonl` 和 `validate-architecture` 独立导入 `security.ts`，其余命令用 `cli.ts`。新代码统一用 `cli.ts`。
 - **`_ctx/` vs `1_input/` 不一致**：`manifest.ts` 写分片索引到 `1_input/`，但 `inject-prompt.ts:60` 从 `_ctx/shard_index.json` 读取。端到端流水线可能断裂。
 - Commit: Conventional Commits，`Co-Authored-By: Claude <noreply@anthropic.com>`
-- 提交前: `tsc --noEmit` 0 errors + ~426 tests pass
+- 提交前: `tsc --noEmit` 0 errors + ~342 tests pass
 - `capability-probe` 探针仅在有工具链时生成 TLA+/Lean 4 维度
 - `scripts/templates/check.sh.template` 不在主 `templates/` 下
 

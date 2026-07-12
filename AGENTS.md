@@ -9,7 +9,7 @@ An AI agent skill that formalizes SRS documents into Cypher graphs, Gherkin BDD,
 ```bash
 npm install                         # zero runtime deps — only typescript + @types/node
 npx tsc --noEmit                    # strict mode, must be 0 errors
-npx tsx --test __tests__/*.test.ts  # ~407 tests, must be 0 failures
+npx tsx --test __tests__/*.test.ts  # ~342 tests, must be 0 failures
 npm run typecheck && npm test       # shortcuts
 ```
 
@@ -25,7 +25,7 @@ Single test file: `npx tsx --test __tests__/init.test.ts`
 - **Max 300 lines/file** (current max is 283).
 - **`path.join()` only** — never string-concatenate paths. Use `path.dirname`/`path.join`.
 - **Poison values rejected** — `undefined/null/NaN/[object Object]` caught at CLI entry by `validateNoPoisonArgs`.
-- **All commands routed through `index.ts`** — `refuseDirectInvocation` guard on all 33 commands.
+- **All commands routed through `index.ts`** — `refuseDirectInvocation` guard on all 35 commands.
 
 ## Key conventions
 
@@ -41,11 +41,11 @@ Single test file: `npx tsx --test __tests__/init.test.ts`
 
 Seven-stage pipeline `S0→S1→S2→S3→S4→S5→S6`, each with gate conditions. TS scripts do deterministic transforms; LLM sub-agents do semantic judgment; orchestrator makes flow decisions.
 
-- `scripts/index.ts` — CLI entrypoint (registry pattern, 33 commands)
+- `scripts/index.ts` — CLI entrypoint (registry pattern, 35 commands)
 - `scripts/commands/` — one file per command, all ≤300 lines
 - `scripts/lib/` — 27 core modules + 10 subdirectories (includes `fixture-gen/` for V-Model test generation: template-engine, tla-counterexample, playwright-page, nfr, traceability, helpers)
 - `scripts/types/` — shared types (JsonlRecord, CliResult, etc.)
-- `scripts/__tests__/` — 50 test files, ~407 tests (40 base + 10 fixture-gen)
+- `scripts/__tests__/` — 52 test files, ~342 tests (42 base + 10 fixture-gen)
 
 ## Where to find detailed docs
 
