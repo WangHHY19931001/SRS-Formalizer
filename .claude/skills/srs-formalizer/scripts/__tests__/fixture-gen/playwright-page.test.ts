@@ -28,7 +28,7 @@ describe('Playwright Page Object generation', () => {
     const scenarios = parseScenario(PAGE_OBJECT_SCENARIO);
     const fixtures = generateFixtures(scenarios, 'playwright');
     const pageContent = fixtures.find(f => f.path.includes('page.ts'));
-    assert.ok(pageContent!.content.includes('LoginPage'));
+    assert.ok(pageContent!.content.includes('UserManagementPage'));
   });
 
   it('generates spec with page object import', () => {
@@ -36,6 +36,6 @@ describe('Playwright Page Object generation', () => {
     const fixtures = generateFixtures(scenarios, 'playwright');
     const specContent = fixtures.find(f => f.path.includes('spec.ts'));
     assert.ok(specContent!.content.includes('import'));
-    assert.ok(specContent!.content.includes('LoginPage'));
+    assert.ok(specContent!.content.includes('UserManagementPage'));
   });
 });

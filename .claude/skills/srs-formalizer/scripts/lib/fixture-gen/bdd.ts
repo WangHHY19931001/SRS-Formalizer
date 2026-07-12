@@ -5,6 +5,8 @@
  */
 
 import type { Framework, FixtureFile, ParsedScenario } from './types.js';
+import { generatePlaywrightPageObjectFixtures } from './playwright-page.js';
+import { toCamelCase, toPascalCase, toSnakeCase, escapeStr } from './helpers.js';
 
 /** Alias for parseFeature — parses Gherkin scenarios from .feature content */
 export function parseScenario(content: string): ParsedScenario[] {
@@ -25,6 +27,8 @@ export function generateFixtures(
 /** Parse Gherkin scenarios from .feature content */
 export function parseFeature(content: string): ParsedScenario[] {
   const scenarios: ParsedScenario[] = [];
+  const featureMatch = content.match(/^Feature:\s*(.+)$/m);
+  const featureName = featureMatch?.[1]?.trim();
   const scenarioBlocks = content.split(/(?=^\s+Scenario(?:\s+Outline)?:)/m);
 
   for (const block of scenarioBlocks) {
@@ -70,7 +74,7 @@ export function parseFeature(content: string): ParsedScenario[] {
       }
     }
 
-    scenarios.push({ name: header, requirementId, given, when, then, params });
+    scenarios.push({ name: header, requirementId, given, when, then, params, ...(featureName !== undefined && { featureName }) });
   }
 
   return scenarios;
@@ -173,63 +177,6 @@ export { expect };
   ];
 }
 
-function generatePlaywrightPageObjectFixtures(scenarios: ParsedScenario[]): FixtureFile[] {
-  const pageName = extractPageName(scenarios);
-  const className = toPascalCase(pageName) + 'Page';
-
-  const pageContent = `import type { Page } from '@playwright/test';
-
-export class ${className} {
-  constructor(private page: Page) {}
-
-  async navigate() {
-    await this.page.goto('/* LLM_FILL: URL */');
-  }
-
-  async getState() {
-    // LLM_FILL: extract page state
-    return {};
-  }
-}
-`;
-
-  const tests = scenarios.map(s => {
-    const body = s.params.length > 0
-      ? s.params.map(p => `    // LLM_FILL: setup ${p}`).join('\n')
-      : '    // LLM_FILL: implement test';
-    return `  test('${escapeStr(s.name)}', async ({ page }) => {\n    const ${pageName} = new ${className}(page);\n${body}\n  });`;
-  }).join('\n\n');
-
-  const specContent = `import { test, expect } from '@playwright/test';
-import { ${className} } from '../pages/page';
-
-test.describe('${className}', () => {
-
-${tests}
-
-});
-`;
-
-  return [
-    { path: `pages/page.ts`, content: pageContent },
-    { path: `tests/${className}.spec.ts`, content: specContent },
-  ];
-}
-
-function extractPageName(scenarios: ParsedScenario[]): string {
-  for (const s of scenarios) {
-    for (const step of [...s.given, ...s.when, ...s.then]) {
-      const m = step.match(/on the (\w+) page/i);
-      if (m?.[1]) return m[1];
-    }
-  }
-  if (scenarios[0]) {
-    const firstWord = scenarios[0].name.split(/\s+/)[0];
-    if (firstWord) return firstWord.toLowerCase();
-  }
-  return 'page';
-}
-
 // ── Pytest ────────────────────────────────────────────────────────────────
 
 function generatePytest(scenarios: ParsedScenario[], module: string): FixtureFile[] {
@@ -317,22 +264,4 @@ ${props}
   ];
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────
 
-function toCamelCase(s: string): string {
-  return s.replace(/[-_](\w)/g, (_, c: string) => c.toUpperCase())
-    .replace(/^(\w)/, (_, c: string) => c.toLowerCase());
-}
-
-function toPascalCase(s: string): string {
-  const camel = toCamelCase(s);
-  return camel.charAt(0).toUpperCase() + camel.slice(1);
-}
-
-function toSnakeCase(s: string): string {
-  return s.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
-}
-
-function escapeStr(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
-}

@@ -20,6 +20,7 @@ export interface ParsedScenario {
   when: string[];
   then: string[];
   params: string[];  // extracted <param_name> placeholders
+  featureName?: string;
 }
 
 /** A parsed theorem from Lean 4 .lean file */
