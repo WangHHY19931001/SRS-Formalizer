@@ -6,6 +6,13 @@
 
 import type { Framework, FixtureFile, ParsedTheorem } from './types.js';
 
+/** Detailed parse result for a single theorem */
+export interface TheoremDetail {
+  name: string;
+  tactics: string[];
+  hypothesisVars: string[];
+}
+
 /** Parse a Lean 4 file to extract theorems */
 export function parseLeanFile(content: string): ParsedTheorem[] {
   const theorems: ParsedTheorem[] = [];
@@ -26,11 +33,52 @@ export function parseLeanFile(content: string): ParsedTheorem[] {
         name: match[1],
         typeSignature: (match[2] + match[3]).trim(),
         imports: [...imports],
+        hypothesisVars: [],
       });
     }
   }
 
   return theorems;
+}
+
+/** Parse a single theorem and extract detailed information including hypothesis pattern */
+export function parseTheorem(content: string): TheoremDetail {
+  const nameMatch = content.match(/theorem\s+(\w+)/);
+  const name = nameMatch?.[1] ?? 'unknown';
+
+  const tactics: string[] = [];
+  const hypothesisVars: string[] = [];
+
+  const tacticKeywords = ['induction', 'simp', 'exact', 'rfl', 'omega', 'decide', 'ring', 'norm_num', 'aesop'];
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    for (const kw of tacticKeywords) {
+      if (trimmed.toLowerCase().startsWith(kw) || trimmed.toLowerCase().includes(kw + ' ')) {
+        if (!tactics.includes(kw)) tactics.push(kw);
+      }
+    }
+  }
+
+  const paramRegex = /\((\w+)\s*:\s*([^)]+)\)/g;
+  let paramMatch: RegExpExecArray | null;
+  while ((paramMatch = paramRegex.exec(content)) !== null) {
+    if (paramMatch[1] && paramMatch[2]) {
+      hypothesisVars.push(`${paramMatch[1]} : ${paramMatch[2]}`);
+    }
+  }
+
+  const inductionMatch = content.match(/induction\s+(\w+)/);
+  if (inductionMatch?.[1]) {
+    const varName = inductionMatch[1];
+    if (!hypothesisVars.some(h => h.startsWith(varName + ' '))) {
+      const typeMatch = content.match(new RegExp(`\\(${varName}\\s*:\\s*([^)]+)\\)`));
+      if (typeMatch?.[1]) {
+        hypothesisVars.unshift(`${varName} : ${typeMatch[1]}`);
+      }
+    }
+  }
+
+  return { name, tactics, hypothesisVars };
 }
 
 /** Generate fixture files for a given framework */
@@ -60,7 +108,7 @@ function generatePytest(theorems: ParsedTheorem[], name: string): FixtureFile[] 
 }
 
 function generateJunit(theorems: ParsedTheorem[], name: string): FixtureFile[] {
-  const className = name.charAt(0).toUpperCase() + name.slice(1) + 'PropertyTest';
+  const className = name.charAt(0).toUpperCase() + name.slice(1).replace(/[^\w]/g, '') + 'PropertyTest';
   const tests = theorems.map(t =>
     `    @Test\n    void ${t.name}_holds() {\n        // LLM_FILL: verify ${t.name}\n    }`
   ).join('\n\n');

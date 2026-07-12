@@ -27,6 +27,7 @@ export interface ParsedTheorem {
   name: string;
   typeSignature: string;
   imports: string[];
+  hypothesisVars: string[];
 }
 
 /** A parsed TLA+ spec structure */
