@@ -6,13 +6,29 @@
 
 import type { Framework, FixtureFile, ParsedScenario } from './types.js';
 
+/** Alias for parseFeature — parses Gherkin scenarios from .feature content */
+export function parseScenario(content: string): ParsedScenario[] {
+  return parseFeature(content);
+}
+
+/** Generate fixtures from pre-parsed scenarios */
+export function generateFixtures(
+  scenarios: ParsedScenario[],
+  framework: string,
+): FixtureFile[] {
+  if (framework === 'playwright') {
+    return generatePlaywrightPageObjectFixtures(scenarios);
+  }
+  throw new Error(`Unsupported framework: ${String(framework)}`);
+}
+
 /** Parse Gherkin scenarios from .feature content */
 export function parseFeature(content: string): ParsedScenario[] {
   const scenarios: ParsedScenario[] = [];
-  const scenarioBlocks = content.split(/(?=^\s+Scenario:)/m);
+  const scenarioBlocks = content.split(/(?=^\s+Scenario(?:\s+Outline)?:)/m);
 
   for (const block of scenarioBlocks) {
-    const headerMatch = block.match(/^\s+Scenario:\s+(.+)$/m);
+    const headerMatch = block.match(/^\s+Scenario(?:\s+Outline)?:\s+(.+)$/m);
     if (!headerMatch?.[1]) continue;
 
     const header = headerMatch[1].trim();
@@ -157,6 +173,63 @@ export { expect };
   ];
 }
 
+function generatePlaywrightPageObjectFixtures(scenarios: ParsedScenario[]): FixtureFile[] {
+  const pageName = extractPageName(scenarios);
+  const className = toPascalCase(pageName) + 'Page';
+
+  const pageContent = `import type { Page } from '@playwright/test';
+
+export class ${className} {
+  constructor(private page: Page) {}
+
+  async navigate() {
+    await this.page.goto('/* LLM_FILL: URL */');
+  }
+
+  async getState() {
+    // LLM_FILL: extract page state
+    return {};
+  }
+}
+`;
+
+  const tests = scenarios.map(s => {
+    const body = s.params.length > 0
+      ? s.params.map(p => `    // LLM_FILL: setup ${p}`).join('\n')
+      : '    // LLM_FILL: implement test';
+    return `  test('${escapeStr(s.name)}', async ({ page }) => {\n    const ${pageName} = new ${className}(page);\n${body}\n  });`;
+  }).join('\n\n');
+
+  const specContent = `import { test, expect } from '@playwright/test';
+import { ${className} } from '../pages/page';
+
+test.describe('${className}', () => {
+
+${tests}
+
+});
+`;
+
+  return [
+    { path: `pages/page.ts`, content: pageContent },
+    { path: `tests/${className}.spec.ts`, content: specContent },
+  ];
+}
+
+function extractPageName(scenarios: ParsedScenario[]): string {
+  for (const s of scenarios) {
+    for (const step of [...s.given, ...s.when, ...s.then]) {
+      const m = step.match(/on the (\w+) page/i);
+      if (m?.[1]) return m[1];
+    }
+  }
+  if (scenarios[0]) {
+    const firstWord = scenarios[0].name.split(/\s+/)[0];
+    if (firstWord) return firstWord.toLowerCase();
+  }
+  return 'page';
+}
+
 // ── Pytest ────────────────────────────────────────────────────────────────
 
 function generatePytest(scenarios: ParsedScenario[], module: string): FixtureFile[] {
@@ -179,7 +252,7 @@ function generatePytest(scenarios: ParsedScenario[], module: string): FixtureFil
 // ── JUnit ─────────────────────────────────────────────────────────────────
 
 function generateJunit(scenarios: ParsedScenario[], module: string): FixtureFile[] {
-  const className = toPascalCase(module) + 'Test';
+  const className = toPascalCase(module).replace(/[^\w]/g, '') + 'Test';
   const methods = scenarios.map(s => {
     const body = s.params.length > 0
       ? s.params.map(p => `        // LLM_FILL: setup ${p}`).join('\n')
@@ -205,7 +278,7 @@ public class ${toPascalCase(module)}Fixture {
 
   return [
     { path: `src/test/java/${className}.java`, content: testClass },
-    { path: `fixtures/${toPascalCase(module)}Fixture.java`, content: fixtureClass },
+    { path: `fixtures/${toPascalCase(module).replace(/[^\w]/g, '')}Fixture.java`, content: fixtureClass },
   ];
 }
 
@@ -261,5 +334,5 @@ function toSnakeCase(s: string): string {
 }
 
 function escapeStr(s: string): string {
-  return s.replace(/'/g, "\\'");
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
 }
