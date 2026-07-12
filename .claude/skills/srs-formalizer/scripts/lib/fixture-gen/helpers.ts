@@ -11,7 +11,10 @@ export function toPascalCase(s: string): string {
 }
 
 export function toSnakeCase(s: string): string {
-  return s.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
+  return s
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .replace(/([a-z\d])([A-Z])/g, '$1_$2')
+    .toLowerCase();
 }
 
 export function escapeStr(s: string): string {
