@@ -52,8 +52,9 @@ export function parseTheorem(content: string): TheoremDetail {
   const tacticKeywords = ['induction', 'simp', 'exact', 'rfl', 'omega', 'decide', 'ring', 'norm_num', 'aesop'];
   for (const line of content.split('\n')) {
     const trimmed = line.trim();
+    const lower = trimmed.toLowerCase();
     for (const kw of tacticKeywords) {
-      if (trimmed.toLowerCase().startsWith(kw) || trimmed.toLowerCase().includes(kw + ' ')) {
+      if (lower.startsWith(kw) || lower.includes(kw + ' ')) {
         if (!tactics.includes(kw)) tactics.push(kw);
       }
     }
