@@ -40,6 +40,7 @@ Commands:
   verify-skill-integrity Verify skill file integrity (--repair to auto-restore)
   generate-test-fixtures Generate test fixtures from source artifacts (--level --framework)
   fixture-coverage   Compute fixture coverage report
+  generate-vmodel-matrix Build V-Model traceability matrix (--format markdown|cypher) [--output]
 
 Options:
   --help    Show this help message
@@ -87,6 +88,7 @@ const COMMANDS: Record<
   compile: () => import("./commands/compile.js"),
   "generate-test-fixtures": () => import("./commands/generate-test-fixtures.js"),
   "fixture-coverage": () => import("./commands/fixture-coverage.js"),
+  "generate-vmodel-matrix": () => import("./commands/generate-vmodel-matrix.js"),
 };
 
 async function main(): Promise<void> {

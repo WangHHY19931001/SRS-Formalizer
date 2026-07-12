@@ -1,10 +1,10 @@
 /**
  * Lean 4 fixture generator.
- * Parses .lean files to extract theorems and type signatures,
- * and generates property-based test skeletons.
+ * Parses .lean files and generates property-based test skeletons via template-engine.
  */
 
 import type { Framework, FixtureFile, ParsedTheorem } from './types.js';
+import { loadTemplate, renderTemplate } from './template-engine.js';
 
 /** Detailed parse result for a single theorem */
 export interface TheoremDetail {
@@ -41,7 +41,7 @@ export function parseLeanFile(content: string): ParsedTheorem[] {
   return theorems;
 }
 
-/** Parse a single theorem and extract detailed information including hypothesis pattern */
+/** Parse a single theorem and extract detailed information */
 export function parseTheorem(content: string): TheoremDetail {
   const nameMatch = content.match(/theorem\s+(\w+)/);
   const name = nameMatch?.[1] ?? 'unknown';
@@ -103,44 +103,43 @@ export function generateLeanFixtures(leanContent: string, framework: Framework):
     : 'lean_proof';
 
   switch (framework) {
-    case 'pytest': return generatePytest(theorems, safeName);
-    case 'junit': return generateJunit(theorems, safeName);
-    case 'fast-check': return generateFastCheck(theorems, safeName);
+    case 'pytest': return generateFromTemplate(theorems, safeName, 'pytest');
+    case 'junit': return generateFromTemplate(theorems, safeName, 'junit');
+    case 'fast-check': return generateFromTemplate(theorems, safeName, 'fast-check');
     default: throw new Error(`Unsupported framework for Lean 4: ${framework}. Use pytest, junit, or fast-check.`);
   }
 }
 
-function generatePytest(theorems: ParsedTheorem[], name: string): FixtureFile[] {
-  const tests = theorems.map(t => {
-    const params = extractParams(t.typeSignature);
-    const args = params.map(p => `    ${p} = 0  # LLM_FILL: generate valid input`).join('\n');
-    return `def test_${t.name}():\n${args}\n    # LLM_FILL: verify ${t.name}\n    pass`;
-  }).join('\n\n');
+function generateFromTemplate(
+  theorems: ParsedTheorem[],
+  name: string,
+  framework: 'pytest' | 'junit' | 'fast-check',
+): FixtureFile[] {
+  const template = loadTemplate(framework, 'theorem');
+  const vars: Record<string, string> = { MODULE: name };
 
-  const content = `"""${name} property tests — generated from Lean 4 proofs"""\n\n${tests}\n`;
-  return [{ path: `tests/test_${name}_properties.py`, content }];
-}
+  if (framework === 'pytest') {
+    vars['TESTS'] = theorems.map(t => {
+      const params = extractParams(t.typeSignature);
+      const args = params.map(p => `    ${p} = 0  # LLM_FILL: generate valid input`).join('\n');
+      return `def test_${t.name}():\n${args}\n    # LLM_FILL: verify ${t.name}\n    pass`;
+    }).join('\n\n');
+    const content = renderTemplate(template, vars);
+    return [{ path: `tests/test_${name}_properties.py`, content }];
+  }
 
-function generateJunit(theorems: ParsedTheorem[], name: string): FixtureFile[] {
-  const className = name.charAt(0).toUpperCase() + name.slice(1).replace(/[^\w]/g, '') + 'PropertyTest';
-  const tests = theorems.map(t =>
-    `    @Test\n    void ${t.name}_holds() {\n        // LLM_FILL: verify ${t.name}\n    }`
-  ).join('\n\n');
+  if (framework === 'junit') {
+    const className = name.charAt(0).toUpperCase() + name.slice(1).replace(/[^\w]/g, '') + 'PropertyTest';
+    vars['CLASS_NAME'] = className;
+    vars['METHODS'] = theorems.map(t =>
+      `    @Test\n    void ${t.name}_holds() {\n        // LLM_FILL: verify ${t.name}\n    }`
+    ).join('\n\n');
+    const content = renderTemplate(template, vars);
+    return [{ path: `src/test/java/${className}.java`, content }];
+  }
 
-  const content = `import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
-
-class ${className} {
-
-${tests}
-
-}
-`;
-  return [{ path: `src/test/java/${className}.java`, content }];
-}
-
-function generateFastCheck(theorems: ParsedTheorem[], name: string): FixtureFile[] {
-  const props = theorems.map(t => {
+  // fast-check
+  vars['PROPERTIES'] = theorems.map(t => {
     const params = extractParams(t.typeSignature);
     const arbitraries = params.map(p => `  const ${p}Arb = fc.integer();  // LLM_FILL: refine`).join('\n');
     return `describe('${t.name}', () => {
@@ -156,13 +155,12 @@ ${arbitraries}
   });
 });`;
   }).join('\n\n');
-
-  const content = `import * as fc from 'fast-check';\n\ndescribe('${name}', () => {\n\n${props}\n\n});\n`;
+  const content = renderTemplate(template, vars);
   return [{ path: `properties/${name}.property.ts`, content }];
 }
 
 /** Extract parameter names from a Lean type signature like `(n : Nat) → n + 0 = n` */
-function extractParams(sig: string): string[] {
+export function extractParams(sig: string): string[] {
   const params: string[] = [];
   const paramRegex = /\((\w+)\s*:/g;
   let m: RegExpExecArray | null;
