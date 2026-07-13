@@ -9,13 +9,31 @@ import { BehaviorGraphEmitter } from '../lib/emitters/behavior-graph-emitter.js'
 import { TlaGraphEmitter } from '../lib/emitters/tla-graph-emitter.js';
 import { LeanGraphEmitter } from '../lib/emitters/lean-graph-emitter.js';
 import { GherkinEmitter } from '../lib/emitters/gherkin-emitter.js';
+import { TLAEmitter } from '../lib/emitters/tla-emitter.js';
+import { LeanEmitter } from '../lib/emitters/lean-emitter.js';
+import { FixtureEmitter } from '../lib/emitters/fixture-emitter.js';
+import { CounterexampleEmitter } from '../lib/emitters/counterexample-emitter.js';
+import { TraceabilityMatrixEmitter } from '../lib/emitters/traceability-emitter.js';
 
-const ALL_EMITTERS: Record<string, Emitter> = {
+const GRAPH_EMITTERS: Record<string, Emitter> = {
   cypher: new CypherEmitter(),
   behaviorGraph: new BehaviorGraphEmitter(),
   tlaGraph: new TlaGraphEmitter(),
   leanGraph: new LeanGraphEmitter(),
+};
+
+const VMODEL_EMITTERS: Record<string, Emitter> = {
+  fixture: new FixtureEmitter(),
+  counterexample: new CounterexampleEmitter(),
+  traceabilityMatrix: new TraceabilityMatrixEmitter(),
+};
+
+const ALL_EMITTERS: Record<string, Emitter> = {
+  ...GRAPH_EMITTERS,
   gherkin: new GherkinEmitter(),
+  tlaSpec: new TLAEmitter(),
+  leanProof: new LeanEmitter(),
+  ...VMODEL_EMITTERS,
 };
 
 function buildAll(ir: SRSIR, workdir: string): EmitResult[] {
@@ -79,8 +97,7 @@ export async function main(args: string[]): Promise<CliResult> {
 
   if (name === 'graphs') {
     const graphResults: { name: string; files: string[]; fileCount: number; metadata: Record<string, unknown> }[] = [];
-    const graphEmitters = ['cypher', 'behaviorGraph', 'tlaGraph', 'leanGraph'];
-    for (const gName of graphEmitters) {
+    for (const gName of Object.keys(GRAPH_EMITTERS)) {
       const emitter = ALL_EMITTERS[gName];
       if (emitter) {
         const r = emitter.emit(ir, workDir);
@@ -91,9 +108,51 @@ export async function main(args: string[]): Promise<CliResult> {
     return {
       status: 'ok',
       data: {
-        emitters: graphEmitters,
+        emitters: Object.keys(GRAPH_EMITTERS),
         totalFiles,
         results: graphResults,
+      },
+    };
+  }
+
+  if (name === 'formal') {
+    const formalEmitters = ['tlaSpec', 'leanProof'];
+    const formalResults: { name: string; files: string[]; fileCount: number; metadata: Record<string, unknown> }[] = [];
+    for (const fName of formalEmitters) {
+      const emitter = ALL_EMITTERS[fName];
+      if (emitter) {
+        const r = emitter.emit(ir, workDir);
+        formalResults.push({ name: fName, files: r.files, fileCount: r.fileCount, metadata: r.metadata });
+      }
+    }
+    const totalFiles = formalResults.reduce((sum, r) => sum + r.fileCount, 0);
+    return {
+      status: 'ok',
+      data: {
+        emitters: formalEmitters,
+        totalFiles,
+        results: formalResults,
+      },
+    };
+  }
+
+  if (name === 'vmodel') {
+    const vModelNames = Object.keys(VMODEL_EMITTERS);
+    const vModelResults: { name: string; files: string[]; fileCount: number; metadata: Record<string, unknown> }[] = [];
+    for (const vName of vModelNames) {
+      const emitter = VMODEL_EMITTERS[vName];
+      if (emitter) {
+        const r = emitter.emit(ir, workDir);
+        vModelResults.push({ name: vName, files: r.files, fileCount: r.fileCount, metadata: r.metadata });
+      }
+    }
+    const totalFiles = vModelResults.reduce((sum, r) => sum + r.fileCount, 0);
+    return {
+      status: 'ok',
+      data: {
+        emitters: vModelNames,
+        totalFiles,
+        results: vModelResults,
       },
     };
   }

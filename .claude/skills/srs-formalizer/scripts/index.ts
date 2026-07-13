@@ -38,7 +38,7 @@ Commands:
   tag-nfr            Detect and tag NFR nodes in srs-ir.json
   check-connectivity Check cross-shard connectivity in srs-ir.json
   score-risk         Compute risk score from srs-ir.json
-  emit               Emit graph artifacts from srs-ir.json (--name cypher|behaviorGraph|tlaGraph|leanGraph|graphs|all)
+  emit               Emit artifacts from srs-ir.json (--name cypher|behaviorGraph|tlaGraph|leanGraph|gherkin|tlaSpec|leanProof|fixture|counterexample|traceabilityMatrix|graphs|formal|vmodel|all)
 
 Options:
   --help    Show this help message

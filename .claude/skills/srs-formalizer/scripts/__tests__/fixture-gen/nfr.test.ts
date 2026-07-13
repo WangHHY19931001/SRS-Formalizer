@@ -1,47 +1,88 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { detectNfrType, generateNfrFixtures } from '../../lib/fixture-gen/nfr.js';
+import { generateNfrFixtures, supportsFramework, supportedFrameworks } from '../../lib/fixture-gen/nfr.js';
 
-describe('detectNfrType', () => {
-  it('detects performance keywords', () => {
-    const result = detectNfrType('The system shall respond within 2 seconds');
-    assert.equal(result, 'performance');
+describe('generateNfrFixtures', () => {
+  it('generates performance pytest fixtures', () => {
+    const result = generateNfrFixtures('performance', 'pytest', 'login');
+    assert.ok(result.includes('LLM_FILL'));
+    assert.ok(result.includes('performance'));
+    assert.ok(result.includes('login'));
   });
 
-  it('detects security keywords', () => {
-    const result = detectNfrType('The system shall prevent unauthorized access');
-    assert.equal(result, 'security');
+  it('generates performance junit fixtures', () => {
+    const result = generateNfrFixtures('performance', 'junit', 'login');
+    assert.ok(result.includes('LLM_FILL'));
+    assert.ok(result.includes('performance'));
   });
 
-  it('detects reliability keywords', () => {
-    const result = detectNfrType('The system shall maintain 99.9% uptime');
-    assert.equal(result, 'reliability');
+  it('generates security pytest fixtures', () => {
+    const result = generateNfrFixtures('security', 'pytest', 'auth');
+    assert.ok(result.includes('LLM_FILL'));
+    assert.ok(result.includes('Security'));
   });
 
-  it('returns null for unknown NFR type', () => {
-    const result = detectNfrType('The user can login');
-    assert.equal(result, null);
+  it('generates availability pytest fixtures', () => {
+    const result = generateNfrFixtures('availability', 'pytest', 'api');
+    assert.ok(result.includes('LLM_FILL'));
+    assert.ok(result.includes('Availability'));
+  });
+
+  it('generates compatibility cucumber fixtures', () => {
+    const result = generateNfrFixtures('compatibility', 'cucumber', 'ui');
+    assert.ok(result.includes('Feature:'));
+    assert.ok(result.includes('Scenario:'));
+  });
+
+  it('generates maintainability pytest fixtures', () => {
+    const result = generateNfrFixtures('maintainability', 'pytest', 'core');
+    assert.ok(result.includes('LLM_FILL'));
+    assert.ok(result.includes('Maintainability'));
+  });
+
+  it('generates compliance pytest fixtures', () => {
+    const result = generateNfrFixtures('compliance', 'pytest', 'data');
+    assert.ok(result.includes('LLM_FILL'));
+    assert.ok(result.includes('Compliance'));
+  });
+
+  it('generates fast-check fixtures for performance', () => {
+    const result = generateNfrFixtures('performance', 'fast-check', 'login');
+    assert.ok(result.includes('fast-check'));
+    assert.ok(result.includes('LLM_FILL'));
+  });
+
+  it('throws for unsupported category × framework combo', () => {
+    assert.throws(() => generateNfrFixtures('compatibility', 'pytest', 'mod'));
   });
 });
 
-describe('generateNfrFixtures', () => {
-  it('generates performance test fixtures', () => {
-    const result = generateNfrFixtures('performance', 'test');
-    assert.ok(result.includes('pytest.mark.performance') || result.includes('performance'));
+describe('supportsFramework', () => {
+  it('returns true for supported combos', () => {
+    assert.ok(supportsFramework('performance', 'pytest'));
+    assert.ok(supportsFramework('performance', 'junit'));
+    assert.ok(supportsFramework('security', 'pytest'));
+    assert.ok(supportsFramework('availability', 'fast-check'));
   });
 
-  it('generates security test fixtures', () => {
-    const result = generateNfrFixtures('security', 'test');
-    assert.ok(result.includes('SecurityTest') || result.includes('security'));
+  it('returns false for unsupported combos', () => {
+    assert.equal(supportsFramework('compatibility', 'pytest'), false);
+    assert.equal(supportsFramework('maintainability', 'fast-check'), false);
+  });
+});
+
+describe('supportedFrameworks', () => {
+  it('returns array of framework names for a category', () => {
+    const fws = supportedFrameworks('performance');
+    assert.ok(Array.isArray(fws));
+    assert.ok(fws.includes('pytest'));
+    assert.ok(fws.includes('junit'));
+    assert.ok(fws.includes('fast-check'));
   });
 
-  it('generates reliability test fixtures', () => {
-    const result = generateNfrFixtures('reliability', 'test');
-    assert.ok(result.includes('reliability') || result.includes('ReliabilityTest'));
-  });
-
-  it('generates usability test fixtures', () => {
-    const result = generateNfrFixtures('usability', 'test');
-    assert.ok(result.includes('usability') || result.includes('UsabilityTest'));
+  it('returns correct frameworks for compatibility', () => {
+    const fws = supportedFrameworks('compatibility');
+    assert.ok(fws.includes('cucumber'));
+    assert.ok(fws.includes('playwright'));
   });
 });
