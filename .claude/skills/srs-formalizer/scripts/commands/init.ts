@@ -9,6 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
+import { ARTIFACT_DIRECTORIES } from '../lib/artifacts/paths.js';
 
 const SUBDIRS = [
   // S0: 发现与确认
@@ -23,14 +24,12 @@ const SUBDIRS = [
   // S3: 图谱构建
   '3_graph/graph',
   '3_graph/analysis/subagent_prompts',
-  // S4: BDD
-  '4_bdd/features',
-  // S5: 形式化
-  '5_formal/specs',
-  '5_formal/proofs',
-  // S6: 输出
-  '6_outputs/knowledge_graph',
-  '6_outputs/brainstorming',
+  // Stage checklist roots (contain no legacy artifacts)
+  '4_bdd',
+  '5_formal',
+  '6_outputs',
+  // Backend artifact lifecycles
+  ...ARTIFACT_DIRECTORIES,
   // 备份
   'backups',
 ];

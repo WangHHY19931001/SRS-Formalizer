@@ -3,6 +3,8 @@ import * as path from 'node:path';
 import type { SRSIR, IRNode, NFRThreshold, NFRCategory } from '../../types/srs-ir.js';
 import type { Emitter, EmitResult } from './types.js';
 
+import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
+
 const INVARIANT_CATEGORIES: NFRCategory[] = [
   'performance',
   'security',
@@ -148,11 +150,11 @@ CHECK_DEADLOCK TRUE
 export class TLAEmitter implements Emitter {
   readonly name = 'tlaSpec';
   readonly description = 'Generate TLA+ specifications from SRS-IR';
-  readonly outputDir = '5_formal/specs';
+  readonly outputDir = ARTIFACT_PATHS.tlaDraft;
 
   emit(ir: SRSIR, workdir: string): EmitResult {
     const groups = groupByModule(ir.nodes);
-    const outDir = path.join(workdir, this.outputDir);
+    const outDir = artifactPath(workdir, this.outputDir);
     fs.mkdirSync(outDir, { recursive: true });
     const files: string[] = [];
     let moduleCount = 0;

@@ -26,9 +26,10 @@ describe('init command', () => {
       '2_extract/r1-explicit', '2_extract/r2-implicit', '2_extract/r3-relational',
       '3_graph/graph',
       '3_graph/analysis/subagent_prompts',
-      '4_bdd/features',
-      '5_formal/specs', '5_formal/proofs',
-      '6_outputs/knowledge_graph', '6_outputs/brainstorming',
+      'outputs/bdd/draft', 'outputs/bdd/verified', 'outputs/bdd/validation',
+      'outputs/tlaplus/draft', 'outputs/tlaplus/verified', 'outputs/tlaplus/validation',
+      'outputs/lean4/draft', 'outputs/lean4/verified', 'outputs/lean4/validation',
+      'outputs/graphs', 'outputs/fixtures', 'outputs/reports',
       'backups',
     ];
     for (const dir of expectedDirs) {

@@ -7,6 +7,7 @@ import { generateBddFixtures } from '../fixture-gen/bdd.js';
 import { generateTlaFixtures } from '../fixture-gen/tla.js';
 import { generateLeanFixtures } from '../fixture-gen/lean.js';
 import { generateNfrFixtures, supportsFramework } from '../fixture-gen/nfr.js';
+import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
 
 type FixtureLevel = 'unit' | 'integration' | 'e2e' | 'nfr';
 type LevelFramework = 'pytest' | 'junit' | 'cucumber' | 'playwright' | 'fast-check';
@@ -42,12 +43,12 @@ function writeFixtureFiles(files: FixtureFile[], outputDir: string): string[] {
 
 function generateBddAtLevel(workdir: string, framework: Framework, level: FixtureLevel): string[] {
   if (!BDD.includes(framework)) return [];
-  const bddDir = path.join(workdir, '4_bdd', 'features');
+  const bddDir = artifactPath(workdir, ARTIFACT_PATHS.bddVerified);
   if (!fs.existsSync(bddDir)) return [];
 
   const allFiles: string[] = [];
   const featureFiles = fs.readdirSync(bddDir).filter(f => f.endsWith('.feature'));
-  const outputDir = path.join(workdir, 'test_fixtures', level, framework);
+  const outputDir = path.join(artifactPath(workdir, ARTIFACT_PATHS.fixtures), level, framework);
 
   for (const featFile of featureFiles) {
     const content = fs.readFileSync(path.join(bddDir, featFile), 'utf-8');
@@ -62,12 +63,12 @@ function generateBddAtLevel(workdir: string, framework: Framework, level: Fixtur
 
 function generateTlaAtLevel(workdir: string, framework: Framework, level: FixtureLevel): string[] {
   if (!TLA_FW.includes(framework)) return [];
-  const tlaDir = path.join(workdir, '5_formal', 'specs');
+  const tlaDir = artifactPath(workdir, ARTIFACT_PATHS.tlaVerified);
   if (!fs.existsSync(tlaDir)) return [];
 
   const allFiles: string[] = [];
   const tlaFiles = fs.readdirSync(tlaDir).filter(f => f.endsWith('.tla'));
-  const outputDir = path.join(workdir, 'test_fixtures', level, framework);
+  const outputDir = path.join(artifactPath(workdir, ARTIFACT_PATHS.fixtures), level, framework);
 
   for (const tlaFile of tlaFiles) {
     const content = fs.readFileSync(path.join(tlaDir, tlaFile), 'utf-8');
@@ -81,12 +82,12 @@ function generateTlaAtLevel(workdir: string, framework: Framework, level: Fixtur
 
 function generateLeanAtLevel(workdir: string, framework: Framework, level: FixtureLevel): string[] {
   if (!TLA_FW.includes(framework)) return [];
-  const leanDir = path.join(workdir, '5_formal', 'proofs');
+  const leanDir = artifactPath(workdir, ARTIFACT_PATHS.leanVerified);
   if (!fs.existsSync(leanDir)) return [];
 
   const allFiles: string[] = [];
   const leanFiles = fs.readdirSync(leanDir).filter(f => f.endsWith('.lean'));
-  const outputDir = path.join(workdir, 'test_fixtures', level, framework);
+  const outputDir = path.join(artifactPath(workdir, ARTIFACT_PATHS.fixtures), level, framework);
 
   for (const leanFile of leanFiles) {
     const content = fs.readFileSync(path.join(leanDir, leanFile), 'utf-8');
@@ -108,7 +109,7 @@ function generateNfrAtLevel(
   if (nfrNodes.length === 0) return [];
 
   const allFiles: string[] = [];
-  const outputDir = path.join(workdir, 'test_fixtures', level, framework);
+  const outputDir = path.join(artifactPath(workdir, ARTIFACT_PATHS.fixtures), level, framework);
 
   for (const { module, category } of nfrNodes) {
     if (!supportsFramework(category, framework)) continue;
@@ -128,7 +129,7 @@ function generateNfrAtLevel(
 export class FixtureEmitter implements Emitter {
   readonly name = 'fixture';
   readonly description = 'Generate V-Model test fixtures from all source artifacts';
-  readonly outputDir = 'test_fixtures';
+  readonly outputDir = ARTIFACT_PATHS.fixtures;
 
   emit(ir: SRSIR, workdir: string, options?: FixtureEmitterOptions): EmitResult {
     const level = options?.level ?? 'unit';

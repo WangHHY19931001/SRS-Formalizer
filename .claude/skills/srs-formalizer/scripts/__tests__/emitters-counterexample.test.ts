@@ -43,7 +43,7 @@ function makeIR(): SRSIR {
 }
 
 function setupTrace(wd: string) {
-  const traceDir = path.join(wd, '5_formal', 'traces');
+  const traceDir = path.join(wd, 'outputs', 'tlaplus', 'verified', 'traces');
   fs.mkdirSync(traceDir, { recursive: true });
   fs.writeFileSync(path.join(traceDir, 'sample.trace'), SAMPLE_TRACE);
 }

@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type { SRSIR } from '../../types/srs-ir.js';
 import type { Emitter, EmitResult } from './types.js';
 import { parseTlcTrace } from '../fixture-gen/tla-counterexample.js';
+import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
 
 type CeFramework = 'pytest' | 'junit' | 'fast-check';
 
@@ -189,7 +190,7 @@ function capitalize(s: string): string {
 export class CounterexampleEmitter implements Emitter {
   readonly name = 'counterexample';
   readonly description = 'Generate reproducible counterexample tests from TLC traces';
-  readonly outputDir = 'test_fixtures/counterexample';
+  readonly outputDir = ARTIFACT_PATHS.fixtures;
 
   /**
    * Emit counterexample fixtures.
@@ -198,7 +199,7 @@ export class CounterexampleEmitter implements Emitter {
    */
   emit(_ir: SRSIR, workdir: string, options?: CounterexampleEmitterOptions): EmitResult {
     const framework = options?.framework ?? 'pytest';
-    const tracePath = options?.tracePath ?? path.join(workdir, '5_formal', 'traces');
+    const tracePath = options?.tracePath ?? path.join(artifactPath(workdir, ARTIFACT_PATHS.tlaVerified), 'traces');
 
     const allFiles: string[] = [];
     let traceContent: string | null = null;
@@ -235,7 +236,7 @@ export class CounterexampleEmitter implements Emitter {
     }
     if (!invariantName) invariantName = 'UnknownInv';
 
-    const outputDir = path.join(workdir, this.outputDir, framework);
+    const outputDir = path.join(artifactPath(workdir, this.outputDir), 'counterexample', framework);
     fs.mkdirSync(outputDir, { recursive: true });
 
     if (framework === 'pytest') {

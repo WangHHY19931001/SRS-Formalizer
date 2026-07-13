@@ -18,10 +18,10 @@ export function checkStateMd(workDir: string): CheckResult {
 }
 
 export function checkShardIndex(workDir: string): CheckResult {
-  const indexPath = path.join(workDir, '1_input', 'shard_index.json');
+  const indexPath = path.join(workDir, '_ctx', 'shard_index.json');
   const exists = fs.existsSync(indexPath);
   return {
-    name: '1_input/shard_index.json exists',
+    name: '_ctx/shard_index.json exists',
     passed: exists,
     detail: exists ? 'Found' : `shard_index.json not found at ${indexPath}`,
   };

@@ -39,14 +39,14 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
   --group graphs --workdir .srs_formalizer
 ```
 
-**CypherEmitter**：将 IR 节点和边转换为 Neo4j Cypher 语句。产出 `6_outputs/knowledge_graph/requirement.cypher`。
+**CypherEmitter**：将 IR 节点和边转换为 Neo4j Cypher 语句，产出位于 `outputs/graphs/`。
 
 **JsonEmitter**：导出 `3_graph/graph/graph.merged.json`，为后续 Emitter 提供结构化输入。
 
 验证：
 ```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-cypher \
-  --file .srs_formalizer/6_outputs/knowledge_graph/requirement.cypher \
+  --file .srs_formalizer/outputs/graphs/requirement.cypher \
   --workdir .srs_formalizer
 ```
 
@@ -70,11 +70,12 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
 
 ```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-bdd \
-  --strict --workdir .srs_formalizer
+  --strict --promote --workdir .srs_formalizer
 ```
 
-**打回机制**：四级校验任一级 `status: error` → BDD 不合格。编排者执行以下回退：
+**草稿提升**：Emitter 将 `.feature` 写到 `outputs/bdd/draft`。先由子代理完成草稿，再执行上述带 `--promote` 的严格验证；只有成功后文件才进入 `outputs/bdd/verified`。行为图谱只消费 verified 输入，输出到 `outputs/graphs/`。
 
+**失败回退机制**：四级校验任一级 `status: error` → BDD 不合格。编排者执行以下回退：
 1. 提取失败原因和失败节点
 2. 回退至 Frontend，在对应分片中补充需求信息
 3. 重新执行 Frontend → Middle-end → Backend graphs → Backend bdd 流水线
@@ -121,27 +122,22 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
 验证流程：
 ```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-tla \
-  --file <file>.tla --workdir .srs_formalizer
+  --name <module> --strict --promote --workdir .srs_formalizer
 ```
+该命令从 `outputs/tlaplus/draft` 读取 matching `.tla`/`.cfg`，成功后写入验证报告并提升到 `outputs/tlaplus/verified`。
 严格模式：SANY 语法通过 → TLC 模型检查 → 死锁 / 状态爆炸 / 不变量违反 / 活锁。
 
 失败处理：debug-tlc 子代理定位根因。SRS 设计缺陷 → SRS_PATCHES.md → 暂停等确认。
 
-产出资物：
-- TLA+ 规约文件（L1/L2/L3）
-- `5_formal/tla-interaction-graph.json`
-- `6_outputs/knowledge_graph/tla-interaction.cypher`
+产出物：
+- verified TLA+ 规约文件（L1/L2/L3）位于 `outputs/tlaplus/verified/`
+- TLA+ 交互图位于 `outputs/graphs/`
 
 #### LeanEmitter（security/compliance 关键词触发）
 
 触发条件：IR 节点 `nfrCategory` 含 `NFR_SEC` 或 `NFR_COMPLIANCE`。**非安全关键模块不生成 Lean 证明。**
 
-**拆分证明四步法（强制遵循）**：
-
-1. **编写证明骨架（带 sorry）**：LLM 子代理编写 theorem 声明和策略框架，用 `sorry` 标记未完成部分
-2. **拆分 sorry 为独立文件**：每个 `sorry` 变为独立 `.lean` 文件
-3. **无法单文件则继续拆分**：拆为多文件 + `import`
-4. **递归循环至 0 个 sorry**
+**严格证明完成流程**：Emitter 只生成 `outputs/lean4/draft` 中的交付计划，子代理必须完成实际 theorem/lemma。`validate-lean --strict --promote` 会拒绝 `sorry`、`admit`、`axiom`、全量 `import Mathlib`、`: True` 弱化证明和任何 `lake build` warning；全部通过后才提升到 `outputs/lean4/verified`。
 
 硬门禁：
 
@@ -158,7 +154,8 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-tla \
 
 验证：
 ```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-lean --file <file>.lean
+npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-lean \
+  --strict --promote --workdir .srs_formalizer
 ```
 
 产出资物：

@@ -5,6 +5,7 @@ import type { Emitter, EmitResult } from './types.js';
 import { sanitizeId } from '../id-utils.js';
 import { exportGraphToCypher, type CypherNode, type CypherEdge } from '../cypher.js';
 import { scanLeanSourceForPlaceholders } from '../verify-gate/shared.js';
+import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
 
 interface ParsedLeanFile {
   fileName: string;
@@ -268,21 +269,21 @@ function buildLeanGraph(proofsDir: string): LeanGraph {
 export class LeanGraphEmitter implements Emitter {
   readonly name = 'leanGraph';
   readonly description = 'Build proof dependency graph from Lean 4 proof files';
-  readonly outputDir = '2_graph';
+  readonly outputDir = ARTIFACT_PATHS.graphs;
 
   emit(_ir: SRSIR, workdir: string): EmitResult {
-    const proofsDir = path.join(workdir, '5_formal', 'proofs');
+    const proofsDir = artifactPath(workdir, ARTIFACT_PATHS.leanVerified);
     if (!fs.existsSync(proofsDir)) {
-      return { files: [], fileCount: 0, metadata: { error: 'proofs directory not found' } };
+      return { files: [], fileCount: 0, metadata: { skipped: 'verified Lean proofs not found' } };
     }
 
     const graph = buildLeanGraph(proofsDir);
     const placeholders = scanLeanSourceForPlaceholders(proofsDir);
 
-    const jsonFile = path.join(workdir, this.outputDir, 'lean-proof-graph.json');
-    const cypherFile = path.join(workdir, this.outputDir, 'lean-proof.cypher');
+    const jsonFile = path.join(artifactPath(workdir, this.outputDir), 'lean-proof-graph.json');
+    const cypherFile = path.join(artifactPath(workdir, this.outputDir), 'lean-proof.cypher');
 
-    fs.mkdirSync(path.join(workdir, this.outputDir), { recursive: true });
+    fs.mkdirSync(artifactPath(workdir, this.outputDir), { recursive: true });
     fs.writeFileSync(jsonFile, JSON.stringify(graph, null, 2), 'utf-8');
 
     const cypherNodes: CypherNode[] = graph.nodes.map(n => ({

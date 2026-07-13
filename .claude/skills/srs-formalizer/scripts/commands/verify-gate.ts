@@ -14,7 +14,7 @@ import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardCompleteness, checkGlossaryExists } from '../lib/verify-gate/checks-s1.js';
 import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1 } from '../lib/verify-gate/checks-r3.js';
-import { checkValidateBddPasses, checkMergedGraphExists, checkSchemaCypherExists, checkBrainstormContextExists, checkMindmapModules, checkBehaviorGraphExists, checkTlaGraphExists, checkLeanGraphExists, checkSystemArchitectureExists } from '../lib/verify-gate/checks-final.js';
+import { checkFormalArtifacts } from '../lib/verify-gate/checks-final.js';
 import { VALID_STAGES, checkChecklistComplete, type CheckResult, type VerifyOutput } from '../lib/verify-gate/shared.js';
 
 // ---------------------------------------------------------------------------
@@ -83,18 +83,7 @@ export async function main(args: string[]): Promise<CliResult> {
 
   // === FINAL-only checks ===
   if (stageArg === 'FINAL') {
-    allChecks.push(checkChecklistComplete('4_bdd', workDir));
-    allChecks.push(checkChecklistComplete('5_formal', workDir));
-    allChecks.push(checkChecklistComplete('6_outputs', workDir));
-    allChecks.push(checkValidateBddPasses(workDir));
-    allChecks.push(checkMergedGraphExists(workDir));
-    allChecks.push(checkSchemaCypherExists(workDir));
-    allChecks.push(checkBrainstormContextExists(workDir));
-    allChecks.push(checkMindmapModules(workDir));
-    allChecks.push(checkBehaviorGraphExists(workDir));
-    allChecks.push(checkTlaGraphExists(workDir));
-    allChecks.push(checkLeanGraphExists(workDir));
-    allChecks.push(checkSystemArchitectureExists(workDir));
+    allChecks.push(...checkFormalArtifacts(workDir));
   }
 
   const errors = allChecks.filter(c => !c.passed).map(c => c.detail ?? c.name);
@@ -106,7 +95,7 @@ export async function main(args: string[]): Promise<CliResult> {
     errors,
   };
 
-  return { status: 'ok', data: output };
+  return { status: stageArg === 'FINAL' && !allPassed ? 'error' : 'ok', data: output, ...(stageArg === 'FINAL' && !allPassed ? { message: 'Verification gate failed' } : {}) };
 }
 
 // Guard: refuse direct invocation (must go through index.ts)

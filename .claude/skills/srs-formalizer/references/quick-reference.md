@@ -30,7 +30,7 @@
 |------|------|
 | `npx tsx index.ts emit --name <emitter> --workdir .srs_formalizer` | 单 Emitter 发射（Cypher/Gherkin/TLA+/Lean/Fixture...） |
 | `npx tsx index.ts emit --group graphs\|bdd\|formal\|vmodel\|verify --workdir .srs_formalizer` | 分组发射 |
-| `npx tsx index.ts emit-all --workdir .srs_formalizer` | 全部 12 Emitter 发射 |
+| `npx tsx index.ts emit --group all --workdir .srs_formalizer` | 发射所有 registry Emitter（仅生成 draft 或确定性产物） |
 
 ## Validate
 
@@ -39,9 +39,9 @@
 | `npx tsx index.ts validate-jsonl --file <path> --workdir .srs_formalizer` | JSONL 格式校验（6 项） |
 | `npx tsx index.ts validate-architecture --file <path> --workdir .srs_formalizer` | 架构 JSONL 校验（6 项 + 循环检测） |
 | `npx tsx index.ts validate-cypher --file <path> --workdir .srs_formalizer` | Cypher 脚本校验（4 项） |
-| `npx tsx index.ts validate-bdd --strict --workdir .srs_formalizer` | 四级严格校验（TS基础 + NFR + gherkin-lint + Gherklin） |
-| `npx tsx index.ts validate-tla --file <path> --workdir .srs_formalizer` | SANY 语法解析 + TLC 模型检测 + 6 类 NFR 不变式 |
-| `npx tsx index.ts validate-lean --file <path>` | lake build 编译验证（❌ Windows 不支持） |
+| `npx tsx index.ts validate-bdd --strict --promote --workdir .srs_formalizer` | 严格验证 draft BDD 并原子提升到 verified；不带 `--promote` 时验证 verified |
+| `npx tsx index.ts validate-tla --name <module> --strict --promote --workdir .srs_formalizer` | 验证 matching draft `.tla`/`.cfg`，成功后提升至 verified |
+| `npx tsx index.ts validate-lean --strict --promote --workdir .srs_formalizer` | 审计 draft Lean 项目、执行 `lake build` 并成功提升至 verified（❌ Windows 不支持） |
 | `npx tsx index.ts validate-glossary --file <path> [--min-high N]` | 术语表批次 JSON 校验（8 项 + 门禁） |
 | `npx tsx index.ts validate-checklist --file <path> --workdir .srs_formalizer` | CHECKLIST 完成度校验 |
 
@@ -49,7 +49,7 @@
 
 | 命令 | 功能 |
 |------|------|
-| `npx tsx index.ts verify-gate --workdir .srs_formalizer --stage FRONTEND\|MIDDLE_END\|FINAL` | gate condition 检查 |
+| `npx tsx index.ts verify-gate --workdir .srs_formalizer --stage S1\|R3\|FINAL` | hard gate；FINAL 仅接受带成功报告的 verified 形式化产物 |
 
 ## 维护
 

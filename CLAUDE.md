@@ -13,7 +13,7 @@ cd .claude/skills/srs-formalizer/scripts
 
 npm install                          # devDeps: typescript, @types/node, gherkin-lint, gherklin
 npx tsc --noEmit                     # strict 模式, 0 errors 必须
-npx tsx --test __tests__/*.test.ts   # ~477 tests, 0 fail 必须
+npx tsx --test __tests__/*.test.ts   # 480 tests, 0 fail 必须
 ```
 
 **运行单个测试文件：**
@@ -79,11 +79,23 @@ scripts/
 | 5 | `path.join()` 强制 | 禁止字符串拼接路径 |
 | 6 | 毒值拒绝 | `undefined/null/NaN/[object Object]` 入口拦截 |
 | 7 | 所有命令经 `index.ts` | `refuseDirectInvocation` 阻止直接调用 |
-| 8 | `--output` vs `--workdir` | `init` 用 `--output`, 其余用 `--workdir` |
+| 8 | `--output` vs `--workdir` | `init` 用 `--output`，其余命令用 `--workdir` |
 | 9 | `.srs_formalizer` 强制 | `validateWorkDir` 校验 basename |
 | 10 | 所有写入限工作目录 | `isPathSafe` + `assertSafePath` 双校验 |
+| 11 | 形式化产物生命周期 | 先发射 draft，只有 `validate-… --strict --promote` 可提升 verified；FINAL 仅消费 verified + 成功报告 |
 
-## TLA+ 建模（强制全覆盖）
+## 产物生命周期（强制）
+
+Emitter 只能写入 draft 或确定性目录，不能直接将 BDD、TLA+ 或 Lean 4 产物标记为 verified：
+
+- BDD：`outputs/bdd/draft` → `outputs/bdd/verified`
+- TLA+：`outputs/tlaplus/draft` → `outputs/tlaplus/verified`
+- Lean 4：`outputs/lean4/draft` → `outputs/lean4/verified`
+- 确定性产物：`outputs/graphs`、`outputs/fixtures`、`outputs/reports`
+
+提升必须使用严格验证并写入成功报告：`validate-bdd --strict --promote`、`validate-tla --name <module> --strict --promote`、`validate-lean --strict --promote`。`verify-gate --stage FINAL` 仅消费 verified 产物与验证报告；security/compliance NFR 强制要求 Lean verified 产物。
+
+
 
 所有模块强制 TLA+ 覆盖。层次化 L1→L2→L3，IR 架构节点驱动拆解。6 类 NFR 不变式全部生成（有阈值填值，无阈值 LLM_FILL）。
 
@@ -101,6 +113,6 @@ security/compliance 关键词命中 → 强制。四步拆分证明循环。
 - **错误处理**: `try/catch → { status, message }`，通过 CliResult 返回。
 - **CLI 输出**: JSON 到 stdout (`{ status, message?, data? }`)，成功 exit(0)。
 - Commit: Conventional Commits, `Co-Authored-By: Claude <noreply@anthropic.com>`
-- 提交前: `tsc --noEmit` 0 errors + ~477 tests pass
+- 提交前: `tsc --noEmit` 0 errors + 480 tests pass
 - TLA+ 覆盖所有模块，6 类 NFR 不变式必生成
 - `capability-probe` 探针仅在有工具链时生成 TLA+/Lean 4 维度

@@ -6,17 +6,19 @@ import { generateFeature } from '../bdd.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
+
 export class GherkinEmitter implements Emitter {
   readonly name = 'gherkin';
   readonly description = 'Generate Gherkin .feature files from SRS-IR';
-  readonly outputDir = '4_bdd/features';
+  readonly outputDir = ARTIFACT_PATHS.bddDraft;
 
   emit(ir: SRSIR, workdir: string): EmitResult {
     const features = [
       ...generateModuleFeatures(ir),
       ...generateNFRFeatures(ir),
     ];
-    const outDir = path.join(workdir, this.outputDir);
+    const outDir = artifactPath(workdir, this.outputDir);
     fs.mkdirSync(outDir, { recursive: true });
     const files: string[] = [];
     for (const feat of features) {
@@ -29,7 +31,7 @@ export class GherkinEmitter implements Emitter {
     return {
       files,
       fileCount: files.length,
-      metadata: { moduleCount: features.length },
+      metadata: { moduleCount: features.length, lifecycle: 'draft', requiresCompletion: true },
     };
   }
 }

@@ -24,9 +24,9 @@ function makeIR(): SRSIR {
 
 function setup(leanContent: string): string {
   const wd = path.join(TMP, '.srs_formalizer');
-  fs.mkdirSync(path.join(wd, '5_formal', 'proofs'), { recursive: true });
-  fs.mkdirSync(path.join(wd, '2_graph'), { recursive: true });
-  fs.writeFileSync(path.join(wd, '5_formal', 'proofs', 'defs.lean'), leanContent, 'utf-8');
+  fs.mkdirSync(path.join(wd, 'outputs', 'lean4', 'verified'), { recursive: true });
+  fs.mkdirSync(path.join(wd, 'outputs', 'graphs'), { recursive: true });
+  fs.writeFileSync(path.join(wd, 'outputs', 'lean4', 'verified', 'defs.lean'), leanContent, 'utf-8');
   return wd;
 }
 

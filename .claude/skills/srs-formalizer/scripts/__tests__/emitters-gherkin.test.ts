@@ -156,7 +156,7 @@ describe('GherkinEmitter', () => {
     const result = emitter.emit(ir, workDir);
 
     for (const file of result.files) {
-      assert.ok(file.includes(path.join('4_bdd', 'features')));
+      assert.ok(file.includes(path.join('outputs', 'bdd', 'draft')));
     }
   });
 

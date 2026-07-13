@@ -86,7 +86,7 @@ describe('inject-prompt command', () => {
     fs.mkdirSync(ctxDir, { recursive: true });
     fs.writeFileSync(path.join(ctxDir, 'shard_index.json'), JSON.stringify({
       version: '1.1',
-      source_path: TMP,
+      source_path: srcFile,
       source_hash: 'a'.repeat(64),
       language: 'zh',
       total_chars: 35,

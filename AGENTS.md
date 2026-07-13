@@ -11,7 +11,7 @@ An AI agent skill that formalizes SRS documents into Cypher graphs, Gherkin BDD,
 ```bash
 npm install                         # devDeps: typescript, @types/node, gherkin-lint, gherklin
 npx tsc --noEmit                    # strict mode, must be 0 errors
-npx tsx --test __tests__/*.test.ts  # ~477 tests, must be 0 failures
+npx tsx --test __tests__/*.test.ts  # 480 tests, must be 0 failures
 npm run typecheck && npm test       # shortcuts
 ```
 
@@ -31,7 +31,8 @@ Single test file: `npx tsx --test __tests__/init.test.ts`
 
 ## Key conventions
 
-- **`--output` vs `--workdir`**: `init` uses `--output`, everything else uses `--workdir`. Exception: `validate-lean` finds `lakefile` by walking up from `--file`.
+- **`--output` vs `--workdir`**: `init` uses `--output`, everything else uses `--workdir`.
+- **Artifact lifecycle**: emitters create only draft or deterministic output. Promote BDD/TLA+/Lean only via `validate-… --strict --promote`; FINAL consumes verified sources plus successful validation reports.
 - **`.srs_formalizer` basename enforced** — `validateWorkDir` checks it.
 - **All writes scoped to workdir** — `isPathSafe` + `assertSafePath` dual check.
 - **New code uses `cli.ts`** for arg parsing and path safety. `security.ts` exists but is legacy.
@@ -67,18 +68,17 @@ scripts/
 |------|------|
 | Frontend | `manifest`, `guided-extract`, `inject-prompt`, `build-ir` |
 | Middle-end | `analyze-structure`, `analyze-graph`, `tag-nfr`, `check-connectivity`, `merge-analysis`, `score-risk` |
-| Backend | `emit --group graphs\|bdd\|formal\|vmodel\|verify`, `emit-all`, `validate-bdd --strict` |
-| Validate | `validate-jsonl`, `validate-architecture`, `validate-cypher`, `validate-tla`, `validate-lean`, `validate-glossary`, `verify-gate` |
+| Backend | `emit --group graphs\|bdd\|formal\|vmodel\|verify\|all` |
+| Validate | `validate-jsonl`, `validate-architecture`, `validate-cypher`, `validate-bdd --strict --promote`, `validate-tla --strict --promote`, `validate-lean --strict --promote`, `verify-gate` |
 
 ## Gotchas
 
 - `package-lock.json` is **gitignored** — no lockfile in repo. Run `npm install` to generate one locally.
 - TLA+ validation: delete old trace/state files before debugging.
-- Lean 4: follow the 4-step split-proof cycle (skeleton with sorry → one file per sorry → split further if stuck → repeat).
-- BDD: must be `.feature` files with complete Given/When/Then — never Markdown descriptions.
-- BDD strict mode: 4-level hard-block (TS basic + TS NFR + gherkin-lint + Gherklin). Any failure → kick back to Frontend.
-- TLA+ now covers ALL modules (not conditional). 6 NFR invariants generated per module.
-- `capability-probe` only generates TLA+/Lean 4 dimensions when toolchains are present.
+- Lean 4: completed proofs are promoted only after `validate-lean --strict --promote`; `sorry`, `admit`, `axiom`, full `import Mathlib`, and `: True` weak proofs fail strict audit.
+- BDD strict mode: 4-level hard-block (TS basic + TS NFR + gherkin-lint + Gherklin). Use `--promote` only after all checks pass.
+- TLA+ covers ALL modules; use `validate-tla --name <module> --strict --promote` to move a draft spec and matching cfg to verified.
+- `verify-gate --stage FINAL` is a hard gate: it accepts only verified formal artifacts with successful validation reports.
 
 ## Where to find detailed docs
 

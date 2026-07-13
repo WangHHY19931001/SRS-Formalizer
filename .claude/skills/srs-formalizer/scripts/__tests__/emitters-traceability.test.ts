@@ -45,28 +45,28 @@ function makeIR(): SRSIR {
 }
 
 function setupArtifacts(wd: string) {
-  fs.mkdirSync(path.join(wd, '4_bdd', 'features'), { recursive: true });
-  fs.mkdirSync(path.join(wd, '5_formal', 'specs'), { recursive: true });
-  fs.mkdirSync(path.join(wd, '5_formal', 'proofs'), { recursive: true });
-  fs.mkdirSync(path.join(wd, 'test_fixtures', 'unit', 'pytest'), { recursive: true });
+  fs.mkdirSync(path.join(wd, 'outputs', 'bdd', 'verified'), { recursive: true });
+  fs.mkdirSync(path.join(wd, 'outputs', 'tlaplus', 'verified'), { recursive: true });
+  fs.mkdirSync(path.join(wd, 'outputs', 'lean4', 'verified'), { recursive: true });
+  fs.mkdirSync(path.join(wd, 'outputs', 'fixtures', 'unit', 'pytest'), { recursive: true });
 
-  fs.writeFileSync(path.join(wd, '4_bdd', 'features', 'login.feature'), `Feature: Login
+  fs.writeFileSync(path.join(wd, 'outputs', 'bdd', 'verified', 'login.feature'), `Feature: Login
   Scenario: R1-01: Valid login
     Given a user
     When they log in
     Then they are authenticated
 `);
 
-  fs.writeFileSync(path.join(wd, '5_formal', 'specs', 'Login.tla'), `---- MODULE Login ----
+  fs.writeFileSync(path.join(wd, 'outputs', 'tlaplus', 'verified', 'Login.tla'), `---- MODULE Login ----
 Inv == TRUE
 TypeOK == TRUE
 ====
 `);
 
-  fs.writeFileSync(path.join(wd, '5_formal', 'proofs', 'auth.lean'), `theorem login_invariant : True := by trivial
+  fs.writeFileSync(path.join(wd, 'outputs', 'lean4', 'verified', 'auth.lean'), `theorem login_invariant : True := by trivial
 `);
 
-  fs.writeFileSync(path.join(wd, 'test_fixtures', 'unit', 'pytest', 'test_login.py'), '# fixture');
+  fs.writeFileSync(path.join(wd, 'outputs', 'fixtures', 'unit', 'pytest', 'test_login.py'), '# fixture');
 }
 
 describe('TraceabilityMatrixEmitter', () => {
@@ -91,14 +91,14 @@ describe('TraceabilityMatrixEmitter', () => {
     assert.ok(cypherExists);
   });
 
-  it('writes to 6_vmodel/ directory', () => {
+  it('writes to outputs/reports/ directory', () => {
     const wd = path.join(TMP, '.srs_formalizer_t2');
     fs.mkdirSync(wd, { recursive: true });
     setupArtifacts(wd);
     const ir = makeIR();
     const result = emitter.emit(ir, wd);
     for (const f of result.files) {
-      assert.ok(f.includes('6_vmodel'));
+      assert.ok(f.includes(path.join('outputs', 'reports')));
     }
   });
 

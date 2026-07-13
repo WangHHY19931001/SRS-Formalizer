@@ -70,10 +70,12 @@ function sanitizeEdgeRelType(type: string): string {
   return type.replace(/[^A-Za-z0-9_]/g, '');
 }
 
+import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
+
 export class CypherEmitter implements Emitter {
   readonly name = 'cypher';
   readonly description = 'Export SRS IR to Cypher knowledge graph (Neo4j)';
-  readonly outputDir = '2_graph';
+  readonly outputDir = ARTIFACT_PATHS.graphs;
 
   emit(ir: SRSIR, workdir: string): EmitResult {
     const lines: string[] = [
@@ -108,7 +110,7 @@ export class CypherEmitter implements Emitter {
 
     lines.push('');
 
-    const outputDir = path.join(workdir, this.outputDir);
+    const outputDir = artifactPath(workdir, this.outputDir);
     fs.mkdirSync(outputDir, { recursive: true });
     const cypherFile = path.join(outputDir, 'srs-graph.cypher');
     fs.writeFileSync(cypherFile, lines.join('\n'), 'utf-8');

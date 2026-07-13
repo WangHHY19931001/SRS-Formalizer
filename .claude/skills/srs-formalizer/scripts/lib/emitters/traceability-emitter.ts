@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type { SRSIR, IRNode, IREdge } from '../../types/srs-ir.js';
 import type { Emitter, EmitResult } from './types.js';
 import { sanitizeId } from '../id-utils.js';
+import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
 
 interface MatrixRow {
   reqId: string;
@@ -61,7 +62,7 @@ function collectReachableEdges(startId: string, adj: Map<string, Set<string>>, v
 
 function scanBddScenarios(workdir: string): Map<string, string[]> {
   const bddMap = new Map<string, string[]>();
-  const bddDir = path.join(workdir, '4_bdd', 'features');
+  const bddDir = artifactPath(workdir, ARTIFACT_PATHS.bddVerified);
   if (!fs.existsSync(bddDir)) return bddMap;
 
   for (const f of fs.readdirSync(bddDir).filter(fn => fn.endsWith('.feature'))) {
@@ -84,7 +85,7 @@ function scanBddScenarios(workdir: string): Map<string, string[]> {
 
 function scanTlaInvariants(workdir: string): Map<string, string[]> {
   const tlaMap = new Map<string, string[]>();
-  const tlaDir = path.join(workdir, '5_formal', 'specs');
+  const tlaDir = artifactPath(workdir, ARTIFACT_PATHS.tlaVerified);
   if (!fs.existsSync(tlaDir)) return tlaMap;
 
   for (const f of fs.readdirSync(tlaDir).filter(fn => fn.endsWith('.tla'))) {
@@ -102,7 +103,7 @@ function scanTlaInvariants(workdir: string): Map<string, string[]> {
 
 function scanLeanTheorems(workdir: string): Map<string, string[]> {
   const leanMap = new Map<string, string[]>();
-  const leanDir = path.join(workdir, '5_formal', 'proofs');
+  const leanDir = artifactPath(workdir, ARTIFACT_PATHS.leanVerified);
   if (!fs.existsSync(leanDir)) return leanMap;
 
   for (const f of fs.readdirSync(leanDir).filter(fn => fn.endsWith('.lean'))) {
@@ -120,7 +121,7 @@ function scanLeanTheorems(workdir: string): Map<string, string[]> {
 
 function scanFixtureFiles(workdir: string): Map<string, string[]> {
   const fixtureMap = new Map<string, string[]>();
-  const fixtureDir = path.join(workdir, 'test_fixtures');
+  const fixtureDir = artifactPath(workdir, ARTIFACT_PATHS.fixtures);
   if (!fs.existsSync(fixtureDir)) return fixtureMap;
 
   const walk = (dir: string, prefix: string) => {
@@ -273,13 +274,13 @@ function formatCypherMatrix(rows: MatrixRow[]): string {
 export class TraceabilityMatrixEmitter implements Emitter {
   readonly name = 'traceabilityMatrix';
   readonly description = 'Build V-Model traceability matrix from requirement nodes and artifacts';
-  readonly outputDir = '6_vmodel';
+  readonly outputDir = ARTIFACT_PATHS.reports;
 
   emit(ir: SRSIR, workdir: string): EmitResult {
     const rows = buildMatrix(ir, workdir);
     const counts = buildCounts(rows);
 
-    const outputDir = path.join(workdir, this.outputDir);
+    const outputDir = artifactPath(workdir, this.outputDir);
     fs.mkdirSync(outputDir, { recursive: true });
 
     const mdContent = formatMarkdownTable(rows);

@@ -5,6 +5,7 @@ import type { Emitter, EmitResult } from './types.js';
 import { sanitizeId } from '../id-utils.js';
 import { exportGraphToCypher, type CypherNode, type CypherEdge } from '../cypher.js';
 import { scanTlaSourceForPlaceholders } from '../verify-gate/shared.js';
+import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
 
 interface ParsedTlaAction {
   name: string;
@@ -251,21 +252,21 @@ function buildTlaGraph(specsDir: string): TlaGraph {
 export class TlaGraphEmitter implements Emitter {
   readonly name = 'tlaGraph';
   readonly description = 'Build system interaction graph from TLA+ specs';
-  readonly outputDir = '2_graph';
+  readonly outputDir = ARTIFACT_PATHS.graphs;
 
   emit(_ir: SRSIR, workdir: string): EmitResult {
-    const specsDir = path.join(workdir, '5_formal', 'specs');
+    const specsDir = artifactPath(workdir, ARTIFACT_PATHS.tlaVerified);
     if (!fs.existsSync(specsDir)) {
-      return { files: [], fileCount: 0, metadata: { error: 'specs directory not found' } };
+      return { files: [], fileCount: 0, metadata: { skipped: 'verified TLA+ specs not found' } };
     }
 
     const graph = buildTlaGraph(specsDir);
     const placeholders = scanTlaSourceForPlaceholders(specsDir);
 
-    const jsonFile = path.join(workdir, this.outputDir, 'tla-interaction-graph.json');
-    const cypherFile = path.join(workdir, this.outputDir, 'tla-interaction.cypher');
+    const jsonFile = path.join(artifactPath(workdir, this.outputDir), 'tla-interaction-graph.json');
+    const cypherFile = path.join(artifactPath(workdir, this.outputDir), 'tla-interaction.cypher');
 
-    fs.mkdirSync(path.join(workdir, this.outputDir), { recursive: true });
+    fs.mkdirSync(artifactPath(workdir, this.outputDir), { recursive: true });
     fs.writeFileSync(jsonFile, JSON.stringify(graph, null, 2), 'utf-8');
 
     const cypherNodes: CypherNode[] = graph.nodes.map(n => ({

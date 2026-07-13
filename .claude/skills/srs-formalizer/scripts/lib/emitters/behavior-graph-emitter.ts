@@ -240,23 +240,25 @@ function buildBehaviorGraph(featuresDir: string, _ir: SRSIR): BehaviorGraph {
   };
 }
 
+import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
+
 export class BehaviorGraphEmitter implements Emitter {
   readonly name = 'behaviorGraph';
   readonly description = 'Build behavior graph from BDD feature files and SRS IR';
-  readonly outputDir = '2_graph';
+  readonly outputDir = ARTIFACT_PATHS.graphs;
 
   emit(ir: SRSIR, workdir: string): EmitResult {
-    const featuresDir = path.join(workdir, '4_bdd', 'features');
+    const featuresDir = artifactPath(workdir, ARTIFACT_PATHS.bddVerified);
     if (!fs.existsSync(featuresDir)) {
-      return { files: [], fileCount: 0, metadata: { error: 'features directory not found' } };
+      return { files: [], fileCount: 0, metadata: { skipped: 'verified BDD features not found' } };
     }
 
     const graph = buildBehaviorGraph(featuresDir, ir);
 
-    const jsonFile = path.join(workdir, this.outputDir, 'behavior-graph.json');
-    const cypherFile = path.join(workdir, this.outputDir, 'behavior-graph.cypher');
+    const jsonFile = path.join(artifactPath(workdir, this.outputDir), 'behavior-graph.json');
+    const cypherFile = path.join(artifactPath(workdir, this.outputDir), 'behavior-graph.cypher');
 
-    fs.mkdirSync(path.join(workdir, this.outputDir), { recursive: true });
+    fs.mkdirSync(artifactPath(workdir, this.outputDir), { recursive: true });
     fs.writeFileSync(jsonFile, JSON.stringify(graph, null, 2), 'utf-8');
 
     const cypherNodes: CypherNode[] = graph.nodes.map(n => ({

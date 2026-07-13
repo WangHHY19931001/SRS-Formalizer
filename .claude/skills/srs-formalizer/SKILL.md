@@ -221,9 +221,18 @@ Backend: emit (12 Emitters) → validate-* → verify-gate FINAL
 │   └── risk/              # 风险评分
 ├── outputs/
 │   ├── graphs/            # Cypher 知识图谱
-│   ├── bdd/               # .feature 文件
-│   ├── tlaplus/           # TLA+ 规约 (.tla)
-│   ├── lean4/             # Lean 4 证明 (.lean)
+│   ├── bdd/
+│   │   ├── draft/         # Gherkin 草稿
+│   │   ├── verified/      # 严格校验并提升的 .feature
+│   │   └── validation/    # BDD 验证报告
+│   ├── tlaplus/
+│   │   ├── draft/         # TLA+ 草稿 (.tla/.cfg)
+│   │   ├── verified/      # 已验证 TLA+ 模块
+│   │   └── validation/    # TLA+ 验证报告
+│   ├── lean4/
+│   │   ├── draft/         # Lean 4 草稿
+│   │   ├── verified/      # lake build 通过的证明
+│   │   └── validation/    # Lean 4 验证报告
 │   └── reports/           # 验证报告 + 收敛日志
 ```
 
@@ -279,7 +288,8 @@ Backend: emit (12 Emitters) → validate-* → verify-gate FINAL
 **格式要求：**
 - 必须采用独立 `.feature` 文件格式建模，**不接受 Markdown 模式描述 BDD**
 - 必须有完整步骤（Given → When → Then → And），必须完整定义状态和状态转换
-- 必须通过四级严格校验（`validate-bdd --strict`）
+- 必须通过四级严格校验并使用 `validate-bdd --strict --promote` 原子提升到 `outputs/bdd/verified`
+- 不带 `--promote` 的验证只读取 verified 产物
 
 **质量门禁（四级全硬阻塞，任一失败打回 Frontend）：**
 1. **Phase 1: TS 基础结构** — Feature/Scenario/Given/When/Then 存在性校验
@@ -305,7 +315,8 @@ Backend: emit (12 Emitters) → validate-* → verify-gate FINAL
 2. 先通过 SANY 语法检查，再执行 TLC 模型检查
 3. 失败 → `prompts/debug-tlc.md` 子代理定位根因 → 修正后回到步骤 1
 
-**质量门禁（全部必须通过，`validate-tla` 严格模式）：**
+**质量门禁（全部必须通过，`validate-tla --name <module> --strict --promote`）：**
+- 从 `outputs/tlaplus/draft` 验证同名 `.tla`/`.cfg`；成功后写入报告并提升至 `outputs/tlaplus/verified`
 - SANY 语法检查通过 + TLC 模型检查通过 + 6 类 NFR 不变式通过
 - 不允许死锁（`-deadlock`）、状态爆炸、违法不变式（TypeOK）、活锁（停滞）、奇迹（不可能的状态转换）
 - 不允许占位实现、简化实现、错误实现
@@ -317,11 +328,11 @@ Backend: emit (12 Emitters) → validate-* → verify-gate FINAL
 
 **平台限制：** ❌ Windows 禁止（引导使用 WSL2）。✅ Linux x86_64 / ✅ macOS ARM64。
 
-**拆分证明方法（强制四步循环）：**
-1. 编写证明骨架（带 `sorry`）
-2. 将每个 `sorry` 变为独立文件证明
-3. 若一个 theorem/lemma 无法搞定，拆分为多个文件分别证明，然后 `import`
-4. 若仍有 `sorry`，回到步骤 1 继续拆分——递归至 0 个 sorry
+**拆分证明方法（严格交付前清零）：**
+1. Emitter 仅生成带交付要求的 draft，不生成 `sorry` 或 `: True` 弱化证明
+2. 在项目本地的 Lean 文件中完成每个 theorem/lemma
+3. 若一个 theorem/lemma 无法完成，拆分为多个文件分别证明，然后 `import`
+4. 使用 `validate-lean --strict --promote` 审计并运行 `lake build`；通过后才提升到 `outputs/lean4/verified`
 
 **质量门禁（全部必须通过）：**
 - 必须通过 `lake build` 编译验证
@@ -354,7 +365,7 @@ Backend: emit (12 Emitters) → validate-* → verify-gate FINAL
 
 ## 快速参考
 
-完整的 25 条 CLI 命令参考表见 `references/quick-reference.md`。核心 Backend 命令：`emit --name/--group`（单/组发射）、`emit-all`（全发射）。新增 Middle-end 命令：`tag-nfr`、`score-risk`、`check-connectivity`。
+完整的 CLI 命令参考表见 `references/quick-reference.md`。Backend 流程为 `emit --name/--group` 生成 draft/确定性产物，再通过 `validate-… --strict --promote` 提升。`emit --group all` 是全量发射入口；不存在 `emit-all` 命令。FINAL 只接受 verified 产物及成功验证报告。
 
 > **Agent 注意**: 所有命令必须通过 `npx tsx index.ts <command>` 调用。参数值禁止使用 `undefined`、`null`、`NaN` 等占位符。`init` 命令使用 `--output`（不是 `--workdir`）。
 

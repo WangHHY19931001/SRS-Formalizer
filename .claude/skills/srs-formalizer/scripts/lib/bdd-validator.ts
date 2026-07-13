@@ -8,11 +8,14 @@ const MUSTACHE_PATTERN = /\{\{\w+\}\}/;
 
 const LLM_FILL_PATTERNS = [
   /<LLM_FILL>/i,
+  /<THEN_PLACEHOLDER>/i,
   /<TODO>/i,
   /<FILL_HERE>/i,
   /<INSERT_.*>/i,
   /\[TODO\]/i,
   /\[FIXME\]/i,
+  /\b(?:TBD|GAP)\b/i,
+  /待定|未定义|待实现/i,
 ];
 
 export function validateFeatureBasic(content: string): BddValidationResult {

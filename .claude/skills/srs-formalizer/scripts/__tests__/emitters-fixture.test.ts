@@ -65,18 +65,18 @@ function makeIR(overrides?: Partial<SRSIR>): SRSIR {
 }
 
 function setup(wd: string) {
-  fs.mkdirSync(path.join(wd, '4_bdd', 'features'), { recursive: true });
-  fs.mkdirSync(path.join(wd, '5_formal', 'specs'), { recursive: true });
-  fs.mkdirSync(path.join(wd, '5_formal', 'proofs'), { recursive: true });
+  fs.mkdirSync(path.join(wd, 'outputs', 'bdd', 'verified'), { recursive: true });
+  fs.mkdirSync(path.join(wd, 'outputs', 'tlaplus', 'verified'), { recursive: true });
+  fs.mkdirSync(path.join(wd, 'outputs', 'lean4', 'verified'), { recursive: true });
 
-  fs.writeFileSync(path.join(wd, '4_bdd', 'features', 'login.feature'), `Feature: Login
+  fs.writeFileSync(path.join(wd, 'outputs', 'bdd', 'verified', 'login.feature'), `Feature: Login
   Scenario: R1-01: Valid login
     Given a registered user
     When they enter correct credentials
     Then they are authenticated
 `);
 
-  fs.writeFileSync(path.join(wd, '5_formal', 'specs', 'LoginModule.tla'), `---- MODULE LoginModule ----
+  fs.writeFileSync(path.join(wd, 'outputs', 'tlaplus', 'verified', 'LoginModule.tla'), `---- MODULE LoginModule ----
 VARIABLES authenticated
 Init == authenticated = FALSE
 Next == authenticated' = TRUE
@@ -84,7 +84,7 @@ TypeOK == authenticated \in BOOLEAN
 ====
 `);
 
-  fs.writeFileSync(path.join(wd, '5_formal', 'proofs', 'auth.lean'), `import Mathlib
+  fs.writeFileSync(path.join(wd, 'outputs', 'lean4', 'verified', 'auth.lean'), `import Mathlib
 theorem auth_invariant (b : Bool) : b || !b := by
   simp
 `);

@@ -3,6 +3,8 @@ import * as path from 'node:path';
 import type { SRSIR, IRNode } from '../../types/srs-ir.js';
 import type { Emitter, EmitResult } from './types';
 
+import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
+
 function sanitizeLeanName(name: string): string {
   return name
     .replace(/[^a-zA-Z0-9_]/g, '_')
@@ -80,21 +82,15 @@ function generateLemmaSuggestions(node: IRNode): string[] {
 
 function generateLeanModule(group: ModuleGroup): string {
   const lines: string[] = [];
-  lines.push('import Mathlib');
-  lines.push('');
-  lines.push(`/-! Module: ${group.module}`);
-  lines.push('');
-  lines.push('Generated from SRS IR NFR nodes (security/compliance).');
-  lines.push('Proofs are skeletal — each `sorry` must be filled by a Lean 4 proof.');
-  lines.push('-/');
+  lines.push('Lean 4 completion plan generated from SRS IR NFR nodes.');
+  lines.push('Replace this draft with project-local imports and completed proofs before validation.');
   lines.push('');
 
   for (const nfr of group.nfrs) {
     const description = extractStatement(nfr);
     const theoremName = generateTheoremSignature(nfr);
-    lines.push(`/-- ${description} --/`);
-    lines.push(`theorem ${theoremName} : True := by`);
-    lines.push('  sorry  -- LLM_FILL: 构造性证明策略');
+    lines.push(`-- Delivery theorem required: ${theoremName}`);
+    lines.push(`-- Requirement: ${description}`);
     lines.push('');
 
     const lemmas = generateLemmaSuggestions(nfr);
@@ -114,7 +110,7 @@ function generateLeanModule(group: ModuleGroup): string {
 export class LeanEmitter implements Emitter {
   readonly name = 'leanProof';
   readonly description = 'Generate Lean 4 proof skeletons from SRS-IR';
-  readonly outputDir = '5_formal/proofs';
+  readonly outputDir = ARTIFACT_PATHS.leanDraft;
 
   emit(ir: SRSIR, workdir: string): EmitResult {
     if (!isTriggered(ir)) {
@@ -127,7 +123,7 @@ export class LeanEmitter implements Emitter {
     }
 
     const groups = groupByModule(securityComplianceNfrs);
-    const outDir = path.join(workdir, this.outputDir);
+    const outDir = artifactPath(workdir, this.outputDir);
     fs.mkdirSync(outDir, { recursive: true });
     const files: string[] = [];
 
@@ -144,6 +140,7 @@ export class LeanEmitter implements Emitter {
       fileCount: files.length,
       metadata: {
         triggered: true,
+        requiresHumanProofCompletion: true,
         moduleCount: groups.size,
         nfrCount: securityComplianceNfrs.length,
       },

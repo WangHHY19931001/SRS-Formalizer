@@ -85,7 +85,7 @@ describe('verify-gate command', () => {
     assert.equal(data.pass, true);
     const checks = data.checks as Record<string, { passed: boolean }>;
     assert.ok(checks['STATE.md exists']!.passed);
-    assert.ok(checks['1_input/shard_index.json exists']!.passed);
+    assert.ok(checks['_ctx/shard_index.json exists']!.passed);
     assert.ok(checks['r1-explicit has JSONL files']!.passed);
   });
 
@@ -156,7 +156,7 @@ describe('verify-gate command', () => {
     assert.equal(data.pass, true);
     const checks = data.checks as Record<string, { passed: boolean }>;
     assert.ok(checks['STATE.md exists']!.passed);
-    assert.ok(checks['1_input/shard_index.json exists']!.passed);
+    assert.ok(checks['_ctx/shard_index.json exists']!.passed);
     assert.ok(checks['r1-explicit has JSONL files']!.passed);
     assert.ok(checks['JSONL existence (all subdirectories)']!.passed);
     assert.ok(checks['ID uniqueness (no duplicates across files)']!.passed);

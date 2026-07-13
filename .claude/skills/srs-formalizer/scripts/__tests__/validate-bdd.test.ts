@@ -8,12 +8,12 @@ const TMP = path.join(os.tmpdir(), `srs-formalizer-validate-bdd-test-${Date.now(
 
 function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
-  fs.mkdirSync(path.join(workDir, '4_bdd', 'features'), { recursive: true });
+  fs.mkdirSync(path.join(workDir, 'outputs', 'bdd', 'verified'), { recursive: true });
   return workDir;
 }
 
 function writeFeature(workDir: string, fileName: string, content: string): void {
-  fs.writeFileSync(path.join(workDir, '4_bdd', 'features', fileName), content, 'utf-8');
+  fs.writeFileSync(path.join(workDir, 'outputs', 'bdd', 'verified', fileName), content, 'utf-8');
 }
 
 // A valid minimal feature file that passes BDD validation
@@ -46,8 +46,7 @@ describe('validate-bdd command', () => {
     const data = result.data as Record<string, unknown>;
     assert.equal(data.valid, true);
     assert.equal(data.files_checked, 1);
-    assert.ok(Array.isArray(data.errors));
-    assert.equal((data.errors as unknown[]).length, 0);
+    assert.ok(typeof data.report === 'string');
   });
 
   it('returns error when missing --workdir argument', async () => {
@@ -58,29 +57,23 @@ describe('validate-bdd command', () => {
     assert.ok(result.message!.includes('Missing required argument'));
   });
 
-  it('returns ok (empty success) when features directory does not exist', async () => {
+  it('returns an error when verified features directory does not exist', async () => {
     const workDir = path.join(TMP, 'no-features', '.srs_formalizer');
     fs.mkdirSync(path.dirname(workDir), { recursive: true });
 
     const { main } = await import('../commands/validate-bdd.js');
     const result = await main(['--workdir', workDir]);
 
-    assert.equal(result.status, 'ok');
-    const data = result.data as Record<string, unknown>;
-    assert.equal(data.valid, true);
-    assert.equal(data.files_checked, 0);
+    assert.equal(result.status, 'error');
   });
 
-  it('returns ok (empty success) when no .feature files exist', async () => {
+  it('returns an error when no verified feature files exist', async () => {
     const workDir = createWorkDir('empty-features');
 
     const { main } = await import('../commands/validate-bdd.js');
     const result = await main(['--workdir', workDir]);
 
-    assert.equal(result.status, 'ok');
-    const data = result.data as Record<string, unknown>;
-    assert.equal(data.valid, true);
-    assert.equal(data.files_checked, 0);
+    assert.equal(result.status, 'error');
   });
 
   it('rejects non-.srs_formalizer workdir', async () => {
