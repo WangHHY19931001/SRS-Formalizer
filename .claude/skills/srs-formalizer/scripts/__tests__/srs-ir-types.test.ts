@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
+import type { IRMeta } from '../types/srs-ir.js';
 
 describe('NFRCategory', () => {
   it('accepts all six valid categories', () => {
@@ -89,5 +90,65 @@ describe('IREdge', () => {
       properties: { crossFileWeight: 0.7 },
     };
     assert.strictEqual(edge.properties.crossFileWeight, 0.7);
+  });
+});
+
+describe('SRSIR', () => {
+  it('top-level structure has all required fields', () => {
+    const ir = {
+      version: '2.0.0' as const,
+      meta: {
+        sourcePath: '/tmp/srs.md', sourceHash: 'abc123', language: 'zh',
+        totalChars: 1000, totalShards: 3, totalNodes: 5, totalEdges: 2,
+        buildTimestamp: new Date().toISOString(),
+      },
+      nodes: [], edges: [], crossRefs: [],
+      nfrProfile: { detectedCategories: [], weightedShards: [], overallCoverage: 0, blindSpots: [] },
+      gaps: [], glossary: [],
+    };
+    assert.strictEqual(ir.version, '2.0.0');
+  });
+
+  it('CrossRef has four refTypes', () => {
+    const ref = {
+      sourceShard: 'shard-1', targetShard: 'shard-2',
+      refType: 'explicit_see', anchorText: '参见§3', confidence: 0.9,
+    };
+    assert.strictEqual(ref.refType, 'explicit_see');
+  });
+
+  it('IRMeta.riskScore is optional', () => {
+    const meta: IRMeta = {
+      sourcePath: '/tmp/srs.md', sourceHash: 'abc', language: 'zh',
+      totalChars: 0, totalShards: 0, totalNodes: 0, totalEdges: 0,
+      buildTimestamp: new Date().toISOString(),
+    };
+    assert.strictEqual(meta.riskScore, undefined);
+  });
+
+  it('NFRProfile detects blindSpots', () => {
+    const profile = {
+      detectedCategories: [{ category: 'performance', keywordHits: 3, shardIds: ['shard-1'], nodeIds: [] }],
+      weightedShards: [{ shardId: 'shard-1', nfrWeight: 0.8 }],
+      overallCoverage: 0.17,
+      blindSpots: ['security', 'availability', 'compatibility', 'maintainability', 'compliance'],
+    };
+    assert.strictEqual(profile.blindSpots.length, 5);
+  });
+
+  it('IRGap has cross_chapter_gap type', () => {
+    const gap = {
+      priority: 'P1', type: 'cross_chapter_gap',
+      description: '§2 引用了 §5 但 §5 不存在', sourceChapter: '§2',
+    };
+    assert.strictEqual(gap.type, 'cross_chapter_gap');
+  });
+
+  it('IRGlossaryEntry has all categories', () => {
+    const entry = {
+      term: 'JWT', acronym: 'JSON Web Token', definition: '令牌',
+      sourceShard: 'shard-1', confidence: 'high', category: 'domain_concept',
+    };
+    assert.strictEqual(entry.category, 'domain_concept');
   });
 });

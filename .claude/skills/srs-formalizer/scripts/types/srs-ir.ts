@@ -92,3 +92,73 @@ export interface IREdge {
   type: IREdgeType;
   properties: IREdgeProperties;
 }
+
+export interface IRMeta {
+  sourcePath: string;
+  sourceHash: string;
+  language: 'zh' | 'en';
+  totalChars: number;
+  totalShards: number;
+  totalNodes: number;
+  totalEdges: number;
+  buildTimestamp: string;
+  riskScore?: number;
+  highRiskShards?: string[];
+}
+
+export interface CrossRef {
+  sourceShard: string;
+  targetShard: string;
+  refType: 'heading_ref' | 'term_ref' | 'explicit_see' | 'implicit_dep';
+  anchorText: string;
+  confidence: number;
+}
+
+export interface NFRProfile {
+  detectedCategories: NFREntry[];
+  weightedShards: NFRWeightedShard[];
+  overallCoverage: number;
+  blindSpots: NFRCategory[];
+}
+
+export interface NFREntry {
+  category: NFRCategory;
+  keywordHits: number;
+  shardIds: string[];
+  nodeIds: string[];
+}
+
+export interface NFRWeightedShard {
+  shardId: string;
+  nfrWeight: number;
+  primaryCategory?: NFRCategory;
+}
+
+export interface IRGap {
+  priority: 'P0' | 'P1' | 'P2' | 'P3';
+  type: 'unsolved_issue' | 'undefined_term' | 'missing_reference'
+      | 'incomplete_section' | 'cross_chapter_gap';
+  description: string;
+  sourceChapter: string;
+}
+
+export interface IRGlossaryEntry {
+  term: string;
+  acronym?: string;
+  definition: string;
+  sourceShard: string;
+  confidence: 'high' | 'medium' | 'low';
+  category: 'domain_concept' | 'acronym' | 'technical_entity'
+          | 'business_entity' | 'defined_term';
+}
+
+export interface SRSIR {
+  version: '2.0.0';
+  meta: IRMeta;
+  nodes: IRNode[];
+  edges: IREdge[];
+  crossRefs: CrossRef[];
+  nfrProfile: NFRProfile;
+  gaps: IRGap[];
+  glossary: IRGlossaryEntry[];
+}
