@@ -46,7 +46,7 @@ export interface ShardIndex {
   nfr_profile: NFRProfile;
 }
 
-interface GapEntry {
+export interface GapEntry {
   priority: 'P0' | 'P1' | 'P2' | 'P3';
   type: string;
   description: string;
