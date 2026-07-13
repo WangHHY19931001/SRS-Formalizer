@@ -34,6 +34,7 @@ Commands:
   generate-test-fixtures Generate test fixtures from source artifacts (--level --framework)
   fixture-coverage   Compute fixture coverage report
   generate-vmodel-matrix Build V-Model traceability matrix (--format markdown|cypher) [--output]
+  build-ir           Build SRS IR graph from extracted JSONL files
 
 Options:
   --help    Show this help message
@@ -75,6 +76,7 @@ const COMMANDS: Record<
   "generate-test-fixtures": () => import("./commands/generate-test-fixtures.js"),
   "fixture-coverage": () => import("./commands/fixture-coverage.js"),
   "generate-vmodel-matrix": () => import("./commands/generate-vmodel-matrix.js"),
+  "build-ir": () => import("./commands/build-ir.js"),
 };
 
 async function main(): Promise<void> {
