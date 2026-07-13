@@ -12,21 +12,14 @@ Commands:
   inject-prompt      Inject params into a template and output result
   guided-extract     Interactive line-by-line JSONL extraction with validation
   validate-jsonl     Validate JSONL file (6 checks)
-  build-graph        Build requirement knowledge graph from JSONL files
   analyze-structure  Analyze graph for structural defects
   merge-structure    Merge sub-agent completion suggestions into graph
   analyze-graph      Analyze graph for semantic issues (duplicates, conflicts, aspects)
   merge-analysis     Merge sub-agent analysis verdicts into graph
-  export-cypher      Export knowledge graph as Cypher script
   verify-gate        Run verification gate checks (--stage S1|R3|FINAL)
-  generate-bdd       Generate Gherkin BDD skeleton from requirement graph
   validate-bdd       Validate .feature files in the workdir
   query-graph        Graph query and traversal interface (--query <type> --params '<json>')
   build-architecture Build architecture graph from architecture JSONL files
-  build-behavior-graph Build system behavior graph from BDD feature files
-  build-tla-graph    Build system interaction graph from TLA+ specs
-  build-lean-graph     Build proof dependency graph from Lean 4 proofs
-  build-system-architecture Build cross-layer synthesis graph + consistency check
   validate-architecture Validate architecture JSONL records (6 checks)
   validate-cypher   Validate .cypher script file (4 checks)
   validate-glossary Validate glossary JSON file (8 checks + gate)
@@ -60,21 +53,14 @@ const COMMANDS: Record<
   "inject-prompt": () => import("./commands/inject-prompt.js"),
   "guided-extract": () => import("./commands/guided-extract.js"),
   "validate-jsonl": () => import("./commands/validate-jsonl.js"),
-  "build-graph": () => import("./commands/build-graph.js"),
   "analyze-structure": () => import("./commands/analyze-structure.js"),
   "merge-structure": () => import("./commands/merge-structure.js"),
   "analyze-graph": () => import("./commands/analyze-graph.js"),
   "merge-analysis": () => import("./commands/merge-analysis.js"),
-  "export-cypher": () => import("./commands/export-cypher.js"),
   "verify-gate": () => import("./commands/verify-gate.js"),
-  "generate-bdd": () => import("./commands/generate-bdd.js"),
   "validate-bdd": () => import("./commands/validate-bdd.js"),
   "query-graph": () => import("./commands/query-graph.js"),
   "build-architecture": () => import("./commands/build-architecture.js"),
-  "build-behavior-graph": () => import("./commands/build-behavior-graph.js"),
-  "build-tla-graph": () => import("./commands/build-tla-graph.js"),
-  "build-lean-graph": () => import("./commands/build-lean-graph.js"),
-  "build-system-architecture": () => import("./commands/build-system-architecture.js"),
   "validate-architecture": () => import("./commands/validate-architecture.js"),
   "validate-cypher": () => import("./commands/validate-cypher.js"),
   "validate-glossary": () => import("./commands/validate-glossary.js"),
