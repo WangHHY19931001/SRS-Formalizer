@@ -225,7 +225,7 @@ export function checkLeanGraphExists(workDir: string): CheckResult {
 export function checkSystemArchitectureExists(workDir: string): CheckResult {
   const graphPath = path.join(workDir, '6_outputs', 'system-architecture.json');
   if (!fs.existsSync(graphPath)) {
-    return { name: 'System architecture graph exists', passed: false, detail: 'Not found — run build-system-architecture' };
+    return { name: 'System architecture graph exists', passed: false, detail: 'Not found — run emit --name systemArch' };
   }
   try {
     const g = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));

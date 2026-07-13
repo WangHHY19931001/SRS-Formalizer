@@ -75,7 +75,7 @@ describe('AntiSkillInjector', () => {
   });
 
   it('injects verifier isolation constraint for executor-R dispatch', () => {
-    const ir = makeIR([makeStep(1, 'dispatch subagent with executor-R1')]);
+    const ir = makeIR([makeStep(1, 'dispatch subagent with executor-frontend-extract')]);
     const result = inject(ir);
     const isoConstraint = result.anti_skill_constraints.find(
       c => c.content.includes('FRESH session')

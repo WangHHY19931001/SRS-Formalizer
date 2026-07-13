@@ -61,22 +61,23 @@ export const CHECKLISTS: Record<string, string> = {
 `,
   '3_graph': `# S3 图谱构建 — 验收清单
 
-- [ ] build-graph 成功：节点数 ≥ R1 数
+- [ ] build-ir 成功：srs-ir.json 存在，节点数 ≥ JSONL 记录数
 - [ ] build-architecture 成功：Module/Actor/Constraint 节点存在
-- [ ] analyze-structure 完成：orphan/dangling/island 报告
+- [ ] analyze-structure 完成：orphan/dangling/island/cross-file 报告
 - [ ] analyze-graph 完成：duplicate/conflict/cluster 报告
-- [ ] export-cypher 成功：schema.cypher 非空
+- [ ] emit --name cypher 成功：schema.cypher 非空
 - [ ] validate-cypher PASS
+- [ ] tag-nfr 完成：NFR 节点标注 + 阈值提取
 - [ ] verify-gate R3 PASS（边完整性检查）
 `,
   '4_bdd': `# S4 BDD 生成 — 验收清单
 
-- [ ] generate-bdd 成功：feature 文件数 ≥ 模块数
+- [ ] emit --name gherkin 成功：feature 文件数 ≥ 模块数
 - [ ] 每个 .feature 含 # SYSTEM: # TRACE: 头部
 - [ ] 每个 Scenario 含 Given/When/Then
 - [ ] 无 <THEN_PLACEHOLDER> 残留
 - [ ] 每个 Then 含 # verification_method:
-- [ ] validate-bdd PASS
+- [ ] validate-bdd --strict PASS
 `,
   '5_formal': `# S5 形式化 — 验收清单
 
@@ -127,12 +128,12 @@ export const CANONICAL: Record<string, CanonicalDef> = {
   '3_graph': {
     expected_count: 7,
     required_headers: ['S3', '图谱构建', '验收清单'],
-    required_phrases: ['build-graph', 'build-architecture', 'analyze-structure', 'export-cypher', 'validate-cypher', '边完整性'],
+    required_phrases: ['build-ir', 'build-architecture', 'analyze-structure', 'emit --name cypher', 'validate-cypher', '边完整性'],
   },
   '4_bdd': {
     expected_count: 6,
     required_headers: ['S4', 'BDD', '验收清单'],
-    required_phrases: ['generate-bdd', '# SYSTEM:', 'Given', 'When', 'Then', 'THEN_PLACEHOLDER', 'verification_method', 'validate-bdd'],
+    required_phrases: ['emit --name gherkin', '# SYSTEM:', 'Given', 'When', 'Then', 'THEN_PLACEHOLDER', 'verification_method', 'validate-bdd --strict'],
   },
   '5_formal': {
     expected_count: 8,
