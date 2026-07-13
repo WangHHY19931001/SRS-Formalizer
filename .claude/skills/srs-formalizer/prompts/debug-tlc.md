@@ -43,6 +43,26 @@ TLC 输出的反例轨迹是一个状态序列：`s0 → s1 → s2 → ... → s
 | State explosion | TLC 超出内存或状态上限 | 状态空间过大 | 加入 symmetry set、减少变量、使用模型缩减 |
 | Undefined behavior | TLC 报 "Undefined" 或 "Null" | TLA+ 表达式访问了未定义值 | 检查 `EXCEPT` 或 `CHOOSE` 使用，添加防御判断 |
 
+## 6 类 NFR 不变式违反诊断矩阵
+
+当 TLC 报告不变量违反时，根据不变量名称快速定位根因和修复方向：
+
+| 不变式 | TLC 错误特征 | 典型根因 | 修复方向 |
+|--------|-------------|----------|----------|
+| `PerfLatencyInv` | 反例中某 action 触发了不满足延迟约束的状态转换 | action 缺少时间/延迟前置条件，或多 action 的时序逻辑矛盾 | 在 action guard 中添加延迟约束，或增加超时 action 处理边界 |
+| `SecurityInv` | 未授权主体访问了受保护状态（反例中 pc 变量出现未预期的权限提升） | 授权检查 missing（action guard 缺少主体身份/权限前置条件） | 在 action guard 中添加认证/授权前置条件，增加独立的 Auth action |
+| `AvailInv` | 关键路径上某状态无合法 action 可达（反例终止于死锁） | 高可用路径的 Next 转换覆盖不全，或故障恢复 action 缺失 | 添加恢复 action、冗余路径 action，确保关键状态从任意前置状态可达 |
+| `CompatInv` | 接口版本或数据类型在状态转换中不一致（反例中出现版本号跳跃或类型不匹配） | 接口升级/降级逻辑缺失，或版本迁移 action 缺少中间态 | 添加版本迁移 action 序列（逐级升级/降级），禁止跨版本跳变 |
+| `MaintInv` | 运维操作（配置变更、滚动升级）导致的不一致状态（反例中运维 action 后系统进入未定义状态） | 运维 action 缺少 "操作窗口" 前置条件（如所有实例已就绪、流量已排空） | 在运维 action guard 中添加上下文前置条件，添加预检查 action |
+| `ComplianceInv` | 审计日志或数据驻留状态在反例中不完整（关键 action 触发后 audit_log 未更新） | 合规敏感 action 缺少审计日志附加行为（副作用缺失） | 在每个合规敏感 action 中添加 audit_log' = Append(...) 语句，或独立 Audit action |
+
+**诊断流程**：
+1. 读取 TLC 反例中的不变量名称 → 对照上表确定 NFR 类别
+2. 检查反例状态的变量快照 → 判定是 guard 缺失还是状态赋值错误
+3. guard 问题 → 修改对应 action 的 guard 子句
+4. 状态赋值问题 → 修改 action 的 primed variable 赋值
+5. 属于 SRS 设计缺陷 → 写入 SRS_PATCHES.md，暂停等确认
+
 ## 示例
 
 ### 输入（反例概要）

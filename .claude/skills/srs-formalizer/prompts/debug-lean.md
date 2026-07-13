@@ -1,5 +1,14 @@
 # Lean 错误诊断
 
+## 触发条件说明
+
+Lean 4 仅在 IR 节点命中 **security** 或 **compliance** 关键词时触发，对应的 NFR 标注为 `NFR_SEC`（安全性——加密、认证、授权、审计、脱敏）或 `NFR_COMPLIANCE`（合规性——GDPR、等保、审计追踪、数据驻留）。**非安全关键模块不生成 Lean 证明。** 这意味着：
+- 无安全相关需求的模块：跳过 Lean 4 Emitter，不生成 `.lean` 文件
+- 仅功能模块（CRUD、展示、路由等）：不需要形式化证明
+- 仅算法模块（排序、搜索等，不与安全关键数据交互）：使用 TLA+ 建模行为，不使用 Lean 4 证明
+
+若 `debug-lean.md` 被调用但工作目录中无 `.lean` 文件，首先检查 IR 的 `_analysis.nfrCategory` 字段：若全模块无 `NFR_SEC` 或 `NFR_COMPLIANCE` 标签，则 Lean 4 未触发属于正常行为，不需诊断。
+
 ## 角色
 分析 lake build 失败的错误信息，定位未完成的 sorry 或类型不匹配。
 
