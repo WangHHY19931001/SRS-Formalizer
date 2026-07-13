@@ -8,17 +8,19 @@ import { CypherEmitter } from '../lib/emitters/cypher-emitter.js';
 import { BehaviorGraphEmitter } from '../lib/emitters/behavior-graph-emitter.js';
 import { TlaGraphEmitter } from '../lib/emitters/tla-graph-emitter.js';
 import { LeanGraphEmitter } from '../lib/emitters/lean-graph-emitter.js';
+import { GherkinEmitter } from '../lib/emitters/gherkin-emitter.js';
 
-const GRAPH_EMITTERS: Record<string, Emitter> = {
+const ALL_EMITTERS: Record<string, Emitter> = {
   cypher: new CypherEmitter(),
   behaviorGraph: new BehaviorGraphEmitter(),
   tlaGraph: new TlaGraphEmitter(),
   leanGraph: new LeanGraphEmitter(),
+  gherkin: new GherkinEmitter(),
 };
 
 function buildAll(ir: SRSIR, workdir: string): EmitResult[] {
   const results: EmitResult[] = [];
-  for (const emitter of Object.values(GRAPH_EMITTERS)) {
+  for (const emitter of Object.values(ALL_EMITTERS)) {
     results.push(emitter.emit(ir, workdir));
   }
   return results;
@@ -57,25 +59,48 @@ export async function main(args: string[]): Promise<CliResult> {
     return { status: 'error', message: `Invalid IR version: ${ir.version}` };
   }
 
-  if (name === 'all' || name === 'graphs') {
+  if (name === 'all') {
     const results = buildAll(ir, workDir);
     const totalFiles = results.reduce((sum, r) => sum + r.fileCount, 0);
     return {
       status: 'ok',
       data: {
-        emitters: results.map(r => ({
-          name: (GRAPH_EMITTERS['cypher']?.name),
+        emitters: Object.keys(ALL_EMITTERS),
+        totalFiles,
+        results: results.map(r => ({
+          dir: r.files[0] ? path.dirname(r.files[0]) : '',
           fileCount: r.fileCount,
           files: r.files,
+          metadata: r.metadata,
         })),
-        totalFiles,
       },
     };
   }
 
-  const emitter = GRAPH_EMITTERS[name];
+  if (name === 'graphs') {
+    const graphResults: { name: string; files: string[]; fileCount: number; metadata: Record<string, unknown> }[] = [];
+    const graphEmitters = ['cypher', 'behaviorGraph', 'tlaGraph', 'leanGraph'];
+    for (const gName of graphEmitters) {
+      const emitter = ALL_EMITTERS[gName];
+      if (emitter) {
+        const r = emitter.emit(ir, workDir);
+        graphResults.push({ name: gName, files: r.files, fileCount: r.fileCount, metadata: r.metadata });
+      }
+    }
+    const totalFiles = graphResults.reduce((sum, r) => sum + r.fileCount, 0);
+    return {
+      status: 'ok',
+      data: {
+        emitters: graphEmitters,
+        totalFiles,
+        results: graphResults,
+      },
+    };
+  }
+
+  const emitter = ALL_EMITTERS[name];
   if (!emitter) {
-    const valid = Object.keys(GRAPH_EMITTERS).join(', ');
+    const valid = Object.keys(ALL_EMITTERS).join(', ');
     return { status: 'error', message: `Unknown emitter: ${name}. Valid: ${valid}, all, graphs` };
   }
 

@@ -9,6 +9,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "gherkin-lint": "^3.0.0",
+    "gherklin": "^1.0.0"
   }
 }

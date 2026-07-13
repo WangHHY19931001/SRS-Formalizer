@@ -1,13 +1,8 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import {
-  generateFeature,
-  validateFeature,
-  type BddFeature,
-} from '../lib/bdd.js';
+import { generateFeature, type BddFeature } from '../lib/bdd.js';
 
-describe('lib/bdd.ts — Gherkin generator and validator', () => {
-  // ---------------------------------------------------------------------------
+describe('lib/bdd.ts — Gherkin generator', () => {
   it('generateFeature produces valid Gherkin output format', () => {
     const feature: BddFeature = {
       system: 'OrderManagement',
@@ -37,81 +32,71 @@ describe('lib/bdd.ts — Gherkin generator and validator', () => {
     assert.ok(output.includes('Then <THEN_PLACEHOLDER>'));
   });
 
-  // ---------------------------------------------------------------------------
-  it('validateFeature returns valid=true for well-formed content', () => {
-    const content = `# SYSTEM: Test
-# TRACE: TRC-001
-# TLA_REFS: PENDING
-# LEAN_REFS: PENDING
+  it('generates verification_method comment when set', () => {
+    const feature: BddFeature = {
+      system: 'Test',
+      trace: 'TRC-001',
+      module: 'TestModule',
+      scenarios: [
+        {
+          name: 'Test scenario',
+          requirementId: 'R1-REQ-0002',
+          given: ['precondition'],
+          when: ['action'],
+          then: ['expected result'],
+          verification_method: 'api_check',
+        },
+      ],
+    };
 
-Feature: Login
-
-  Scenario: Successful login
-    Given user is registered
-    When user submits login form
-    Then user is redirected to dashboard
-`;
-
-    const result = validateFeature(content);
-    assert.equal(result.valid, true);
-    assert.equal(result.errors.length, 0);
-    assert.equal(result.warnings.length, 0);
+    const output = generateFeature(feature);
+    assert.ok(output.includes('# verification_method: api_check'));
   });
 
-  // ---------------------------------------------------------------------------
-  it('validateFeature returns invalid for incomplete content', () => {
-    const missingFeature = 'Scenario: test\n  Given something\n  When something\n  Then something\n';
-    const result1 = validateFeature(missingFeature);
-    assert.equal(result1.valid, false);
-    assert.ok(result1.errors.some(e => e.includes('Feature:')));
+  it('handles empty scenarios gracefully', () => {
+    const feature: BddFeature = {
+      system: 'Test',
+      trace: 'TRC-002',
+      module: 'EmptyModule',
+      scenarios: [],
+    };
 
-    const missingScenario = 'Feature: test\n  Given something\n  When something\n  Then something\n';
-    const result2 = validateFeature(missingScenario);
-    assert.equal(result2.valid, false);
-    assert.ok(result2.errors.some(e => e.includes('Scenario:')));
-
-    const missingGiven = 'Feature: test\n  Scenario: test\n  When something\n  Then something\n';
-    const result3 = validateFeature(missingGiven);
-    assert.equal(result3.valid, false);
-    assert.ok(result3.errors.some(e => e.includes('Given')));
-
-    const missingWhen = 'Feature: test\n  Scenario: test\n  Given something\n  Then something\n';
-    const result4 = validateFeature(missingWhen);
-    assert.equal(result4.valid, false);
-    assert.ok(result4.errors.some(e => e.includes('When')));
-
-    const missingThen = 'Feature: test\n  Scenario: test\n  Given something\n  When something\n';
-    const result5 = validateFeature(missingThen);
-    assert.equal(result5.valid, false);
-    assert.ok(result5.errors.some(e => e.includes('Then')));
+    const output = generateFeature(feature);
+    assert.ok(output.includes('Feature: EmptyModule'));
+    assert.ok(output.includes('# SYSTEM: Test'));
   });
 
-  // ---------------------------------------------------------------------------
-  it('validateFeature catches <THEN_PLACEHOLDER> as error', () => {
-    const content = `Feature: Test
-  Scenario: Test
-    Given something
-    When something
-    Then <THEN_PLACEHOLDER>
-`;
+  it('generates multiple scenarios correctly', () => {
+    const feature: BddFeature = {
+      system: 'MultiSystem',
+      trace: 'TRC-003',
+      module: 'MultiModule',
+      scenarios: [
+        {
+          name: 'First scenario',
+          requirementId: 'R1-REQ-0003',
+          given: ['given 1'],
+          when: ['when 1'],
+          then: ['then 1'],
+        },
+        {
+          name: 'Second scenario',
+          requirementId: 'R1-REQ-0004',
+          given: ['given 2'],
+          when: ['when 2'],
+          then: ['then 2a', 'then 2b'],
+          verification_method: 'log_check',
+        },
+      ],
+    };
 
-    const result = validateFeature(content);
-    assert.equal(result.valid, false);
-    assert.ok(result.errors.some(e => e.includes('<THEN_PLACEHOLDER>')));
-  });
-
-  // ---------------------------------------------------------------------------
-  it('validateFeature warns when SYSTEM or TRACE header is missing', () => {
-    const content = `Feature: Test
-  Scenario: Test
-    Given something
-    When something
-    Then result
-`;
-
-    const result = validateFeature(content);
-    assert.equal(result.valid, true);
-    assert.ok(result.warnings.some(e => e.includes('# SYSTEM:')));
-    assert.ok(result.warnings.some(e => e.includes('# TRACE:')));
+    const output = generateFeature(feature);
+    assert.ok(output.includes('Scenario: First scenario'));
+    assert.ok(output.includes('Scenario: Second scenario'));
+    assert.ok(output.includes('Given given 1'));
+    assert.ok(output.includes('Given given 2'));
+    assert.ok(output.includes('Then then 2a'));
+    assert.ok(output.includes('Then then 2b'));
+    assert.ok(output.includes('# verification_method: log_check'));
   });
 });

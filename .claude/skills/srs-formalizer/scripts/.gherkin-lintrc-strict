@@ -1,0 +1,9 @@
+{
+  "indentation": ["on", { "Feature": 0, "Scenario": 2, "Step": 4, "Examples": 2, "given": 4, "when": 4, "then": 4, "and": 4, "but": 4 }],
+  "no-trailing-spaces": "on",
+  "no-empty-file": "on",
+  "new-line-at-eof": ["on", "yes"],
+  "one-space-between-tags": "on",
+  "no-unused-variables": "on",
+  "no-multiple-empty-lines": "on"
+}
