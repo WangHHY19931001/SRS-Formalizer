@@ -62,3 +62,33 @@ export interface IRNode {
   source: IRSource;
   analysis?: IRAnalysis;
 }
+
+export type IREdgeType =
+  | 'depends_on'
+  | 'refines'
+  | 'conflicts_with'
+  | 'derived_from'
+  | 'same_aspect'
+  | 'contains'
+  | 'nfr_impacts'
+  | 'nfr_constrains'
+  | 'cross_file_depends'
+  | 'verifies'
+  | 'implements'
+  | 'proves'
+  | 'traces_to';
+
+export interface IREdgeProperties {
+  crossFileWeight?: number;
+  confidence?: number;
+  reasoning?: string;
+  proposed?: boolean;
+}
+
+export interface IREdge {
+  id: string;
+  source: string;
+  target: string;
+  type: IREdgeType;
+  properties: IREdgeProperties;
+}

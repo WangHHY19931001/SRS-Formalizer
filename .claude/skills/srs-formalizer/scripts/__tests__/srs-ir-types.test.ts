@@ -56,3 +56,38 @@ describe('IRNode', () => {
     assert.strictEqual(node.properties.nfrThreshold?.value, 200);
   });
 });
+
+describe('IREdge', () => {
+  it('depends_on edge', () => {
+    const edge = {
+      id: 'shard-1-dep-001',
+      source: 'shard-1-R1-USER-0001',
+      target: 'shard-1-R1-AUTH-0002',
+      type: 'depends_on',
+      properties: { confidence: 0.9 },
+    };
+    assert.strictEqual(edge.type, 'depends_on');
+  });
+
+  it('nfr_impacts edge', () => {
+    const edge = {
+      id: 'nfr-edge-001',
+      source: 'shard-1-NFR-0001',
+      target: 'shard-1-R1-USER-0001',
+      type: 'nfr_impacts',
+      properties: { reasoning: '性能约束影响登录流程' },
+    };
+    assert.strictEqual(edge.type, 'nfr_impacts');
+  });
+
+  it('cross_file_depends edge has crossFileWeight', () => {
+    const edge = {
+      id: 'cross-001',
+      source: 'shard-1-R1-0001',
+      target: 'shard-2-R1-0002',
+      type: 'cross_file_depends',
+      properties: { crossFileWeight: 0.7 },
+    };
+    assert.strictEqual(edge.properties.crossFileWeight, 0.7);
+  });
+});
