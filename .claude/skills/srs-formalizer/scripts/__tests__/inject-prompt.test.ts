@@ -137,7 +137,7 @@ describe('inject-prompt command', () => {
 
   it('returns error when shard_index.json does not exist', async () => {
     const { main } = await import('../commands/inject-prompt.js');
-    // Must end with .srs_formalizer to pass validateWorkDir, but no _ctx/shard_index.json
+    // Must end with .srs_formalizer to pass validateWorkDir, but no 1_input/shard_index.json
     const emptyWorkdir = path.join(TMP, 'empty-test', '.srs_formalizer');
     fs.mkdirSync(emptyWorkdir, { recursive: true });
 

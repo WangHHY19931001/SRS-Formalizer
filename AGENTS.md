@@ -73,7 +73,6 @@ scripts/
 ## Gotchas
 
 - `package-lock.json` is **gitignored** — no lockfile in repo. Run `npm install` to generate one locally.
-- **`_ctx/` vs `1_input/` inconsistency**: `manifest.ts` writes shard index to `1_input/` but `inject-prompt.ts` reads from `_ctx/shard_index.json`. End-to-end pipeline may be broken.
 - TLA+ validation: delete old trace/state files before debugging.
 - Lean 4: follow the 4-step split-proof cycle (skeleton with sorry → one file per sorry → split further if stuck → repeat).
 - BDD: must be `.feature` files with complete Given/When/Then — never Markdown descriptions.

@@ -57,7 +57,7 @@ export async function main(args: string[]): Promise<CliResult> {
       return { status: 'error', message: (err as Error).message };
     }
 
-    const indexPath = path.join(workDir, '_ctx', 'shard_index.json');
+    const indexPath = path.join(workDir, '1_input', 'shard_index.json');
     if (!fs.existsSync(indexPath)) {
       return { status: 'error', message: `shard_index.json not found at ${indexPath}` };
     }

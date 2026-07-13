@@ -196,7 +196,7 @@ describe('validate-checklist command', () => {
 
 - [x] init 成功创建目录结构
 - [x] manifest 成功生成分片文件
-- [x] _ctx/shard_index.json 存在且 total_shards ≥ 1
+- [x] 1_input/shard_index.json 存在且 total_shards ≥ 1
 - [x] S0/ 下分片文件数 == total_shards
 - [x] 每个分片头部含 # shard_id: # source: # total_shards:
 - [x] GAPS.md 已生成，缺口已标注优先级
