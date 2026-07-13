@@ -38,6 +38,7 @@ Commands:
   tag-nfr            Detect and tag NFR nodes in srs-ir.json
   check-connectivity Check cross-shard connectivity in srs-ir.json
   score-risk         Compute risk score from srs-ir.json
+  emit               Emit graph artifacts from srs-ir.json (--name cypher|behaviorGraph|tlaGraph|leanGraph|graphs|all)
 
 Options:
   --help    Show this help message
@@ -83,6 +84,7 @@ const COMMANDS: Record<
   "tag-nfr": () => import("./commands/tag-nfr.js"),
   "check-connectivity": () => import("./commands/check-connectivity.js"),
   "score-risk": () => import("./commands/score-risk.js"),
+  emit: () => import("./commands/emit.js"),
 };
 
 async function main(): Promise<void> {
