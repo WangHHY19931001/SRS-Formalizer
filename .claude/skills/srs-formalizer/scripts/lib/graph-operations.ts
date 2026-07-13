@@ -53,3 +53,96 @@ export function applyAddSameAspectEdge(graph: Graph, nodeA: string, nodeB: strin
   if (graph.getAllEdges().some(e => (e.source === nodeA && e.target === nodeB && e.type === ':SAME_ASPECT') || (e.source === nodeB && e.target === nodeA && e.type === ':SAME_ASPECT'))) return;
   graph.addEdge({ id: edgeId, source: nodeA, target: nodeB, type: ':SAME_ASPECT', properties: { reasoning } });
 }
+
+// ---------------------------------------------------------------------------
+// SRSIR (v2) merge operations
+// ---------------------------------------------------------------------------
+
+import type { SRSIR, IREdge } from '../types/srs-ir.js';
+
+export function applyMergeNodesIR(ir: SRSIR, nodeA: string, nodeB: string): SRSIR {
+  const nodeAExists = ir.nodes.some(n => n.id === nodeA);
+  const nodeBExists = ir.nodes.some(n => n.id === nodeB);
+  if (!nodeAExists || !nodeBExists) throw new Error(`Cannot merge: node(s) not found (${nodeA}, ${nodeB})`);
+  if (nodeA === nodeB) throw new Error(`Cannot merge: nodes are identical (${nodeA})`);
+
+  const newNodes = ir.nodes.filter(n => n.id !== nodeB);
+  const rewrittenEdges: IREdge[] = [];
+  for (const edge of ir.edges) {
+    let { source, target } = edge;
+    if (source === nodeB) source = nodeA;
+    if (target === nodeB) target = nodeA;
+    if (source === target) continue;
+    const dup = rewrittenEdges.find(
+      e => e.source === source && e.target === target && e.type === edge.type,
+    );
+    if (!dup) {
+      rewrittenEdges.push({
+        ...edge,
+        id: `${source}--${edge.type}--${target}`,
+        source,
+        target,
+      });
+    }
+  }
+  return {
+    ...ir,
+    nodes: newNodes,
+    edges: rewrittenEdges,
+    meta: {
+      ...ir.meta,
+      totalNodes: newNodes.length,
+      totalEdges: rewrittenEdges.length,
+    },
+  };
+}
+
+export function applyAddConflictEdgeIR(
+  ir: SRSIR,
+  nodeA: string,
+  nodeB: string,
+  reasoning: string,
+): SRSIR {
+  const exists = ir.edges.find(
+    e => e.source === nodeA && e.target === nodeB && e.type === 'conflicts_with',
+  );
+  if (exists) return ir;
+  const edgeId = `${nodeA}--conflicts_with--${nodeB}`;
+  const newEdge: IREdge = {
+    id: edgeId,
+    source: nodeA,
+    target: nodeB,
+    type: 'conflicts_with',
+    properties: { reasoning },
+  };
+  return {
+    ...ir,
+    edges: [...ir.edges, newEdge],
+    meta: { ...ir.meta, totalEdges: ir.edges.length + 1 },
+  };
+}
+
+export function applyAddSameAspectEdgeIR(
+  ir: SRSIR,
+  nodeA: string,
+  nodeB: string,
+  reasoning: string,
+): SRSIR {
+  const exists = ir.edges.find(
+    e => e.source === nodeA && e.target === nodeB && e.type === 'same_aspect',
+  );
+  if (exists) return ir;
+  const edgeId = `${nodeA}--same_aspect--${nodeB}`;
+  const newEdge: IREdge = {
+    id: edgeId,
+    source: nodeA,
+    target: nodeB,
+    type: 'same_aspect',
+    properties: { reasoning },
+  };
+  return {
+    ...ir,
+    edges: [...ir.edges, newEdge],
+    meta: { ...ir.meta, totalEdges: ir.edges.length + 1 },
+  };
+}

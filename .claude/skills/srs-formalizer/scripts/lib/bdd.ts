@@ -37,30 +37,3 @@ export function generateFeature(feature: BddFeature): string {
 
   return `${header}\n\nFeature: ${feature.module}\n\n${scenarios}\n`;
 }
-
-// === Gherkin 校验器 ===
-
-export interface BddValidationResult {
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-}
-
-/** 校验 .feature 文件内容 */
-export function validateFeature(content: string): BddValidationResult {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  if (!content.includes('Feature:')) errors.push('Missing Feature: declaration');
-  if (!content.includes('Scenario:')) errors.push('Missing Scenario: declaration');
-  if (!content.includes('Given ')) errors.push('Missing Given step');
-  if (!content.includes('When ')) errors.push('Missing When step');
-  if (!content.includes('Then ')) errors.push('Missing Then step');
-  if (content.includes('<THEN_PLACEHOLDER>')) errors.push('Unresolved <THEN_PLACEHOLDER> placeholder');
-
-  // HEADER checks (SRS §8.2)
-  if (!content.includes('# SYSTEM:')) warnings.push('Missing # SYSTEM: header');
-  if (!content.includes('# TRACE:')) warnings.push('Missing # TRACE: header');
-
-  return { valid: errors.length === 0, errors, warnings };
-}

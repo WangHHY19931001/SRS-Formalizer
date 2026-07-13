@@ -1,0 +1,140 @@
+{
+  "performance": {
+    "feature_name": "NFR Performance - {{module}}",
+    "scenarios": [
+      {
+        "name": "{{module}} 响应时间低于阈值",
+        "given": ["系统负载低于正常水平"],
+        "when": ["用户执行 {{module}} 典型操作"],
+        "then": ["响应时间应 {{operator}} {{value}} {{unit}}", "# verification_method: api_check"]
+      },
+      {
+        "name": "{{module}} 响应时间达到边界",
+        "given": ["系统负载接近容量上限"],
+        "when": ["用户执行 {{module}} 典型操作"],
+        "then": ["响应时间应 {{operator}} {{value}} {{unit}}", "# verification_method: api_check"]
+      },
+      {
+        "name": "{{module}} 响应时间超过阈值触发告警",
+        "given": ["系统负载超过容量上限"],
+        "when": ["用户执行 {{module}} 典型操作"],
+        "then": ["监控系统应触发告警", "响应时间记录应被写入日志", "# verification_method: log_check"]
+      }
+    ]
+  },
+  "security": {
+    "feature_name": "NFR Security - {{module}}",
+    "scenarios": [
+      {
+        "name": "{{module}} 认证用户访问成功",
+        "given": ["用户已通过身份认证"],
+        "when": ["用户访问 {{module}} 受保护资源"],
+        "then": ["访问应被授权", "审计日志应记录访问事件", "# verification_method: api_check"]
+      },
+      {
+        "name": "{{module}} 输入达到边界值时的安全处理",
+        "given": ["用户已通过身份认证"],
+        "when": ["用户向 {{module}} 提交边界长度的输入"],
+        "then": ["输入应被接受且未触发溢出", "响应应不包含敏感信息泄露", "# verification_method: api_check"]
+      },
+      {
+        "name": "{{module}} 未认证访问被拒绝",
+        "given": ["用户未通过身份认证"],
+        "when": ["用户尝试访问 {{module}} 受保护资源"],
+        "then": ["访问应被拒绝并返回 401", "安全事件应被记录到审计日志", "# verification_method: api_check"]
+      }
+    ]
+  },
+  "availability": {
+    "feature_name": "NFR Availability - {{module}}",
+    "scenarios": [
+      {
+        "name": "{{module}} 在正常负载下可用",
+        "given": ["系统所有组件正常运行"],
+        "when": ["用户请求 {{module}} 服务"],
+        "then": ["服务应返回成功响应", "响应时间应在可接受范围内", "# verification_method: api_check"]
+      },
+      {
+        "name": "{{module}} 在最低冗余配置下仍可用",
+        "given": ["系统处于最低冗余配置"],
+        "when": ["用户请求 {{module}} 服务"],
+        "then": ["服务应仍返回成功响应", "降级模式应被激活", "# verification_method: api_check"]
+      },
+      {
+        "name": "{{module}} 服务不可用时触发故障转移",
+        "given": ["{{module}} 主节点已故障"],
+        "when": ["用户请求 {{module}} 服务"],
+        "then": ["故障转移应在 {{operator}} {{value}} {{unit}} 内完成", "备用节点应接管服务", "# verification_method: log_check"]
+      }
+    ]
+  },
+  "compatibility": {
+    "feature_name": "NFR Compatibility - {{module}}",
+    "scenarios": [
+      {
+        "name": "{{module}} 与支持的目标环境兼容",
+        "given": ["目标环境满足 {{module}} 兼容性要求"],
+        "when": ["用户在目标环境中使用 {{module}}"],
+        "then": ["{{module}} 功能应正常运行", "无兼容性错误产生", "# verification_method: manual_test"]
+      },
+      {
+        "name": "{{module}} 在最低支持版本边界上工作",
+        "given": ["目标环境为最低支持版本"],
+        "when": ["用户使用 {{module}} 核心功能"],
+        "then": ["核心功能应正常执行", "应显示版本警告提示", "# verification_method: api_check"]
+      },
+      {
+        "name": "{{module}} 遇到不兼容环境时降级",
+        "given": ["目标环境不满足 {{module}} 兼容性要求"],
+        "when": ["用户尝试初始化 {{module}}"],
+        "then": ["应显示明确的不兼容错误", "不应导致系统崩溃", "# verification_method: api_check"]
+      }
+    ]
+  },
+  "maintainability": {
+    "feature_name": "NFR Maintainability - {{module}}",
+    "scenarios": [
+      {
+        "name": "{{module}} 日志记录满足运维要求",
+        "given": ["{{module}} 正常运行"],
+        "when": ["运维人员检查 {{module}} 日志"],
+        "then": ["日志应包含请求追踪 ID", "日志级别应可动态调整", "# verification_method: log_check"]
+      },
+      {
+        "name": "{{module}} 监控指标覆盖达到最低阈值",
+        "given": ["监控系统已配置 {{module}} 指标"],
+        "when": ["{{module}} 运行一段时间"],
+        "then": ["关键指标应被采集并上报", "指标覆盖率应 {{operator}} {{value}}%", "# verification_method: api_check"]
+      },
+      {
+        "name": "{{module}} 配置缺失时触发运维告警",
+        "given": ["{{module}} 缺少必要配置项"],
+        "when": ["系统尝试启动 {{module}}"],
+        "then": ["启动应失败并给出明确配置提示", "运维告警应被触发", "# verification_method: log_check"]
+      }
+    ]
+  },
+  "compliance": {
+    "feature_name": "NFR Compliance - {{module}}",
+    "scenarios": [
+      {
+        "name": "{{module}} 满足法规审计要求",
+        "given": ["{{module}} 正常运行"],
+        "when": ["审计人员请求 {{module}} 审计日志"],
+        "then": ["审计日志应包含完整的操作记录", "日志应包含不可篡改的时间戳", "# verification_method: log_check"]
+      },
+      {
+        "name": "{{module}} 数据保留达到最低合规期限",
+        "given": ["{{module}} 已产生业务数据"],
+        "when": ["系统按合规要求保留数据至最低期限"],
+        "then": ["数据应在最低保留期内可查询", "过期数据应按规定安全销毁", "# verification_method: log_check"]
+      },
+      {
+        "name": "{{module}} 违反合规时触发告警",
+        "given": ["{{module}} 检测到潜在合规违规"],
+        "when": ["合规策略违反事件发生"],
+        "then": ["合规告警应立即触发", "违规详情应被写入安全审计日志", "# verification_method: log_check"]
+      }
+    ]
+  }
+}

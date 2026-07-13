@@ -1,5 +1,5 @@
 /**
- * manifest.ts — SRS 分片 + 章节识别 + 信息缺口检测
+ * manifest.ts — SRS 分片 + 章节识别 + 信息缺口检测 + 交叉引用 + NFR 扫描
  *
  * CLI: npx tsx index.ts manifest --src <path> --lang zh|en --workdir .srs_formalizer
  */
@@ -7,11 +7,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
-import type { CliResult, ShardEntry, GapEntry } from '../types/index.js';
-import type { ShardIndex } from '../types/index.js';
+import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
-import { identifyChapters, type ChapterInfo } from '../lib/chapter-parser.js';
-import { buildShardIndex } from '../lib/sharder.js';
+import { identifyChapters, detectCrossRefs, scanNFR } from '../lib/frontend/parser.js';
+import { buildShardIndex } from '../lib/frontend/sharder.js';
+import type { ShardIndex, ShardEntry, GapEntry } from '../lib/frontend/sharder.js';
+import type { CrossRef, NFRProfile, NFRCategory } from '../types/srs-ir.js';
 
 function collectSourceFiles(absSrc: string): string[] {
   const stat = fs.statSync(absSrc);
@@ -20,36 +21,32 @@ function collectSourceFiles(absSrc: string): string[] {
   return files.length === 0 ? [absSrc] : files;
 }
 
-function detectGaps(content: string, chapters: ChapterInfo[]): GapEntry[] {
-  const gaps: GapEntry[] = [];
-  const unresolvedChapter = chapters.find(ch => ch.title === '尚未解决问题');
-  if (unresolvedChapter) {
-    const lines = content.split('\n');
-    const startLine = unresolvedChapter.line + 1;
-    let endLine = lines.length;
-    for (let i = startLine; i < lines.length; i++) {
-      if (lines[i]!.match(new RegExp(`^#{1,${unresolvedChapter.level}}\\s`))) { endLine = i; break; }
-    }
-    const sectionContent = lines.slice(startLine, endLine).join('\n').trim();
-    if (sectionContent && sectionContent !== '（无）' && sectionContent !== '(none)') {
-      for (const issue of sectionContent.split('\n').filter(l => l.match(/^\d+\.\s/))) {
-        gaps.push({ priority: 'P0', type: 'unsolved_issue', description: issue.replace(/^\d+\.\s*/, '').trim(), source_chapter: '§7' });
+function mergeNFRProfiles(profiles: NFRProfile[]): NFRProfile {
+  const catMap = new Map<string, { keywordHits: number; shardIds: string[]; nodeIds: string[] }>();
+  const allShards: NFRProfile['weightedShards'] = [];
+  for (const p of profiles) {
+    for (const dc of p.detectedCategories) {
+      const existing = catMap.get(dc.category);
+      if (existing) {
+        existing.keywordHits += dc.keywordHits;
+        for (const sid of dc.shardIds) { if (!existing.shardIds.includes(sid)) existing.shardIds.push(sid); }
+        for (const nid of dc.nodeIds) { if (!existing.nodeIds.includes(nid)) existing.nodeIds.push(nid); }
+      } else {
+        catMap.set(dc.category, { keywordHits: dc.keywordHits, shardIds: [...dc.shardIds], nodeIds: [...dc.nodeIds] });
       }
     }
+    allShards.push(...p.weightedShards);
   }
-  if (!chapters.find(ch => ch.title === '术语表')) {
-    gaps.push({ priority: 'P1', type: 'undefined_term', description: 'SRS 未包含术语表章节', source_chapter: '§1.4' });
-  }
-  return gaps;
-}
-
-function generateContext(shards: ShardEntry[], gaps: GapEntry[], content: string): string {
-  const termMatch = content.match(/\|([^|]+)\|([^|]+)\|/g);
-  const termSection = termMatch
-    ? termMatch.slice(0, 20).map(m => { const parts = m.split('|').map(s => s.trim()).filter(Boolean); return `| ${parts[0] || '?'} | ${parts[1] || '?'} | — |`; }).join('\n')
-    : '| — | — | — |';
-
-  return `# CONTEXT — SRS 术语表与切片索引\n\n## 术语表\n\n| 术语 | 定义 | 来源章节 |\n|------|------|----------|\n${termSection}\n\n## 模块切片索引\n\n| 模块 | 分片文件 | Token 估算 |\n|------|---------|-----------|\n${shards.map(s => `| ${s.module} | ${s.file} | ${s.estimated_tokens} |`).join('\n')}\n\n## 信息缺口\n\n${gaps.length > 0 ? gaps.map(g => `- [${g.priority}] ${g.description}（${g.source_chapter}）`).join('\n') : '（无已检测到的缺口）'}\n`;
+  const detectedCategories = Array.from(catMap.entries()).map(([category, v]) => ({
+    category: category as NFRCategory,
+    keywordHits: v.keywordHits,
+    shardIds: v.shardIds,
+    nodeIds: v.nodeIds,
+  }));
+  const allCatRef: readonly NFRCategory[] = ['performance', 'security', 'availability', 'compatibility', 'maintainability', 'compliance'];
+  const overallCoverage = detectedCategories.length / allCatRef.length;
+  const blindSpots = allCatRef.filter(c => !catMap.has(c));
+  return { detectedCategories, weightedShards: allShards, overallCoverage, blindSpots };
 }
 
 export async function main(args: string[]): Promise<CliResult> {
@@ -69,47 +66,59 @@ export async function main(args: string[]): Promise<CliResult> {
 
   const sourceFiles = collectSourceFiles(absSrc);
   const allShards: ShardEntry[] = [];
-  const warnings: string[] = [];
-  let totalGaps: GapEntry[] = [];
+  const allCrossRefs: CrossRef[] = [];
+  const allGaps: GapEntry[] = [];
+  const allWarnings: string[] = [];
+  const nfrProfiles: NFRProfile[] = [];
+  let totalChars = 0;
 
   for (const sourcePath of sourceFiles) {
     let content: string;
     try { content = fs.readFileSync(sourcePath, 'utf-8'); }
     catch (err) { return { status: 'error', message: `Failed to read ${sourcePath}: ${(err as Error).message}` }; }
 
-    if (content.trim().length === 0) { warnings.push(`Skipping empty file: ${sourcePath}`); continue; }
+    if (content.trim().length === 0) { allWarnings.push(`Skipping empty file: ${sourcePath}`); continue; }
 
     const chapters = identifyChapters(content, sourcePath);
-    if (chapters.length === 0) warnings.push(`No chapters detected in ${sourcePath} — treating as flat document`);
+    if (chapters.length === 0) allWarnings.push(`No chapters detected in ${sourcePath} — treating as flat document`);
 
-    const drafts = buildShardIndex(sourcePath, content, chapters, lang as 'zh' | 'en');
-    const shards: ShardEntry[] = drafts.map((d, i) => {
-      const hash = crypto.createHash('sha256').update(d.locator).digest('hex').slice(0, 12);
-      const shortName = path.basename(sourcePath, path.extname(sourcePath));
-      return { ...d, id: `${shortName}-${i + 1}-${hash}`, file: `shard-${i + 1}.jsonl` };
-    });
+    const crossRefs = detectCrossRefs(content, chapters);
+    const nfrProfile = scanNFR(content, lang as 'zh' | 'en');
 
-    allShards.push(...shards);
-    totalGaps.push(...detectGaps(content, chapters));
+    const index = buildShardIndex(sourcePath, content, chapters, lang as 'zh' | 'en', nfrProfile);
 
-    const context = generateContext(shards, totalGaps, content);
-    const contextDir = path.join(workDir, '1_input', 'context');
-    fs.mkdirSync(contextDir, { recursive: true });
-    const contextName = path.basename(sourcePath, path.extname(sourcePath)) + '_CONTEXT.md';
-    fs.writeFileSync(path.join(contextDir, contextName), context, 'utf-8');
+    allShards.push(...index.shards);
+    allCrossRefs.push(...crossRefs);
+    for (const gap of index.gaps) {
+      if (!allGaps.some(g => g.description === gap.description)) allGaps.push(gap);
+    }
+    allWarnings.push(...index.warnings);
+    nfrProfiles.push(nfrProfile);
+    totalChars += content.length;
   }
 
+  const mergedNFR = mergeNFRProfiles(nfrProfiles);
+  const sourceHash = crypto.createHash('sha256').update(absSrc).digest('hex').slice(0, 16);
+
   const shardIndex: ShardIndex = {
-    version: '1.0', source_path: absSrc, source_hash: crypto.createHash('sha256').update(absSrc).digest('hex').slice(0, 16),
-    language: lang as 'zh' | 'en', total_chars: 0, total_shards: allShards.length,
-    shards: allShards, gaps: totalGaps, warnings,
+    version: '1.1',
+    source_path: absSrc,
+    source_hash: sourceHash,
+    language: lang as 'zh' | 'en',
+    total_chars: totalChars,
+    total_shards: allShards.length,
+    shards: allShards,
+    gaps: allGaps,
+    warnings: allWarnings,
+    cross_references: allCrossRefs,
+    nfr_profile: mergedNFR,
   };
 
   const outputDir = path.join(workDir, '1_input');
   fs.mkdirSync(outputDir, { recursive: true });
   fs.writeFileSync(path.join(outputDir, 'shard_index.json'), JSON.stringify(shardIndex, null, 2), 'utf-8');
 
-  return { status: 'ok', data: { total_files: sourceFiles.length, total_shards: allShards.length, total_gaps: totalGaps.length, index_path: path.join(outputDir, 'shard_index.json') } };
+  return { status: 'ok', data: { total_files: sourceFiles.length, total_shards: allShards.length, total_gaps: allGaps.length, index_path: path.join(outputDir, 'shard_index.json') } };
 }
 
 import { refuseDirectInvocation } from '../lib/cli.js';

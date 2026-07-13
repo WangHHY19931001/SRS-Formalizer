@@ -22,11 +22,10 @@ import * as path from "node:path";
 import { execSync } from "node:child_process";
 import type { CliResult } from "../types/index.js";
 import { safeParseArg, validateWorkDir } from "../lib/cli.js";
+import { validateR3CrossLine, validateR4NFRLine } from "../lib/frontend/extract-validators.js";
 
-// ===================== Validators (3 types) =====================
-
-type ExtractType = "r1" | "r2" | "r3" | "arch";
-const VALID_ID_RE = /^R[123]-[A-Za-z0-9_.]+-\d{4}$/;
+type ExtractType = "r1" | "r2" | "r3" | "r3-cross" | "r4-nfr" | "arch";
+const VALID_ID_RE = /^R(?:[123]|3C|4N)-[A-Za-z0-9_.]+-\d{4}$/;
 const VALID_CATEGORIES = ["explicit", "implicit", "relational"];
 
 function validateRequirementLine(
@@ -106,6 +105,10 @@ function validateLine(
       return validateRequirementLine(line, "R2");
     case "r3":
       return validateRequirementLine(line, "R3");
+    case "r3-cross":
+      return validateR3CrossLine(line);
+    case "r4-nfr":
+      return validateR4NFRLine(line);
     case "arch":
       return validateArchitectureLine(line);
   }
@@ -121,6 +124,17 @@ function guidedSystemPrompt(type: ExtractType): string {
     return `你是架构分解器。逐行输出 JSONL，每次一行。
 格式: {"name":"模块名","type":"Module|Actor|Constraint|Component|Interface","description":"描述","source_file":"srs.md","metadata":{}}
 系统回复 OK(已接受) 或 ERR:...(需修正)。完成后输出 DONE。`;
+  }
+  if (type === "r3-cross") {
+    return `你是跨文件关系提取器。逐行输出 JSONL，每次一行。
+格式: {"id":"R3C-TOPIC-0001","category":"relational","statement":"关系描述","source_file":"srs.md","confidence":"high","metadata":{"cross_shard_refs":["shard-1","shard-2"],"relation":{"type":"DEPENDS_ON","target":"R1-OTHER-0001"}}}
+系统回复 OK 或 ERR。完成后输出 DONE。`;
+  }
+  if (type === "r4-nfr") {
+    return `你是 NFR 提取器。逐行输出 JSONL，每次一行。
+格式: {"id":"R4N-PERF-0001","category":"explicit","statement":"非功能需求描述","source_file":"srs.md","confidence":"high","metadata":{"nfrCategory":"performance","nfrThreshold":{"metric":"response_time","value":200,"unit":"ms","operator":"<="}}}
+nfrCategory: performance|security|availability|compatibility|maintainability|compliance。
+系统回复 OK 或 ERR。完成后输出 DONE。`;
   }
   const prefix = type === "r1" ? "R1" : type === "r2" ? "R2" : "R3";
   return `你是需求提取器。逐行输出 JSONL，每次一行。
@@ -181,22 +195,17 @@ function resolveOutputPath(workDir: string, shardId: string, etype: ExtractType)
         ? "r2-implicit"
         : etype === "r3"
           ? "r3-relational"
-          : "r1-explicit";
+          : etype === "r3-cross"
+            ? "r3-cross"
+            : etype === "r4-nfr"
+              ? "r4-nfr"
+              : "r1-explicit";
   return path.join(workDir, "2_extract", outSubdir, `${shardId}.jsonl`);
 }
 
-/**
- * Dual-mode entry point.
- *
- * Mode A (prompt generation): --template + --shard-id + --workdir
- *   Fills template, wraps in guided system prompt, returns it.
- *   Agent sends the prompt to LLM, then uses Mode B per line.
- *
- * Mode B (line processing): --line + --shard-id + --type + --workdir
- *   Validates a single JSON line, appends to output if valid.
- *   Returns "OK" / "ERR: ..." / "DONE" as plain text.
- *   Designed for agent run_command — no interactive I/O needed.
- */
+const VALID_TYPES = ["r1", "r2", "r3", "r3-cross", "r4-nfr", "arch"];
+
+/** Dual-mode entry: --template for prompt gen (Mode A) or --line for validation (Mode B). */
 export async function main(args: string[]): Promise<CliResult> {
   let templatePath: string | null;
   let shardId: string | null;
@@ -218,8 +227,8 @@ export async function main(args: string[]): Promise<CliResult> {
   if (lineInput !== null) {
     if (!shardId) return { status: "error", message: "Missing --shard-id" };
     if (!workDirArg) return { status: "error", message: "Missing --workdir" };
-    if (!["r1", "r2", "r3", "arch"].includes(extractType)) {
-      return { status: "error", message: `Invalid --type: ${extractType}. Must be r1|r2|r3|arch` };
+    if (!VALID_TYPES.includes(extractType)) {
+      return { status: "error", message: `Invalid --type: ${extractType}. Must be ${VALID_TYPES.join("|")}` };
     }
     const etype = extractType as ExtractType;
 
@@ -235,8 +244,8 @@ export async function main(args: string[]): Promise<CliResult> {
   if (!templatePath) return { status: "error", message: "Missing --template" };
   if (!shardId) return { status: "error", message: "Missing --shard-id" };
   if (!workDirArg) return { status: "error", message: "Missing --workdir" };
-  if (!["r1", "r2", "r3", "arch"].includes(extractType)) {
-    return { status: "error", message: `Invalid --type: ${extractType}. Must be r1|r2|r3|arch` };
+  if (!VALID_TYPES.includes(extractType)) {
+    return { status: "error", message: `Invalid --type: ${extractType}. Must be ${VALID_TYPES.join("|")}` };
   }
   const etype = extractType as ExtractType;
 
