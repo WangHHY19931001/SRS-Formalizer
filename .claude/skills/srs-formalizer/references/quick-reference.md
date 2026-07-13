@@ -40,8 +40,8 @@
 | `npx tsx index.ts validate-architecture --file <path> --workdir .srs_formalizer` | 架构 JSONL 校验（6 项 + 循环检测） |
 | `npx tsx index.ts validate-cypher --file <path> --workdir .srs_formalizer` | Cypher 脚本校验（4 项） |
 | `npx tsx index.ts validate-bdd --strict --promote --workdir .srs_formalizer` | 严格验证 draft BDD 并原子提升到 verified；不带 `--promote` 时验证 verified |
-| `npx tsx index.ts validate-tla --name <module> --strict --promote --workdir .srs_formalizer` | 验证 matching draft `.tla`/`.cfg`，成功后提升至 verified |
-| `npx tsx index.ts validate-lean --strict --promote --workdir .srs_formalizer` | 审计 draft Lean 项目、执行 `lake build` 并成功提升至 verified（❌ Windows 不支持） |
+| `npx tsx index.ts validate-tla --name <module> --strict --promote --workdir .srs_formalizer` | 静态审核后用内置 `tla2tools-1.7.4.jar` 运行 SANY 与 TLC；matching draft `.tla`/`.cfg` 都通过后才提升 |
+| `npx tsx index.ts validate-lean --strict --promote --workdir .srs_formalizer` | 审计带 `lakefile.lean` 或 `lakefile.toml` 的 draft Lean 项目、执行 `lake build` 并成功提升至 verified（❌ Windows 不支持） |
 | `npx tsx index.ts validate-glossary --file <path> [--min-high N]` | 术语表批次 JSON 校验（8 项 + 门禁） |
 | `npx tsx index.ts validate-checklist --file <path> --workdir .srs_formalizer` | CHECKLIST 完成度校验 |
 
@@ -49,7 +49,7 @@
 
 | 命令 | 功能 |
 |------|------|
-| `npx tsx index.ts verify-gate --workdir .srs_formalizer --stage S1\|R3\|FINAL` | hard gate；FINAL 仅接受带成功报告的 verified 形式化产物 |
+| `npx tsx index.ts verify-gate --workdir .srs_formalizer --stage S1\|R3\|FINAL` | hard gate；FINAL 仅接受内容 hash 与成功报告 `sourceHash` 匹配的 verified 形式化产物 |
 
 ## 维护
 

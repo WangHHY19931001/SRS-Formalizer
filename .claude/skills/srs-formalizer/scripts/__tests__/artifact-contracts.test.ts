@@ -3,6 +3,8 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+
+const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '..', '..', '..', '..', '..');
 import {
   ARTIFACT_DIRECTORIES,
   ARTIFACT_PATHS,
@@ -31,6 +33,14 @@ describe('artifact contracts', () => {
     }
     assert.deepEqual(emittersInGroup('bdd').map(entry => entry.name), ['gherkin']);
     assert.deepEqual(emittersInGroup('formal').map(entry => entry.name), ['tlaSpec', 'leanProof']);
+  });
+
+  it('keeps canonical documentation and registry emitter counts aligned', () => {
+    for (const document of ['README.md', 'AGENTS.md', 'CLAUDE.md', '.claude/skills/srs-formalizer/SKILL.md']) {
+      const content = fs.readFileSync(path.join(REPOSITORY_ROOT, document), 'utf8');
+      assert.equal(/12\s+Emitter/i.test(content), false, `${document} must not claim 12 emitters`);
+      assert.match(content, /10\s+Emitter/i, `${document} must state the registered emitter count`);
+    }
   });
 
   it('hashes sources deterministically and atomically writes reports', () => {

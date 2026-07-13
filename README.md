@@ -5,7 +5,7 @@
 ## 编译器模型
 
 ```
-SRS → Frontend (Parse→Shard→Extract→IR) → Middle-end (6 passes) → Backend (12 Emitters) → 输出产物
+SRS → Frontend (Parse→Shard→Extract→IR) → Middle-end (6 passes) → Backend (10 Emitters) → 输出产物
 ```
 
 | 产出 | Emitter | 触发 |
@@ -46,8 +46,9 @@ npx tsx index.ts validate-tla --name <module> --strict --promote --workdir .srs_
 npx tsx index.ts validate-lean --strict --promote --workdir .srs_formalizer
 npx tsx index.ts verify-gate --workdir .srs_formalizer --stage FINAL
 
-# 运行测试
-npx tsx --test __tests__/*.test.ts
+# 运行测试与确定性评估
+npm test
+npm run evals
 ```
 
 ## 产物生命周期
@@ -59,7 +60,7 @@ npx tsx --test __tests__/*.test.ts
 - `outputs/lean4/draft` → `outputs/lean4/verified`
 - `outputs/graphs`、`outputs/fixtures`、`outputs/reports` 为确定性产物目录。
 
-使用各自的 `validate-… --strict --promote` 命令完成审计、工具链验证、验证报告写入与原子提升。`verify-gate --stage FINAL` 仅接受 verified 源文件及其成功验证报告；security/compliance NFR 还要求 Lean 4 verified 产物。
+使用各自的 `validate-… --strict --promote` 命令完成审计、真实工具链验证、验证报告写入与原子提升。TLA+ 验证只使用内置 `tools/tla2tools-1.7.4.jar` 并真实运行 SANY 与 TLC；每个模块必须提供 matching `.cfg`，验证器不会联网、下载工具或自动补写 cfg。Lean 产物必须是有 `lakefile.lean` 或 `lakefile.toml` 的完整 Lake 项目。`verify-gate --stage FINAL` 会重新计算 verified 内容 hash，仅接受 `sourceHash` 与当前内容匹配的成功报告；security/compliance NFR 还要求 Lean 4 verified 产物。
 
 ## CLI 命令分组
 
@@ -79,7 +80,8 @@ npx tsx --test __tests__/*.test.ts
 - **TypeScript 5.5+** strict 模式
 - **Node.js ≥20** ESM
 - **零运行时 npm 依赖** — devDeps: typescript, @types/node, gherkin-lint, gherklin
-- 测试：Node.js 原生 `node:test`（480 用例, 0 fail）
+- 测试：Node.js 原生 `node:test`（487 用例, 0 fail）
+- 确定性评估：`npm run evals`（TLA 工具链、生命周期及报告 hash 绑定）
 - IR：SRS-IR v2.0.0（强类型中间表示）
 - 编译器模型：SkCC (arXiv:2605.03353) 启发
 - 形式化工具：内置 tla2tools-1.7.4.jar + Lean 4 + gherkin-lint + Gherklin
@@ -97,7 +99,7 @@ npx tsx --test __tests__/*.test.ts
 
 | 框架 | 结果 |
 |------|:--:|
-| SKILL-RUBRIC v0.1.5 | **B+** (7.4/10) |
+| SKILL-RUBRIC v0.1.5 | **B+** (8.1/10，基于静态实现与自动化证据的评估) |
 | OWASP AST10 | **9/10** 通过 |
 | SkillAudit | **Low Risk** |
 

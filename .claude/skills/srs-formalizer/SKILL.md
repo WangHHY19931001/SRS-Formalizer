@@ -187,7 +187,7 @@ Frontend: manifest → guided-extract → inject-prompt → build-ir (srs-ir.jso
     ↓
 Middle-end: analyze-structure → analyze-graph → tag-nfr → check-connectivity → merge-analysis → score-risk
     ↓
-Backend: emit (12 Emitters) → validate-* → verify-gate FINAL
+Backend: emit (10 Emitters) → validate-* → verify-gate FINAL
 ```
 
 核心中间表示 `srs-ir.json v2.0.0` 连接三阶段：Frontend 产出 IR，Middle-end 分析 IR，Backend 从 IR 派生产物。
@@ -316,7 +316,7 @@ Backend: emit (12 Emitters) → validate-* → verify-gate FINAL
 3. 失败 → `prompts/debug-tlc.md` 子代理定位根因 → 修正后回到步骤 1
 
 **质量门禁（全部必须通过，`validate-tla --name <module> --strict --promote`）：**
-- 从 `outputs/tlaplus/draft` 验证同名 `.tla`/`.cfg`；成功后写入报告并提升至 `outputs/tlaplus/verified`
+- 从 `outputs/tlaplus/draft` 验证同名 `.tla`/`.cfg`：静态审计后仅使用内置 `tools/tla2tools-1.7.4.jar` 执行 SANY 与 TLC；不联网、不下载 JAR、不创建 cfg。成功后写入 hash-bound 报告并提升至 `outputs/tlaplus/verified`
 - SANY 语法检查通过 + TLC 模型检查通过 + 6 类 NFR 不变式通过
 - 不允许死锁（`-deadlock`）、状态爆炸、违法不变式（TypeOK）、活锁（停滞）、奇迹（不可能的状态转换）
 - 不允许占位实现、简化实现、错误实现
@@ -332,7 +332,7 @@ Backend: emit (12 Emitters) → validate-* → verify-gate FINAL
 1. Emitter 仅生成带交付要求的 draft，不生成 `sorry` 或 `: True` 弱化证明
 2. 在项目本地的 Lean 文件中完成每个 theorem/lemma
 3. 若一个 theorem/lemma 无法完成，拆分为多个文件分别证明，然后 `import`
-4. 使用 `validate-lean --strict --promote` 审计并运行 `lake build`；通过后才提升到 `outputs/lean4/verified`
+4. `validate-lean --strict --promote` 审计完整 Lake 项目（必须有 `lakefile.lean` 或 `lakefile.toml`）并在项目根运行 `lake build`；通过后才提升到 `outputs/lean4/verified`
 
 **质量门禁（全部必须通过）：**
 - 必须通过 `lake build` 编译验证
@@ -365,7 +365,7 @@ Backend: emit (12 Emitters) → validate-* → verify-gate FINAL
 
 ## 快速参考
 
-完整的 CLI 命令参考表见 `references/quick-reference.md`。Backend 流程为 `emit --name/--group` 生成 draft/确定性产物，再通过 `validate-… --strict --promote` 提升。`emit --group all` 是全量发射入口；不存在 `emit-all` 命令。FINAL 只接受 verified 产物及成功验证报告。
+完整的 CLI 命令参考表见 `references/quick-reference.md`。Backend 流程为 `emit --name/--group` 生成 draft/确定性产物，再通过 `validate-… --strict --promote` 提升。`emit --group all` 是全量发射入口；不存在 `emit-all` 命令。`verify-gate --stage FINAL` 仅接受 verified 产物、完整 Lake/TLA 配置输入及当前内容 hash 与验证报告 `sourceHash` 精确匹配的成功报告。
 
 > **Agent 注意**: 所有命令必须通过 `npx tsx index.ts <command>` 调用。参数值禁止使用 `undefined`、`null`、`NaN` 等占位符。`init` 命令使用 `--output`（不是 `--workdir`）。
 

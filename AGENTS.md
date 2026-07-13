@@ -4,20 +4,21 @@
 
 An AI agent skill that formalizes SRS documents into Cypher graphs, Gherkin BDD, TLA+ specs, and Lean 4 proofs. The actual code lives under `.claude/skills/srs-formalizer/scripts/`. The root is mostly docs and config.
 
-**Architecture**: Compiler model (Frontend → Middle-end → Backend). All artifacts derive from a single SRS-IR (`srs-ir.json`). 12 Emitters generate outputs (Cypher, Gherkin, TLA+, Lean 4, fixtures, traceability, etc.). TS scripts do deterministic transforms; LLM sub-agents do semantic filling.
+**Architecture**: Compiler model (Frontend → Middle-end → Backend). All artifacts derive from a single SRS-IR (`srs-ir.json`). 10 Emitters generate outputs (Cypher, Gherkin, TLA+, Lean 4, fixtures, traceability, etc.). TS scripts do deterministic transforms; LLM sub-agents do semantic filling.
 
 ## Build & verify (run from `.claude/skills/srs-formalizer/scripts/`)
 
 ```bash
 npm install                         # devDeps: typescript, @types/node, gherkin-lint, gherklin
 npx tsc --noEmit                    # strict mode, must be 0 errors
-npx tsx --test __tests__/*.test.ts  # 480 tests, must be 0 failures
+npx tsx --test __tests__/*.test.ts  # 487 tests, must be 0 failures
+npm run evals                       # deterministic toolchain/lifecycle evaluation
 npm run typecheck && npm test       # shortcuts
 ```
 
 Single test file: `npx tsx --test __tests__/init.test.ts`
 
-**Before any commit**: `npm run typecheck` 0 errors + `npm test` 0 failures. Non-negotiable.
+**Before any commit**: `npm run typecheck`, `npm test`, and `npm run evals` must all pass. Non-negotiable.
 
 ## Hard constraints
 
@@ -32,7 +33,7 @@ Single test file: `npx tsx --test __tests__/init.test.ts`
 ## Key conventions
 
 - **`--output` vs `--workdir`**: `init` uses `--output`, everything else uses `--workdir`.
-- **Artifact lifecycle**: emitters create only draft or deterministic output. Promote BDD/TLA+/Lean only via `validate-… --strict --promote`; FINAL consumes verified sources plus successful validation reports.
+- **Artifact lifecycle**: emitters create only draft or deterministic output. Promotion requires `validate-… --strict --promote`; TLA+ runs bundled SANY and TLC, Lean validates a complete Lake project, and FINAL consumes only verified sources with a report whose `sourceHash` matches current content.
 - **`.srs_formalizer` basename enforced** — `validateWorkDir` checks it.
 - **All writes scoped to workdir** — `isPathSafe` + `assertSafePath` dual check.
 - **New code uses `cli.ts`** for arg parsing and path safety. `security.ts` exists but is legacy.
@@ -42,7 +43,7 @@ Single test file: `npx tsx --test __tests__/init.test.ts`
 
 ## Architecture in 30 seconds
 
-Compiler three-stage: **Frontend** (Parse → Shard → Extract → Build IR) → **Middle-end** (6 analysis passes) → **Backend** (12 Emitters). All outputs from a single `srs-ir.json`.
+Compiler three-stage: **Frontend** (Parse → Shard → Extract → Build IR) → **Middle-end** (6 analysis passes) → **Backend** (10 Emitters). All outputs from a single `srs-ir.json`.
 
 ```
 scripts/
@@ -51,7 +52,7 @@ scripts/
 ├── lib/
 │   ├── frontend/        # Parser, Sharder, NFRScanner, Builder, RoundCalculator
 │   ├── middle-end/      # NFRThresholds, NFRTagger, Connectivity, RiskScorer
-│   ├── emitters/        # 12 Emitters (Cypher, Gherkin, TLA+, Lean, Fixture...)
+│   ├── emitters/        # 10 Emitters (Cypher, Gherkin, TLA+, Lean, Fixture...)
 │   ├── fixture-gen/     # V-Model test fixture generators
 │   ├── bdd-validator.ts # BDD Phase 1+2 validation
 │   ├── bdd-tool-runner.ts # Phase 3+4 (gherkin-lint + Gherklin)
@@ -74,11 +75,9 @@ scripts/
 ## Gotchas
 
 - `package-lock.json` is **gitignored** — no lockfile in repo. Run `npm install` to generate one locally.
-- TLA+ validation: delete old trace/state files before debugging.
-- Lean 4: completed proofs are promoted only after `validate-lean --strict --promote`; `sorry`, `admit`, `axiom`, full `import Mathlib`, and `: True` weak proofs fail strict audit.
-- BDD strict mode: 4-level hard-block (TS basic + TS NFR + gherkin-lint + Gherklin). Use `--promote` only after all checks pass.
-- TLA+ covers ALL modules; use `validate-tla --name <module> --strict --promote` to move a draft spec and matching cfg to verified.
-- `verify-gate --stage FINAL` is a hard gate: it accepts only verified formal artifacts with successful validation reports.
+- TLA+ validation uses only the bundled `tools/tla2tools-1.7.4.jar`; every candidate needs an explicit matching `.cfg`. Strict validation runs SANY then TLC, and does not create cfg, download tools, or promote on failure.
+- Lean 4 validation requires a Lake project root (`lakefile.lean` or `lakefile.toml`); its project definition, optional `lean-toolchain`, and `.lean` inputs are hash-bound to its report.
+- `verify-gate --stage FINAL` accepts only verified sources with a matching current-content validation report; stale or cross-artifact reports are rejected.
 
 ## Where to find detailed docs
 

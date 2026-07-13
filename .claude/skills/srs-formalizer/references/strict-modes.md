@@ -54,7 +54,7 @@ TLA+ 使用内置 `tla2tools-1.7.4.jar`（`tools/` 目录）。仅需 Java（不
 
 ### 质量门禁（`validate-tla --name <module> --strict --promote`）
 
-命令只从 `outputs/tlaplus/draft` 读取指定模块及其 matching `.cfg`。SANY/TLC 与严格审计通过后，模块和验证报告才会进入 verified 生命周期。
+命令只从 `outputs/tlaplus/draft` 读取指定模块及其 matching `.cfg`。静态审计通过后，验证器只使用内置 `tools/tla2tools-1.7.4.jar` 依次运行 SANY 与 TLC；不会联网下载 JAR、不会创建缺失 cfg 或改写候选输入。两者均通过后，模块和带 `sourceHash` 的验证报告才会进入 verified 生命周期。
 
 - **禁止死锁（黑洞）**：`-deadlock` 标志
 - **禁止无限状态**：状态空间必须有限
@@ -90,7 +90,7 @@ Lean 4 建模不再无条件触发，而是按以下 NFR 关键词触发：
 
 安装后执行 `lake exe cache get` 下载 mathlib4 最新版编译缓存（避免从源码编译）。要求使用 mathlib4 最新版本。
 
-Lean 4 严格交付流程为：Emitter 写入 `outputs/lean4/draft` → 人工/子代理完成项目本地证明 → `validate-lean --strict --promote` 审计并运行 `lake build` → 成功时原子提升至 verified。审计拒绝 `sorry`、`admit`、`axiom`、全量 `import Mathlib`、`: True` 弱化定理及编译 warning，详见 `references/lean4-coding-guide.md`。
+Lean 4 严格交付流程为：Emitter 写入 `outputs/lean4/draft` 中的完整 Lake 项目（必须有 `lakefile.lean` 或 `lakefile.toml`）→ 人工/子代理完成项目本地证明 → `validate-lean --strict --promote` 审计并在项目根运行 `lake build` → 成功时原子提升整个项目到 verified。`.lean`、Lake 项目定义和可选 `lean-toolchain` 均纳入 source hash；FINAL 只接受该 hash 与当前 verified 内容匹配的报告。审计拒绝 `sorry`、`admit`、`axiom`、全量 `import Mathlib`、`: True` 弱化定理及编译 warning，详见 `references/lean4-coding-guide.md`。
 
 ## 跨图一致性验证（13 个根本问题）
 

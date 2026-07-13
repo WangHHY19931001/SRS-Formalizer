@@ -3,39 +3,56 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ArtifactLifecycle } from './paths.js';
 
-export interface ValidationCheck {
-  name: string;
-  passed: boolean;
-  detail?: string;
-}
-
-export interface ValidationTool {
-  name: string;
-  version: string;
-}
-
+export interface ValidationCheck { name: string; passed: boolean; detail?: string; }
+export interface ValidationTool { name: string; version: string; }
 export interface ArtifactValidationReport {
-  artifactKind: 'bdd' | 'tlaplus' | 'lean4';
-  lifecycle: Extract<ArtifactLifecycle, 'verified'>;
-  sourcePaths: string[];
-  sourceHash: string;
-  irHash: string;
-  tools: ValidationTool[];
-  startedAt: string;
-  completedAt: string;
-  passed: boolean;
-  checks: ValidationCheck[];
+  artifactKind: 'bdd' | 'tlaplus' | 'lean4'; lifecycle: Extract<ArtifactLifecycle, 'verified'>;
+  sourcePaths: string[]; sourceHash: string; irHash: string; tools: ValidationTool[];
+  startedAt: string; completedAt: string; passed: boolean; checks: ValidationCheck[];
 }
 
 export function hashFiles(filePaths: string[]): string {
   const hash = crypto.createHash('sha256');
-  for (const filePath of [...filePaths].sort()) {
-    hash.update(filePath);
-    hash.update('\0');
-    hash.update(fs.readFileSync(filePath));
-    hash.update('\0');
-  }
+  for (const filePath of [...filePaths].sort()) { hash.update(filePath); hash.update('\0'); hash.update(fs.readFileSync(filePath)); hash.update('\0'); }
   return hash.digest('hex');
+}
+
+export function collectFiles(root: string, names: readonly string[]): string[] {
+  if (!fs.existsSync(root)) return [];
+  const result: string[] = [];
+  const visit = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const candidate = path.join(dir, entry.name);
+      if (entry.isDirectory() && !['.lake', 'build'].includes(entry.name)) visit(candidate);
+      else if (entry.isFile() && names.includes(entry.name)) result.push(candidate);
+    }
+  };
+  visit(root);
+  return result;
+}
+
+export function collectByExtension(root: string, extension: string): string[] {
+  if (!fs.existsSync(root)) return [];
+  const result: string[] = [];
+  const visit = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const candidate = path.join(dir, entry.name);
+      if (entry.isDirectory() && !['.lake', 'build'].includes(entry.name)) visit(candidate);
+      else if (entry.isFile() && entry.name.endsWith(extension)) result.push(candidate);
+    }
+  };
+  visit(root);
+  return result;
+}
+
+export function readMatchingReport(reportDir: string, artifactKind: ArtifactValidationReport['artifactKind'], sourceHash: string): boolean {
+  if (!fs.existsSync(reportDir)) return false;
+  return fs.readdirSync(reportDir).filter(file => file.endsWith('.json')).some(file => {
+    try {
+      const report = JSON.parse(fs.readFileSync(path.join(reportDir, file), 'utf8')) as Partial<ArtifactValidationReport>;
+      return report.artifactKind === artifactKind && report.lifecycle === 'verified' && report.passed === true && report.sourceHash === sourceHash;
+    } catch { return false; }
+  });
 }
 
 export function writeValidationReport(reportPath: string, report: ArtifactValidationReport): void {

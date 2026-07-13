@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "npx tsx --test __tests__/*.test.ts",
+    "evals": "npx tsx evals.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

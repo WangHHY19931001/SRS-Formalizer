@@ -6,12 +6,15 @@ export {
 } from './paths.js';
 export {
   hashFiles,
+  collectFiles,
+  collectByExtension,
+  readMatchingReport,
   writeValidationReport,
   type ArtifactValidationReport,
   type ValidationCheck,
   type ValidationTool,
 } from './validation-report.js';
-export { promoteFiles } from './promotion.js';
+export { promoteFiles, promoteDirectory } from './promotion.js';
 export {
   EMITTER_GROUPS,
   EMITTER_REGISTRY,
