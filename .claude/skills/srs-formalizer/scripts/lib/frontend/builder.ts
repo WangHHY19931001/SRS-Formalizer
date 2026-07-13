@@ -38,12 +38,15 @@ function toIRNode(record: JsonlRecord): IRNode {
     confidence: record.confidence,
   };
 
+  const meta = record.metadata;
+  const metaRec = isRecord(meta) ? meta : null;
+
   const source: IRSource = {
     filePath: record.source_file,
-    startLine: 1,
-    endLine: 1,
-    shardId: record.id,
-    chapter: '',
+    startLine: typeof metaRec?.['start_line'] === 'number' ? metaRec['start_line'] : 1,
+    endLine: typeof metaRec?.['end_line'] === 'number' ? metaRec['end_line'] : 1,
+    shardId: typeof metaRec?.['shard_id'] === 'string' ? metaRec['shard_id'] : record.id,
+    chapter: typeof metaRec?.['chapter'] === 'string' ? metaRec['chapter'] : '',
   };
 
   return {
@@ -160,6 +163,10 @@ export function buildIR(workDir: string): SRSIR {
     overallCoverage: 0,
     blindSpots: [],
   };
+  let sourceHash = '';
+  let language: 'zh' | 'en' = 'en';
+  let totalChars = 0;
+  let totalShards = 0;
 
   if (fs.existsSync(shardIndexPath)) {
     try {
@@ -169,6 +176,10 @@ export function buildIR(workDir: string): SRSIR {
           crossRefs = raw['cross_references'] as CrossRef[];
         }
         nfrProfile = safeParseNFRProfile(raw['nfr_profile']);
+        sourceHash = typeof raw['source_hash'] === 'string' ? raw['source_hash'] : '';
+        language = raw['language'] === 'zh' ? 'zh' : 'en';
+        totalChars = typeof raw['total_chars'] === 'number' ? raw['total_chars'] : 0;
+        totalShards = typeof raw['total_shards'] === 'number' ? raw['total_shards'] : 0;
       }
     } catch {
       // Use defaults
@@ -177,10 +188,10 @@ export function buildIR(workDir: string): SRSIR {
 
   const meta: IRMeta = {
     sourcePath: workDir,
-    sourceHash: '',
-    language: 'en',
-    totalChars: 0,
-    totalShards: 0,
+    sourceHash,
+    language,
+    totalChars,
+    totalShards,
     totalNodes: nodes.length,
     totalEdges: edges.length,
     buildTimestamp: new Date().toISOString(),
