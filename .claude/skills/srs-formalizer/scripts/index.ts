@@ -35,6 +35,9 @@ Commands:
   fixture-coverage   Compute fixture coverage report
   generate-vmodel-matrix Build V-Model traceability matrix (--format markdown|cypher) [--output]
   build-ir           Build SRS IR graph from extracted JSONL files
+  tag-nfr            Detect and tag NFR nodes in srs-ir.json
+  check-connectivity Check cross-shard connectivity in srs-ir.json
+  score-risk         Compute risk score from srs-ir.json
 
 Options:
   --help    Show this help message
@@ -77,6 +80,9 @@ const COMMANDS: Record<
   "fixture-coverage": () => import("./commands/fixture-coverage.js"),
   "generate-vmodel-matrix": () => import("./commands/generate-vmodel-matrix.js"),
   "build-ir": () => import("./commands/build-ir.js"),
+  "tag-nfr": () => import("./commands/tag-nfr.js"),
+  "check-connectivity": () => import("./commands/check-connectivity.js"),
+  "score-risk": () => import("./commands/score-risk.js"),
 };
 
 async function main(): Promise<void> {
