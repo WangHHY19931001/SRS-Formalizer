@@ -16,9 +16,9 @@ tags:
     verification,
   ]
 metadata:
-  version: "0.5.5"
+  version: "1.0.0"
   compatibility: requires Node.js>=20, typescript>=5.5, Claude Code>=1.0
-  pattern: pipeline
+  pattern: compiler
   domain: formal-methods
   toxic_flow_analysis:
     accesses_private_data: false
@@ -29,11 +29,11 @@ metadata:
   pre_conditions:
     - "SRS 文档必须存在且可读"
     - "Node.js >=20 环境就绪"
-    - "S0 发现阶段完成用户确认"
+    - "Frontend 阶段 (manifest + guided-extract + build-ir) 完成用户确认"
   post_conditions:
     - "所有产物写入 .srs_formalizer/ 工作目录"
     - "verify-gate FINAL 全部通过"
-    - "cross-graph-report.json 全部 10 个根本问题可回答"
+    - "cross-graph-report.json 全部 13 个根本问题可回答"
     - "convergence-log.jsonl 记录迭代历史"
   permissions:
     - kind: filesystem
@@ -51,7 +51,7 @@ metadata:
   fallbacks:
     - operation: "文件写入 (.srs_formalizer/)"
       strategy: "所有写入使用原子 temp-file + rename。init 幂等保留已有文件。"
-    - operation: "图谱构建 (build-graph / build-architecture)"
+    - operation: "IR 构建 (build-ir)"
       strategy: "构建失败时保留上一阶段有效产物，不回退已校验数据。"
     - operation: "收敛循环 (S6)"
       strategy: "最多 3 次迭代，超限触发苏格拉底拷问 + 人类决策。"
@@ -69,8 +69,8 @@ metadata:
         type: array
         items:
           type: string
-          enum: ["S0", "S1", "S2", "S3", "S4", "S5", "S6"]
-        description: "要执行的流水线阶段（默认全部）"
+          enum: ["frontend", "middle-end", "backend"]
+        description: "要执行的编译器阶段（默认全部）"
     required: ["source", "lang"]
   output_schema:
     type: object
@@ -83,10 +83,10 @@ metadata:
         description: "Gherkin .feature 行为驱动测试骨架"
       tlaplus:
         type: object
-        description: "TLA+ 形式化规约（条件触发）"
+        description: "TLA+ 形式化规约（全模块强制覆盖）"
       lean4:
         type: object
-        description: "Lean 4 定理证明（条件触发）"
+        description: "Lean 4 定理证明（security/compliance 关键词触发）"
       verification_report:
         type: object
         description: "跨图一致性验证报告 (cross-graph-report.json)"
@@ -133,13 +133,9 @@ metadata:
     - "**/*规格*.md"
   pipeline_stages:
     [
-      S0-discovery,
-      S1-preprocess,
-      S2-extract,
-      S3-graph,
-      S4-bdd,
-      S5-formal,
-      S6-gate,
+      frontend,
+      middle-end,
+      backend,
     ]
   stage_gates:
     - validate-jsonl
@@ -152,15 +148,15 @@ metadata:
     - validate-glossary
     - verify-gate
   capability_requirements:
-    # 每个流水线阶段对 LLM 能力的最低要求（0=跳过, 1=需人工, 2=引导式, 3=自动）
-    S0_discovery: { text_analysis: 2, reasoning: 2 }
-    S2_1_R1_extraction:
+    # 每个编译器阶段对 LLM 能力的最低要求（0=跳过, 1=需人工, 2=引导式, 3=自动）
+    frontend_discovery: { text_analysis: 2, reasoning: 2 }
+    frontend_r1_extraction:
       { instruction_following: 3, structured_output: 3, precision: 3 }
-    S2_2_arch_decomposition: { hierarchical_reasoning: 3, induction: 2 }
-    S2_3_R2_derivation: { creative_reasoning: 3, safety_awareness: 2 }
-    S2_5_R3_relations: { logical_reasoning: 3, contradiction_detection: 3 }
-    S5_tlaplus: { formal_tlaplus: 3, state_machine_modeling: 3 }
-    S5_lean4:
+    frontend_arch_decomposition: { hierarchical_reasoning: 3, induction: 2 }
+    frontend_r2_derivation: { creative_reasoning: 3, safety_awareness: 2 }
+    frontend_r3_relations: { logical_reasoning: 3, contradiction_detection: 3 }
+    backend_tlaplus: { formal_tlaplus: 3, state_machine_modeling: 3 }
+    backend_lean4:
       { formal_lean4: 3, theorem_proving: 3, dependent_type_understanding: 3 }
   capability_tiers:
     # 根据模型能力画像自动选择适配层级
@@ -173,7 +169,7 @@ metadata:
 
 ## 概述
 
-将 SRS 文档转化为四类形式化产出：需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约（条件触发）、Lean 4 证明（条件触发）。TS 脚本做确定性机械工作，LLM 子代理做语义判断，编排者做流程决策。
+将 SRS 文档通过编译器模型 (Frontend → Middle-end → Backend) 转化为四类形式化产出：需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约（全模块强制覆盖）、Lean 4 证明（security/compliance 关键词触发）。TS 脚本做确定性机械工作，LLM 子代理做语义判断，编排者做流程决策。核心中间表示 `srs-ir.json v2.0.0` 连接三阶段。
 
 ## 何时不该使用
 
@@ -184,21 +180,23 @@ metadata:
 3. **非技术文档**——营销文案、法律条款、合同文本不适合形式化处理
 4. **用户仅需代码生成**——如果用户只要求写代码，不需要 SRS 形式化
 
-## 工作流（S0 发现 → 六阶段，S2 内含七子阶段三精化循环）
+## 工作流（编译器模型: Frontend → Middle-end → Backend）
 
 ```
-S0 发现确认 → S1 预处理 → S2 需求提取+架构分解 → S3 图谱构建 → S4 BDD生成 → S5 形式化 → S6 验收闸门
-
-S0: 扫描SRS、检测TLA+/Lean触发条件、向用户确认后再开始
-S2 子阶段:
-  S2.1 R1显式 → S2.2 架构分解-1 → S2.3 R2隐式 → S2.4 架构精化-2 → S2.5 R3关系-1 → S2.6 架构终核-3 → S2.7 R3关系-2
+Frontend: manifest → guided-extract → inject-prompt → build-ir (srs-ir.json v2.0.0)
+    ↓
+Middle-end: analyze-structure → analyze-graph → tag-nfr → check-connectivity → merge-analysis → score-risk
+    ↓
+Backend: emit (12 Emitters) → validate-* → verify-gate FINAL
 ```
+
+核心中间表示 `srs-ir.json v2.0.0` 连接三阶段：Frontend 产出 IR，Middle-end 分析 IR，Backend 从 IR 派生产物。
 
 ## 设计模式（嵌套组合）
 
-主模式 `pipeline` — S0~S6 七阶段顺序执行，每阶段通过 stage_gates 拦截跳步。
+主模式 `compiler` — Frontend → Middle-end → Backend 三阶段顺序执行，每阶段通过 stage_gates 拦截跳步。
 
-嵌套于 pipeline 中的次模式：
+嵌套于 compiler 中的次模式：
 
 - **Inversion（逆向澄清，嵌入 S0）**：在进入 S1 前强制 interview 模式，信息不全不进 S1
 - **Generator（模板化输出，嵌入 S2~S5）**：executor 提示词采用零自由度填空模板，禁止增减字段
@@ -209,21 +207,24 @@ S2 子阶段:
 
 ```
 .srs_formalizer/
+├── srs-ir.json            # 核心中间表示 (v2.0.0)
 ├── _ctx/                  # shard_index.json (索引化分片)
-├── 2_extract/
-│   ├── r1-explicit/      # S2.1: R1 显式需求 JSONL
-│   ├── architecture/     # S2.2/2.4/2.6: 架构分解 JSONL（arch-1/2/3）
-│   ├── r2-implicit/      # S2.3: R2 隐式需求 JSONL
-│   └── r3-relational/    # S2.5/2.7: R3 关系需求 JSONL
-├── 3_graph/
-│   ├── graph/            # S3: 图谱文件 + 合并日志
-│   └── analysis/         # S3: 结构/语义分析 + 子代理提示词
-├── 4_bdd/
-│   └── features/         # S4: .feature 文件
-├── 5_formal/
-│   ├── specs/            # S5: TLA+ 规约
-│   └── proofs/           # S5: Lean 4 证明
-└── 6_outputs/            # S6: 知识图谱 Cypher + 头脑风暴上下文
+├── ir/
+│   ├── r1-explicit/       # R1 显式需求 JSONL
+│   ├── architecture/      # 架构分解 JSONL
+│   ├── r2-implicit/       # R2 隐式需求 JSONL
+│   └── r3-relational/     # R3 关系需求 JSONL
+├── middle-end/
+│   ├── structure/         # 结构分析输出
+│   ├── nfr/               # NFR 标签 + 阈值分析
+│   ├── connectivity/      # 连通性检查
+│   └── risk/              # 风险评分
+├── outputs/
+│   ├── graphs/            # Cypher 知识图谱
+│   ├── bdd/               # .feature 文件
+│   ├── tlaplus/           # TLA+ 规约 (.tla)
+│   ├── lean4/             # Lean 4 证明 (.lean)
+│   └── reports/           # 验证报告 + 收敛日志
 ```
 
 阶段号前缀方便快速排查——`ls` 一眼看出每个阶段是否存在。
@@ -236,7 +237,7 @@ S2 子阶段:
 - 子代理 R1 提取时 ID 格式：`R1-<shard_id>-NNNN`（如 `R1-S001-0001`）
 - ID 严格匹配正则 `^R[123]-[A-Za-z0-9_.]+-\d{4}$`，禁止中文
 
-## S1 阶段：预处理
+## Frontend 阶段：预处理
 
 | 命令                                                                             | 功能                                              |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |
@@ -273,26 +274,31 @@ S2 子阶段:
   3. 若校验通过 → 继续阶段转换
 ```
 
-## S4 BDD 建模（必选）
+## Backend BDD 建模（必选）
 
 **格式要求：**
 - 必须采用独立 `.feature` 文件格式建模，**不接受 Markdown 模式描述 BDD**
 - 必须有完整步骤（Given → When → Then → And），必须完整定义状态和状态转换
-- 必须通过 gherkin-lint 严格模式（20 条规则，配置 `templates/.gherkin-lintrc-strict`）
+- 必须通过四级严格校验（`validate-bdd --strict`）
 
-**质量门禁（全部必须通过）：**
-- 不允许 `error`、`failed`、`undefined`、`untested`、步骤缺失——出现则需处理修正
-- 不允许占位实现（如 `<THEN_PLACEHOLDER>`、`<GIVEN_PLACEHOLDER>`）、简化实现、错误实现
+**质量门禁（四级全硬阻塞，任一失败打回 Frontend）：**
+1. **Phase 1: TS 基础结构** — Feature/Scenario/Given/When/Then 存在性校验
+2. **Phase 2: TS NFR 专项** — 阈值数值/认证前置/LLM_FILL残留检测
+3. **Phase 3: gherkin-lint** — 20 条规则（配置 `templates/.gherkin-lintrc-strict`）
+4. **Phase 4: Gherklin** — 语义层校验
+- 不允许 `error`、`failed`、`undefined`、`untested`、步骤缺失
+- 不允许占位实现、简化实现、错误实现
 - 不允许 GAP / TODO / FIXME / TBD / 待定 / 未定义 / 待实现
-- 行为图谱 `build-behavior-graph` 必须成功构建（含 Feature/Scenario/Action 节点）
+- 必须包含 NFR 场景（性能阈值 / 认证前提 / 超时 / 重试上限）
 
 **SRS 一致性问题：** 建模必须符合 SRS 设计并进一步细化。出现问题先检查建模与设计一致性；一致但仍有问题则与用户交互修正设计。
 
-## S5 TLA+ 建模（条件触发：并发/分布式/共识协议）
+## Backend TLA+ 建模（全模块强制覆盖）
 
 **层次化拆解方法：**
 - L1 系统内外交互抽象 → L2 子系统内部行为 + 上下同级交互抽象 → L3 原子化子系统行为抽象。可推广至 4/5/6 级或更多，每个下级子系统视为独立系统继续拆解
 - 拆解判定：先写 TLA+，分析变量组合；组合结果 >1k 时考虑拆，>1w 时必须拆
+- 每个模块生成 6 类 NFR 不变式（性能/安全/可靠性/可用性/可维护性/可观测性）
 
 **调试与验证流程：**
 1. 删除旧的轨迹文件（`.stl`）和状态文件（`.tlc`）
@@ -300,14 +306,14 @@ S2 子阶段:
 3. 失败 → `prompts/debug-tlc.md` 子代理定位根因 → 修正后回到步骤 1
 
 **质量门禁（全部必须通过，`validate-tla` 严格模式）：**
-- SANY 语法检查通过 + TLC 模型检查通过
+- SANY 语法检查通过 + TLC 模型检查通过 + 6 类 NFR 不变式通过
 - 不允许死锁（`-deadlock`）、状态爆炸、违法不变式（TypeOK）、活锁（停滞）、奇迹（不可能的状态转换）
 - 不允许占位实现、简化实现、错误实现
 - 正常系统不允许死锁。死锁或矛盾分支需定位根因修正
 
 **SRS 一致性问题：** 建模必须符合 SRS 设计。符合设计但仍有问题的，需报告人类并给出可选项供修正 SRS。此部分允许联网搜索深度调研，但必须基于事实工作。
 
-## S5 Lean 4 建模（条件触发：安全关键/密码学/自定义算法）
+## Backend Lean 4 建模（security/compliance 关键词触发）
 
 **平台限制：** ❌ Windows 禁止（引导使用 WSL2）。✅ Linux x86_64 / ✅ macOS ARM64。
 
@@ -328,9 +334,9 @@ S2 子阶段:
 
 **SRS 一致性问题：** 建模必须符合 SRS 设计。符合设计但仍有问题的，写入 `SRS_PATCHES.md`（含矛盾描述、SRS 引用、可选项 A/B/C、事实依据），等待人类确认。此部分允许联网搜索深度调研，但必须基于事实工作。
 
-## S6 收敛循环
+## Backend 收敛循环
 
-详见 `references/strict-modes.md`——跨图一致性验证（10 个根本问题 + 收敛循环 + 苏格拉底拷问）。
+详见 `references/strict-modes.md`——跨图一致性验证（13 个根本问题 + 收敛循环 + 苏格拉底拷问）。
 
 ## 核心原则
 
@@ -348,7 +354,7 @@ S2 子阶段:
 
 ## 快速参考
 
-完整的 30 条 CLI 命令参考表见 `references/quick-reference.md`。
+完整的 25 条 CLI 命令参考表见 `references/quick-reference.md`。核心 Backend 命令：`emit --name/--group`（单/组发射）、`emit-all`（全发射）。新增 Middle-end 命令：`tag-nfr`、`score-risk`、`check-connectivity`。
 
 > **Agent 注意**: 所有命令必须通过 `npx tsx index.ts <command>` 调用。参数值禁止使用 `undefined`、`null`、`NaN` 等占位符。`init` 命令使用 `--output`（不是 `--workdir`）。
 

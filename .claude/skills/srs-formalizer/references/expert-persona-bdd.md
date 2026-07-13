@@ -37,6 +37,28 @@
 
 ## 质量门禁与工具链
 
+### 四级严格校验（`validate-bdd --strict`）
+
+你的产出必须通过四级全硬阻塞校验（详见 `strict-modes.md`），任一失败即打回 Frontend：
+
+| 阶段 | 校验内容 | 负责方 |
+|------|----------|--------|
+| Phase 1 | TS 基础结构（Feature/Scenario/Given/When/Then 存在性） | `validate-bdd` |
+| Phase 2 | TS NFR 专项（阈值数值/认证前置/LLM_FILL残留） | `validate-bdd` |
+| Phase 3 | gherkin-lint 20 条规则 | `lib/bdd-tool-runner.ts` |
+| Phase 4 | Gherklin 语义校验 | `lib/bdd-tool-runner.ts` |
+
+### NFR 场景建模指导
+
+针对 SRS 中的非功能需求，必须为每个相关模块生成独立的 NFR 场景：
+
+- **性能场景**：必须含具体指标（如 "response time < 200ms"），禁止模糊表述
+- **安全场景**：认证/授权/加密场景必须含完整 Given 前置（token/session/凭据）
+- **可靠性场景**：重试/降级/熔断场景必须含具体阈值（如 "retry ≤ 3 times"）
+- **可用性场景**：含超时/故障转移/健康检查的具体阈值
+- **可维护性场景**：日志/指标/告警的前提条件和断言
+- **可观测性场景**：追踪/tracing span 的结构化断言
+
 ### 多框架支持
 你需精通以下 BDD 框架：
 - **Cucumber.js / WebdriverIO**（JavaScript/TypeScript）

@@ -1,6 +1,20 @@
 # Lean 4 + Mathlib4 编码参考指南
 
-本指南为 srs-formalizer S5 阶段的 Lean 4 子代理提供完整的编码规范，涵盖安装引导、语法速查、拆分证明方法论、编码原则、反例与常见陷阱、参考实践及外部资源。
+本指南为 srs-formalizer Backend 阶段的 Lean 4 子代理提供完整的编码规范，涵盖 NFR 触发条件、安装引导、语法速查、拆分证明方法论、编码原则、反例与常见陷阱、参考实践及外部资源。
+
+---
+
+## NFR 触发条件（决定是否执行 Lean 4 建模）
+
+Lean 4 建模**不是全模块强制**，而是按 SRS 中是否包含以下 NFR 关键词触发：
+
+| 关键词 | 类别 |
+|--------|------|
+| `security`, `encryption`, `authentication`, `authorization`, `cryptography` | security |
+| `compliance`, `GDPR`, `HIPAA`, `SOC2`, `ISO27001`, `regulatory` | compliance |
+| `audit`, `traceability`, `non-repudiation` | 审计/不可抵赖 |
+
+**触发规则**：SRS 中任一模块包含上述任一关键词 → 对该模块**强制生成** Lean 4 证明。不含触发关键词的模块跳过 Lean 4 建模。
 
 ---
 
@@ -372,6 +386,7 @@ Lean 4 建模必须符合 SRS 的设计。S5 阶段在已确认的 SRS 需求基
 
 交付前必须逐项确认：
 
+- [ ] **NFR 触发确认**：确认当前模块含 security/compliance/audit 关键词，非误触发
 - [ ] lake build 通过（0 errors）
 - [ ] 0 `sorry`（`grep -r "sorry" *.lean` 为空）
 - [ ] 0 `axiom`（`grep -r "axiom" *.lean` 为空）
@@ -381,3 +396,4 @@ Lean 4 建模必须符合 SRS 的设计。S5 阶段在已确认的 SRS 需求基
 - [ ] 无 `import Mathlib`（全量导入）
 - [ ] 符合 SRS 设计；如有矛盾已报告至 `SRS_PATCHES.md`
 - [ ] 每个修改后立即 `lake build`，不积攒
+- [ ] 证明覆盖 security/compliance 属性（如适用）
