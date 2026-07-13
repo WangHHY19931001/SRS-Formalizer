@@ -1,6 +1,6 @@
 # SRS-Formalizer 设计文档
 
-> **版本**: 0.8.0 | **日期**: 2026-07-13 | **状态**: Active
+> **版本**: 1.0.0 | **日期**: 2026-07-13 | **状态**: Active
 >
 > 本文档是 srs-formalizer 技能开发的**唯一事实依据**（Single Source of Truth）。
 > 所有设计决策、架构约束、规则合规、评估结果均记录于此。
@@ -16,22 +16,25 @@
 |------|-----|
 | 名称 | `srs-formalizer` |
 | 类型 | `framework`（基础框架型技能） |
-| 主模式 | `pipeline` |
+| 主模式 | `compiler`（编译器三段式） |
 | 领域 | `formal-methods` |
 | 安全等级 | `high` |
 | HITL | 强制 |
-| 版本 | 0.8.0（语义化版本） |
+| 版本 | 1.0.0（语义化版本） |
 
 ### 1.2 核心能力
 
-将 **SRS（软件需求规格说明）** 文档转化为四类形式化产出：
+将 **SRS（软件需求规格说明）** 文档转化为形式化产出，采用编译器模型（Frontend → Middle-end → Backend）：
 
-| 产出 | 格式 | 阶段 | 触发条件 |
-|------|------|:----:|----------|
-| 需求知识图谱 | Neo4j Cypher | S3 | 必选 |
-| BDD 测试骨架 | Gherkin `.feature` | S4 | 必选 |
-| TLA+ 形式化规约 | `.tla` | S5 | 条件触发（并发/分布式/共识） |
-| Lean 4 定理证明 | `.lean` | S5 | 条件触发（安全关键/密码学/算法） |
+| 产出 | 格式 | 发射器 | 触发条件 |
+|------|------|------|----------|
+| 需求知识图谱 | Neo4j Cypher | CypherEmitter | 必选 |
+| BDD 测试骨架 | Gherkin `.feature` | GherkinEmitter | 必选 |
+| TLA+ 形式化规约 | `.tla` | TLAEmitter | NFR 触发（并发/性能关键词） |
+| Lean 4 定理证明 | `.lean` | LeanEmitter | NFR 触发（安全关键/合规关键词） |
+| 测试夹具 | pytest/JUnit/Cucumber/Playwright/fast-check | FixtureEmitter | 可选（选框架） |
+| 追溯矩阵 | Markdown / Cypher | TraceabilityMatrixEmitter | 必选 |
+| 覆盖率报告 | JSON | CoverageEmitter | 有 fixture 时 |
 
 ### 1.3 何时不该使用
 
@@ -44,34 +47,68 @@
 
 ## 2. 架构设计
 
-### 2.1 七阶段流水线
+### 2.1 编译器三阶段架构
+
+受 SkCC (arXiv:2605.03353) 启发，本技能采用经典编译器三段式架构：
 
 ```
-S0(发现确认) → S1(预处理) → S2(需求提取) → S3(图谱构建)
-             → S4(BDD生成) → S5(形式化) → S6(验收闸门)
+SRS 文档 (.md/.html)
+  │
+  ▼
+┌──────────────────────────────────────────────────┐
+│  FRONTEND (Parse → Shard → Extract → Build IR)   │
+│  输出: srs-ir.json (不可变, 强类型)               │
+└──────────────────────────────────────────────────┘
+  │
+  ▼
+┌──────────────────────────────────────────────────┐
+│  MIDDLE-END (IR → IR 变换, 6 passes)             │
+│  Structure → Semantic → NFR Tag → Connect →      │
+│  Merge → Risk Score                              │
+└──────────────────────────────────────────────────┘
+  │
+  ▼
+┌──────────────────────────────────────────────────┐
+│  BACKEND (Emitter 注册表, 12 个)                 │
+│  Cypher · Gherkin · TLA · Lean · Fixture ·       │
+│  Counterexample · Traceability · Coverage ·      │
+│  BehaviorGraph · TlaGraph · LeanGraph ·          │
+│  CrossGraph                                      │
+└──────────────────────────────────────────────────┘
+  │
+  ▼
+输出产物 (Cypher, .feature, .tla, .lean, test_*.py, ...)
 ```
 
-| 阶段 | 输入 | 核心动作 | 产出 | 门禁 |
-|:----:|------|----------|------|------|
-| S0 | SRS 文档 | 扫描、触发判定、用户确认 | 分析报告 + 触发决策 | 用户确认 |
-| S1 | 原始 SRS | init → manifest → glossary | shard_index.json + GLOSSARY.md | validate-glossary |
-| S2 | 分片索引 | R1显式→R2隐式→R3关系 + 架构分解(3轮) | JSONL 记录 | validate-jsonl, validate-architecture |
-| S3 | 需求 JSONL | 图谱构建→结构分析→语义分析→Cypher导出 | 知识图谱 + Cypher | validate-cypher, verify-gate(R3) |
-| S4 | 知识图谱 | BDD 生成→gherkin-lint 严格校验→行为图谱 | .feature + behavior-graph | validate-bdd (20条规则, 零error/failed/undefined/untested/占位) |
-| S5 | 图谱 + 触发 | TLA+ 层次化建模（L1→L2→L3, 可推广 N 级）/ Lean 4 拆分证明（四步循环, 递归至 0 sorry） | .tla / .lean + 交互图谱 | validate-tla (SANY+TLC, 零死锁/状态爆炸/占位), validate-lean (lake build, 零sorry/axiom/warning) |
-| S6 | 全阶段产物 | 系统架构合成→跨图一致性验证→收敛循环 | 架构图谱 + 一致性报告 | verify-gate(FINAL) |
+**核心设计原则**:
 
-### 2.2 设计模式（嵌套组合）
+| 原则 | 说明 |
+|------|------|
+| **单一 IR** | 所有产物从同一个 `srs-ir.json` 生成，保证一致性 |
+| **前端/后端解耦** | 新增输出格式只需实现新 Emitter，不影响现有逻辑 |
+| **IR 不可变** | 前端构建后 IR 只读，Emitter 为纯函数 |
+| **O(m+n) 复杂度** | m 个输入源 + n 个 Backend Emitter |
+| **可增量** | 局部 SRS 变更 → 局部 IR 重建 → 受影响 Emitter 重发射 |
+
+### 2.2 与传统七阶段映射
+
+| 编译器阶段 | 对应原阶段 | CLI |
+|:----:|:--:|------|
+| **Frontend** | S0-S3 | `manifest` → `guided-extract` → `build-ir` |
+| **Middle-end** | S3 分析 | `analyze-structure` → `analyze-graph` → `tag-nfr` → `check-connectivity` → `merge-analysis` → `score-risk` |
+| **Backend** | S4-S6 | `emit --group graphs\|bdd\|formal\|vmodel\|verify` |
+
+### 2.3 设计模式
 
 ```
-主模式: pipeline
-├── Inversion  @S0   — 信息不全不进 S1，强制 interview 模式
-├── Generator  @S2-5 — 零自由度填空模板，禁止增减字段
-├── Reviewer   @门禁 — 可执行 checklist，全部打勾才 APPROVED
-└── Tool Wrapper @全局 — L3 渐进加载，按需注入 reference
+主模式: compiler
+├── Inversion  @Frontend — 信息不全不进入 IR 构建，强制 interview
+├── Generator  @Frontend — 零自由度填空模板，禁止增减字段
+├── Reviewer   @Middle-end — 结构/语义/NFR 分析 passes
+└── Emitter    @Backend  — 统一 Emitter 接口，纯函数 IR → 产物
 ```
 
-### 2.3 渐进式披露（Progressive Disclosure）
+### 2.4 渐进式披露（Progressive Disclosure）
 
 | 级别 | 内容 | Token | 加载时机 |
 |:----:|------|-------|----------|
@@ -79,153 +116,15 @@ S0(发现确认) → S1(预处理) → S2(需求提取) → S3(图谱构建)
 | L2 | SKILL.md 正文 | ≤5,000 | 技能激活时 |
 | L3 | references/ + templates/ + prompts/ | 按需 | 指令明确要求时 |
 
-当前 L2: ~3,800 tokens（合规），L3: 17 references + 18 templates + 28 prompts。
-
-### 2.4 目录结构
-
-```
-.claude/skills/srs-formalizer/
-├── SKILL.md                 # L1+L2：前置元数据 + 正文指令
-├── CHANGELOG.md             # 版本变更历史
-├── BASELINE.md              # TDD RED 阶段基线跟踪器
-├── agent-card.json          # A2A Protocol v1.0 Agent Card
-├── MANIFEST.json            # 完整性校验清单
-├── srs-formalizer-backup.enc # AES-256-GCM 加密备份
-│
-├── scripts/                 # TypeScript 工具链（零运行时 npm 依赖）
-│   ├── index.ts             # CLI 入口（注册表模式，35 条命令）
-│   ├── commands/            # 35 条命令（每文件 ≤300 行）
-│   ├── lib/                   # 27 核心模块 + 10 子目录
-│   │   ├── cli.ts              # CLI 参数安全解析
-│   │   ├── security.ts         # 路径安全校验（与 cli.ts 功能重复，保留用于独立导入）
-│   │   ├── graph.ts            # 图数据结构
-│   │   ├── jsonl.ts            # JSONL 读写与校验
-│   │   ├── graph-algorithms.ts # 统一图算法（BFS/连通分量/最短路径/2-hop/Jaccard/图加载）
-│   │   ├── graph-operations.ts # 图合并/冲突边/同侧面边操作
-│   │   ├── id-utils.ts         # 共享 ID 清理（sanitizeId）
-│   │   ├── fs-utils.ts         # 共享文件系统工具（ensureDir）
-│   │   ├── text-analysis.ts    # NLP 工具（分词/Jaccard/反义检测/CJK bigram）
-│   │   ├── prompt-templates.ts # 子代理审查提示词模板
-│   │   ├── chapter-parser.ts   # SRS 章节识别（HTML/Markdown）
-│   │   ├── sharder.ts          # 文档分片与递归细分
-│   │   ├── skill-integrity.ts  # 技能完整性加解密（pack + verify 共享）
-│   │   ├── anti-skill.ts       # Anti-Skill 安全约束注入
-│   │   ├── skir-builder.ts     # SkIR 构建器（→ skir/ re-export）
-│   │   ├── system-architecture.ts # 系统架构合成（→ system-architecture/ re-export）
-│   │   ├── behavior-graph.ts   # 行为图谱（→ behavior-graph/ re-export）
-│   │   ├── lean-graph.ts       # Lean 4 证明图谱（→ lean-graph/ re-export）
-│   │   ├── tla-graph.ts        # TLA+ 交互图谱（→ tla-graph/ re-export）
-│   │   ├── cross-graph-verifier.ts # 跨图一致性验证（→ cross-graph/ re-export）
-│   │   ├── compile-validator.ts # 编译时 Schema 校验
-│   │   ├── emitter-claude-xml.ts # Claude XML 发射器
-│   │   ├── emitter-generic-md.ts # 通用 Markdown 发射器
-│   │   ├── checklists.ts       # 阶段验收 CHECKLIST
-│   │   ├── tla-validator.ts    # TLA+ SANY+TLC 验证
-│   │   ├── bdd.ts              # Gherkin 生成与校验
-│   │   ├── cypher.ts           # 通用 Cypher 导出基函数（exportGraphToCypher）
-│   │   ├── fixture-gen/         # V-Model 测试 fixture 生成（bdd/tla/lean/coverage/types/template-engine/tla-counterexample/playwright-page/nfr/traceability/helpers）
-│   │   ├── skir/               # SkIR 实现（types + yaml + parser + builder）
-│   │   ├── tla-graph/          # TLA+ 图谱实现（types + parser + builder + cypher）
-│   │   ├── lean-graph/         # Lean 4 图谱实现（types + parser + builder + cypher）
-│   │   ├── behavior-graph/     # BDD 图谱实现（types + parser + builder + cypher）
-│   │   ├── system-architecture/ # 系统架构实现（types + builder + cross-layer + consistency + cypher）
-│   │   ├── llm/                # LLM 稳定性测试
-│   │   │   ├── config.ts       # Provider 配置
-│   │   │   ├── stability.ts    # 稳定性测试引擎（→ stability/ re-export）
-│   │   │   └── stability/      # 稳定性实现（types + manifest + scoring + eval + report）
-│   │   ├── probe/              # 能力探测系统
-│   │   │   ├── types.ts        # 共享类型（8 维度）
-│   │   │   ├── questions.ts    # 50 探针聚合
-│   │   │   ├── scorer.ts       # 评分 + 画像计算
-│   │   │   ├── questions/      # 8 个维度探针生成器
-│   │   │   └── scorer/         # 8 个维度评分器 + helpers
-│   │   ├── cross-graph/        # 跨图验证实现（types + questions-def + socratic + graph-loader + scorer + verifier）
-│   │   ├── verify-gate/        # 三级门禁（shared + checks-s1/r3/final）
-│   │   └── architecture/       # 架构图构建（types + graph-utils + validator + processors/arch1-3）
-│   ├── types/                # 共享 TypeScript 类型
-│   │   ├── index.ts          # JsonlRecord, CliResult, ShardIndex
-│   │   └── skir.ts           # SkIR 强类型（20+ 字段）
-│   ├── __tests__/            # 52 文件，342 测试（含 fixture-gen 10 个测试文件, 73 个测试）
-│   └── templates/            # 脚办模板 + test-fixtures/（16 个框架模板）
-│       └── check.sh.template # CHECKLIST 检查脚本模板
-│
-├── prompts/                  # LLM 提示词（28 文件）
-│   ├── orchestrator_stage_S0~S6.md  # 7 编排者指令
-│   ├── executor-R1~R5.md           # 6 执行者模板（R4 拆分为 clarify+verify）
-│   ├── executor-bdd.md             # BDD 行为建模执行者（S4 专用）
-│   ├── executor-tlaplus.md         # TLA+ 并发系统建模执行者（S5 专用）
-│   ├── executor-lean4.md           # Lean 4 定理证明执行者（S5 专用）
-│   ├── executor-arch-1~3.md        # 3 架构分解模板
-│   ├── executor-glossary.md        # 术语提取模板
-│   ├── verifier-R1~R5.md           # 5 校验者清单
-│   ├── verifier-arch.md            # 架构审核清单
-│   └── debug-lean.md, debug-tlc.md # 2 诊断指南
-│
-├── references/               # L3 参考资料（17 文件）
-│   ├── quick-reference.md    # 完整 CLI 命令表
-│   ├── strict-modes.md       # S4/S5/S6 严格模式详情
-│   ├── stability-baseline.md # 跨 LLM 稳定性基线
-│   ├── a2a-integration.md    # A2A 协议集成指南
-│   ├── capability-adaptation.md    # 能力分级适配方案
-│   ├── srs-chapter-guide.md        # SRS 章节识别规范
-│   ├── tlaplus-coding-guide.md     # TLA+ 编码指南
-│   ├── lean4-coding-guide.md       # Lean 4 编码指南
-│   ├── gherkin-lint-guide.md       # Gherkin Lint 参考
-│   ├── hooks-integration.md        # 多平台激活适配
-│   ├── auto-setup.md               # 编码智能体自配置
-│   ├── agent-integration-guide.md  # 多平台集成差异
-│   ├── expert-persona-bdd.md       # BDD 行为建模专家人设
-│   ├── expert-persona-tlaplus.md   # TLA+ 并发系统建模专家人设
-│   ├── expert-persona-lean4.md     # Lean 4 定理证明专家人设
-│   ├── collaboration-contract.md   # 专家协作契约
-│   └── bdd-coding-guide.md         # BDD 编码参考指南
-│
-├── templates/                # 产出模板（18 文件）
-│   ├── STATE.md.template     # 状态追踪
-│   ├── CONTEXT.md.template   # 术语表与切片索引
-│   ├── GAPS.md.template      # 信息缺口追踪
-│   ├── MINDMAP.md.template   # SRS 结构总览
-│   ├── BEHAVIORS.md.template # BDD 分层建模索引
-│   ├── SPECS.md.template     # TLA+ 规约索引
-│   ├── PROOFS.md.template    # Lean 4 证明索引
-│   ├── RESEARCH_LOG.md.template # 深度研究日志
-│   ├── S5_SKIP_REPORT.md.template # S5 跳过报告
-│   ├── .gherkin-lintrc       # BDD 校验配置
-│   ├── .gherkin-lintrc-strict # 严格模式（20 条规则）
-│   └── checklists/           # 7 份阶段验收 CHECKLIST
-│
-├── tests/                    # 验收用例（11 文件）
-│   ├── golden/               # L4 验收 Golden 标准
-│   ├── fixtures/             # 测试夹具
-│   └── assertions/           # 集成测试断言
-│
-├── examples/                 # 使用示例
-│
-└── tools/                    # 内置工具
-    └── tla2tools-1.7.4.jar   # TLA+ SANY + TLC
-```
-
 ### 2.5 提示词类型与角色
 
-技能使用四种提示词类型，分别对应不同的代理角色：
-
-| 类型 | 数量 | 角色 | 调用方式 | 约束 |
-|------|:----:|------|----------|------|
-| **编排者** (Orchestrator) | 7 | 阶段级决策者：执行 CLI 命令、分派子代理、管理阶段转换 | 由编排者按阶段自动加载 | 技能完整性校验先于每阶段转换 |
-| **执行者** (Executor) | 10→13 | 零自由度模板填充者：接收结构化输入，产生结构化 JSONL 输出 | 编排者通过 `inject-prompt` 注入 | 禁止增减字段、编造数据 |
-| **执行者-领域** (Executor-Domain) | 3 | BDD/TLA+/Lean 4 领域专家执行者：注入完整专家人设，专注单一形式化领域 | S4/S5 编排者通过 `inject-prompt` 注入 | executor-bdd / executor-tlaplus / executor-lean4 |
-| **验证者** (Verifier) | 6 | 独立审查者：在新会话中按 checklist 逐项核验执行者输出 | 编排者在阶段 gate 时调用 | 强制新会话、禁止信任执行者报告 |
-| **调试** (Debug) | 2 | 被动诊断工具：仅在 TLA+/Lean 构建失败时触发，提供错误分类和修复建议 | S5 编排者按需调用 | 不修改源代码，仅输出诊断报告 |
-
-提示词文件与设计模式的对应：
-- Inversion (S0) → 编排者 S0（强制 interview，信息不全不进 S1）
-- Generator (S2-5) → 执行者模板（零自由度填空）
-- Reviewer (门禁) → 验证者 checklist（全部打勾才 APPROVED）
-- Tool Wrapper (全局) → L3 渐进加载（编排者按需注入 reference）
-
-注意：执行者 R4 拆分为两个独立文件：`executor-R4-clarify.md`（信号澄清）和 `executor-R4-verify.md`（矛盾检测），分别承担不同的子代理角色。
-
-**专家人设补充**：上述四种提示词类型定义了流程角色（如何执行）。此外，技能定义了三个领域专家人设——BDD 行为建模专家、TLA+ 并发系统建模专家、Lean 4 定理证明专家——作为 L3 参考资料内置在 `references/expert-persona-*.md` 中。编排者在对应阶段开始时加载（S4→BDD 人设, S5→TLA+/Lean 4 人设），作为子代理分派和质量判定的上下文。详见 [§24 专家人设体系](#24-专家人设体系)。
+| 类型 | 数量 | 角色 | 约束 |
+|------|:----:|------|------|
+| **编排者** (Orchestrator) | 7 | 阶段级决策者：执行 CLI、分派子代理 | 技能完整性校验先于每阶段转换 |
+| **执行者** (Executor) | 13 | 模板填充者：结构化输入 → 结构化 JSONL | 禁止增减字段、编造数据 |
+| **执行者-领域** (Executor-Domain) | 3 | BDD/TLA+/Lean 4 领域专家 | 注入完整专家人设 |
+| **验证者** (Verifier) | 8 | 独立审查者：新会话中逐项核验 | 强制新会话、禁止信任执行者报告 |
+| **调试** (Debug) | 2 | 被动诊断：TLA+/Lean 构建失败时触发 | 不修改源代码，仅输出诊断报告 |
 
 ---
 
@@ -235,561 +134,522 @@ S0(发现确认) → S1(预处理) → S2(需求提取) → S3(图谱构建)
 
 | # | 决策 | 原因 |
 |:--:|------|------|
-| 1 | **零运行时 npm 依赖** | 技能工程哲学：技能应自包含，不引入供应链风险。仅 `typescript` + `@types/node` 为 devDeps |
-| 2 | **TypeScript strict 全家桶** | `strict: true`（`noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noFallthroughCasesInSwitch`） |
-| 3 | **TS 脚本只做确定性转换** | 不调用 LLM、不产生随机数、不依赖外部 API |
-| 4 | **所有文件操作限定工作目录** | `.srs_formalizer/` 内，路径安全双校验（`isPathSafe` + `assertSafePath`） |
-| 5 | **所有 CLI 命令必须经 index.ts** | `refuseDirectInvocation` 阻止直接调用，防止 LLM 绕过参数校验 |
-| 6 | **统一错误处理模式** | 所有命令使用 `try { safeParseArg() } catch { return { status: 'error', message } }` 模式。错误通过 CliResult 返回而非抛出异常 |
-| 7 | **毒值拒绝** | `undefined`/`null`/`NaN`/`[object Object]` 在入口 `validateNoPoisonArgs` 拦截 |
-| 8 | **文件大小硬限制** | 单文件 ≤300 行（0.5.7 全部达标，最大 283 行） |
-| 9 | **禁止 `any` 类型** | 严格 TypeScript 模式，所有错误类型使用 `unknown` + `instanceof Error` |
-| 10 | **路径拼接强制 `path.join()`** | 禁止字符串拼接，禁止硬编码系统命令 |
-| 11 | **`init` 用 `--output`，其余用 `--workdir`** | 统一接口规范，`validateWorkDir` 强制 `.srs_formalizer` 命名 |
+| 1 | **零运行时 npm 依赖** | 技能自包含，不引入供应链风险 |
+| 2 | **TypeScript strict** | `strict`, `noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noFallthroughCasesInSwitch` |
+| 3 | **TS 只做确定性转换** | 不调用 LLM、不产生随机数、不依赖外部 API |
+| 4 | **所有文件操作限定工作目录** | `.srs_formalizer/` 内，路径安全双校验 |
+| 5 | **所有 CLI 经 index.ts** | `refuseDirectInvocation` 阻止绕过 |
+| 6 | **统一错误处理** | `try/catch → { status, message }`，不抛异常 |
+| 7 | **毒值拒绝** | `undefined/null/NaN/[object Object]` 入口拦截 |
+| 8 | **文件大小** | ≤300 行（当前最大 283） |
+| 9 | **禁止 `any`** | 所有错误类型用 `unknown` + `instanceof Error` |
+| 10 | **`path.join()` 强制** | 禁止字符串拼接路径 |
+| 11 | **`init` 用 `--output`，其余用 `--workdir`** | `validateWorkDir` 强制 `.srs_formalizer` 命名 |
 
-### 3.2 安全设计
+### 3.2 为什么选编译器模型
 
-| 层级 | 机制 | 说明 |
-|:----:|------|------|
-| 编译期 | Anti-Skill Injector | 7 条安全规则注入（4 SkCC 通用 + 3 SRS 特有），94.8% 触发率 |
-| 编译期 | Fail-Fast 10 条 | 字段缺失/XML标签/模式不匹配/权限不对齐 → 编译失败 |
-| 运行时 | 路径安全 | `isPathSafe` + `assertSafePath` 双重校验，防目录遍历 |
-| 运行时 | 参数安全 | `validateNoPoisonArgs` 拦截 LLM 生成的垃圾参数 |
-| 运行时 | 技能完整性 | `verify-skill-integrity` SHA-256 哈希校验 + `.enc` 加密备份 |
-| 运行时 | 门禁条件 | 9 个 stage_gates 硬性校验，不通过阻断后续阶段 |
-| 流程 | HITL | `security_level: high` → 强制人工审批 |
-| 流程 | Toxic Flow Defense | 三要素中 `accesses_private_data: false`（阻断 toxic 链） |
+受 SkCC 启发，srs-formalizer 本质上是 SRS → IR → 多目标产物的编译过程：
 
-### 3.3 为什么选 Pipeline 主模式
+- **单一 IR**: `srs-ir.json` 承载所有语义信息
+- **确定性**: IR 不可变，Emitter 为纯函数
+- **可扩展**: 新增输出格式只需实现新 Emitter 并注册
+- **可增量**: 局部 SRS 变更 → 局部 IR 重建 → 受影响 Emitter 重发射
 
-srs-formalizer 是典型的**多步顺序执行**场景，每步产物依赖上一步、每步有明确 gate condition：
+### 3.3 为什么 NFR 条件触发 TLA+/Lean 4
 
-- S0 确认输入 → gate: 用户确认
-- S1 预处理 → gate: validate-glossary
-- S2 需求提取 → gate: validate-jsonl + validate-architecture
-- S3 图谱构建 → gate: validate-cypher + verify-gate(R3)
-- S4 BDD 生成 → gate: validate-bdd
-- S5 形式化 → gate: validate-tla + validate-lean
-- S6 验收 → gate: verify-gate(FINAL)
+| NFR 类别 | 触发条件 | 强制产物 |
+|------|------|:--:|
+| performance 关键词 ≥5 且 total_shards ≥100 | 高并发/分布式 | 强制 TLA+ |
+| security/compliance 关键词 ≥1 | 安全关键 | 强制 Lean 4 |
+| availability 关键词 ≥3 | 高可用 | 建议 TLA+ |
 
-其他模式的嵌入是补充性的：Inversion 确保 S0 不猜测用户意图；Generator 确保子代理输出结构化；Reviewer 确保每步独立校验；Tool Wrapper 控制 token 预算。
-
-### 3.4 为什么 S5 条件触发
-
-TLA+ 和 Lean 4 形式化对 SRS 内容有特定要求：
-
-- **TLA+ 适用**: 并发系统、分布式锁、共识协议、状态机 → 高价值
-- **TLA+ 不适用**: 单线程 CRUD 系统 → 产出的 TLA+ 规约无实际意义
-- **Lean 4 适用**: 安全关键算法、密码学、自定义数据结构正确性 → 高价值
-- **Lean 4 不适用**: 常规业务逻辑 → 证明开销远大于收益
-
-不适用时通过快速退出路径（S0 Step 3.5 + S5 快速退出检查）跳过，避免浪费 token。
+不适用时 Emitter 自动跳过。
 
 ---
 
-## 4. 规则合规
+## 4. SRS-IR Schema
 
-### 4.1 合规矩阵
+SRS-IR 是编译器架构的单一事实来源。所有节点/边/元信息在此统一定义。
 
-| 规则文件 | 要求数 | 合规 | 备注 |
-|----------|:------:|:----:|------|
-| `rules/skill/structure.md` | 10 Fail-Fast | 10/10 | L2 ≤5,000 ✓, 格式中立 ✓ |
-| `rules/skill/security.md` | 10 Fail-Fast | 10/10 | HITL ✓, fallbacks ✓, permissions ✓ |
-| `rules/skill/verification.md` | 22 自检项 | 22/22 | TS only ✓, path.join() ✓ |
-| `rules/skill/cross-platform.md` | 7 适配项 | 6/7 | MCP 结构支持但未运行时配置 |
-| `rules/project/coding/standards.md` | 6 规范 | 6/6 | strict TS ✓, 文件大小 ✓, 无 any ✓ |
-| `rules/project/coding/testing.md` | 5 测试层 | 5/5 | 342 tests, 0 fail |
-| `rules/project/rules.md` | 4 规范 | 4/4 | Conventional Commits ✓ |
+### 4.1 顶层结构
 
-### 4.2 已知差距
-
-| 项 | 优先级 | 说明 |
-|:--:|:------:|------|
-| 跨 LLM 稳定性数据 | P0 | 已建测试基础设施（`stability-test` 命令），待收集数据 |
-| MCP 服务器运行时 | P3 | SkIR 类型支持，编译管线支持，但未部署实际 MCP server |
-| Windows 端到端测试 | P4 | TLA+ 可运行（Java），Lean 4 禁止（需 WSL2） |
-| 能力探测 TLA+ 评分器 Java 类名 | ~~P1~~ ✅ | 评分器误用 `tla2.SANY`/`tla2.TLC`（ClassNotFoundException），已修正为 `tla2sany.SANY`/`tlc2.TLC`。经 `java -cp tla2tools-1.7.4.jar` 实测：SANY Version 2.2 (2020-07-08), TLC2 Version 2026.05.18 |
-
-### 4.3 BDD 建模约束
-
-#### 4.3.1 格式要求
-
-- **必须采用独立 `.feature` 文件格式建模**，不接受 Markdown 模式描述 BDD
-- 必须有完整步骤（Given → When → Then → And），必须完整定义状态和状态转换
-- 每个 Then 含 `# verification_method:` 标注
-- 每个 .feature 文件独立（对应 SRS 各模块）
-
-#### 4.3.2 生成-校验-阻塞流程
-
-S4 阶段执行 BDD 生成后立即触发 gherkin-lint 严格模式校验。若校验失败（如存在 `THEN_PLACEHOLDER`），则会形成硬阻塞：
-
-1. `generate-bdd` → 生成 `.feature` 文件
-2. `validate-bdd` → gherkin-lint 严格模式（20 条规则，配置 `templates/.gherkin-lintrc-strict`）
-3. 若 `THEN_PLACEHOLDER` 或 `error`/`failed`/`undefined`/`untested` 或步骤缺失存在 → `build-behavior-graph` 拒绝执行
-4. 阻塞解除条件：所有 Gherkin 文件通过全部 20 条规则
-
-此设计确保行为图谱仅有完整的场景定义，防止占位符流入下游分析。
-
-#### 4.3.3 质量门禁
-
-| # | 检查 | 严重度 |
-|:--:|------|:------:|
-| 1 | 无 GAP / TODO / FIXME / TBD / 待定 / 未定义 / 待实现 | 硬阻塞 |
-| 2 | 无 `<THEN_PLACEHOLDER>` / `<GIVEN_PLACEHOLDER>` 等占位符 | 硬阻塞 |
-| 3 | 无 `error` / `failed` / `undefined` / `untested` | 硬阻塞 |
-| 4 | 步骤完整（无缺失 Given/When/Then） | 硬阻塞 |
-| 5 | Scenario Outline 变量全部使用 | 硬阻塞 |
-| 6 | 逻辑顺序 Given → When → Then → And | 硬阻塞 |
-| 7 | 不允许占位实现、简化实现、错误实现 | 硬阻塞 |
-| 8 | `build-behavior-graph` 成功构建（含 Feature/Scenario/Action 节点） | 硬阻塞 |
-
-#### 4.3.4 SRS 一致性处理
-
-建模必须符合 SRS 设计并进一步细化。出现问题先检查建模与设计一致性；一致但仍有问题则与用户交互修正设计。
-
-> **专家人设**: BDD 行为建模专家的完整身份定位、核心方法论、质量门禁与上报路径详见 [§24.1 BDD 行为建模专家](#241-bdd-行为建模专家)。
-
-### 4.4 TLA+ 建模约束
-
-#### 4.4.1 层次化拆解方法
-
-TLA+ 建模采用层次化递进策略：
-
-```
-L1: 系统内外交互抽象
-  └─ L2: 子系统内部行为 + 上下同级交互抽象
-      └─ L3: 原子化子系统行为抽象
-          └─ L4/L5/L6... (可推广，每个下级子系统视为独立系统继续拆解)
+```typescript
+interface SRSIR {
+  version: '2.0.0';
+  meta: IRMeta;
+  nodes: IRNode[];
+  edges: IREdge[];
+  crossRefs: CrossRef[];
+  nfrProfile: NFRProfile;
+  gaps: IRGap[];
+  glossary: IRGlossaryEntry[];
+}
 ```
 
-**拆解判定方法：**
-1. 先写 TLA+ 规约
-2. 分析变量组合状态空间
-3. 组合结果 >1k 时考虑拆解，>1w 时必须拆解
-4. 每个下级子系统视为独立系统递归应用此方法
+### 4.2 节点
 
-#### 4.4.2 调试与验证流程
+```typescript
+interface IRNode {
+  id: string;
+  type: IRNodeType;
+  module: string;
+  labels: string[];
+  properties: IRProperties;
+  source: IRSource;
+  analysis?: IRAnalysis;
+}
 
-```
-1. 删除旧的轨迹文件（.stl）和状态文件（.tlc）
-2. 先通过 SANY 语法检查
-3. SANY 通过后才允许执行 TLC 模型检查
-4. TLC 失败 → debug-tlc 子代理定位根因 → 修正后回到步骤 1
-5. 全部通过 → 冻结 .tla 文件 → 构建交互图谱
-```
+type IRNodeType =
+  | 'requirement' | 'nfr' | 'architecture'
+  | 'bdd_scenario' | 'tla_action' | 'tla_invariant'
+  | 'lean_theorem' | 'lean_lemma';
 
-#### 4.4.3 质量门禁
+interface IRProperties {
+  statement?: string;
+  category?: 'explicit' | 'implicit' | 'relational';
+  confidence?: 'high' | 'medium' | 'low';
+  nfrCategory?: NFRCategory;
+  nfrThreshold?: NFRThreshold;
+  archType?: 'Module' | 'Actor' | 'Constraint' | 'Component' | 'Interface';
+}
 
-| # | 检查 | 命令/方法 | 严重度 |
-|:--:|------|------|:------:|
-| 1 | SANY 语法检查 | `validate-tla` | 硬阻塞 |
-| 2 | TLC 模型检查（-deadlock） | `validate-tla` | 硬阻塞 |
-| 3 | 无死锁（黑洞） | `-deadlock` 标志 | 硬阻塞 |
-| 4 | 无状态爆炸 | TLC 状态空间限制 | 硬阻塞 |
-| 5 | 无违法不变式 | TypeOK 不变式 | 硬阻塞 |
-| 6 | 无活锁（停滞） | Stuttering 检测 | 硬阻塞 |
-| 7 | 无奇迹（不可能的状态转换） | TLC 覆盖检查 | 硬阻塞 |
-| 8 | 无占位实现、简化实现、错误实现 | 人工 + 自动化审查 | 硬阻塞 |
+type NFRCategory =
+  | 'performance' | 'security' | 'availability'
+  | 'compatibility' | 'maintainability' | 'compliance';
 
-正常系统不允许死锁。死锁或矛盾分支需定位根因修正。
+interface NFRThreshold {
+  metric: string;  value: number;  unit: string;
+  operator: '<' | '<=' | '>' | '>=' | '==';
+}
 
-> **源重扫（门禁 #8「自动化审查」落地）**: verify-gate FINAL 的 `checkTlaGraphExists` 与构建期 `build-tla-graph` 会重新读取 `5_formal/specs/*.tla`，**仅在注释区域**匹配禁止占位标记 `GAP / TODO / FIXME / TBD / 待定 / 未定义 / 待实现`，命中即 fail——不再仅凭 `tla-interaction-graph.json` 存在放行。这落地了门禁 #8 中可确定性检测的那一半；语义型简化（弱不变式、缩小状态空间、伪代码代替 .tla）无单一文本特征，仍由 SANY/TLC 与人工审查负责。与 Lean 侧 §4.5.2 源重扫机制对称（Lean 去注释匹配 `sorry`/`axiom`，TLA+ 保留注释匹配标记）。
+interface IRSource {
+  filePath: string;  startLine: number;  endLine: number;
+  shardId: string;   chapter: string;
+}
 
-#### 4.4.4 工具链条件
-
-- 工具：内置 `tla2tools-1.7.4.jar`（SANY 2.2 + TLC2 2026.05.18），仅需 Java 11+
-- 三层回退：GitHub API → 本地缓存 → 内置兜底
-- 能力探测探针仅在有工具链时生成 TLA+ 维度
-- 无工具链时评分器降级为语法检查（7 项正则检查，满分 100）
-
-> **专家人设**: TLA+ 并发系统建模专家的完整身份定位、层次化拆解方法论、验证顺序与根因分析详见 [§24.2 TLA+ 并发系统建模专家](#242-tla-并发系统建模专家)。
-
-### 4.5 Lean 4 建模约束
-
-#### 4.5.1 拆分证明方法（强制四步循环）
-
-```
-Step 1: 编写证明骨架（带 sorry）
-   └─ LLM 子代理编写 theorem 声明和证明策略框架
-Step 2: 将每个 sorry 变为独立文件证明
-   └─ 每个 lemma 独立文件（≤100 行）
-Step 3: 无法单文件则继续拆分
-   └─ 拆分为多个文件分别证明，然后 import
-Step 4: 递归循环
-   └─ 若仍有 sorry → 回到 Step 1，递归至 0 个 sorry
+interface IRAnalysis {
+  structure?: { orphan: boolean; islandId?: string; crossFileIsland: boolean; };
+  semantic?: { duplicatePair?: string; conflictPair?: string; sameAspectCluster?: string; };
+}
 ```
 
-#### 4.5.2 硬门禁
+### 4.3 边
 
-| # | 检查 | 命令 | 严重度 |
-|:--:|------|------|:------:|
-| 1 | 0 `sorry` | `grep -r "sorry" *.lean` → 空 | 硬阻塞 |
-| 2 | 0 `axiom` | `grep -r "axiom" *.lean` → 空 | 硬阻塞 |
-| 3 | 0 warnings | lake build 输出无 warning | 硬阻塞 |
-| 4 | lake build 通过 | exit 0 | 硬阻塞 |
-| 5 | theorem + 完整 proof | 每个声明含完整 tactic proof | 硬阻塞 |
-| 6 | 每个 lemma 独立文件 | 无 >100 行单体证明 | 硬阻塞 |
-| 7 | 无占位实现、简化实现、错误实现 | 人工 + 自动化审查 | 硬阻塞 |
+```typescript
+interface IREdge {
+  id: string;  source: string;  target: string;
+  type: IREdgeType;
+  properties: IREdgeProperties;
+}
 
-**附加约束：**
-- ✅ 允许使用 mathlib4（最新版），首次执行 `lake exe cache get`
-- ✅ 策略级联：`rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → aesop`
-- ❌ 禁止 `#eval` 替代 proof
-- ❌ 禁止 `import Mathlib`（全量导入）
-- ❌ 每个修改后立即 `lake build`，不积攒
+type IREdgeType =
+  | 'depends_on' | 'refines' | 'conflicts_with' | 'derived_from'
+  | 'same_aspect' | 'contains'
+  | 'nfr_impacts' | 'nfr_constrains' | 'cross_file_depends'
+  | 'verifies' | 'implements' | 'proves' | 'traces_to';
 
-**verify-gate FINAL 二级扫描防护：** 在上述硬门禁之外，verify-gate FINAL 阶段在验证 `lean-proof-graph.json` 存在性的基础上，额外对 `5_formal/proofs/*.lean` 源文件执行注释感知重扫描（剥离注释后按词边界匹配 `sorry`/`axiom`），作为第二道防线。任何命中均直接判定为门禁失败，不再仅依赖图谱文件的存在性判断。此机制中 `axiom` 与 `sorry` 同为硬阻塞（`axiom` 从原 warn 提升为 fail），与上表第 2 行一致。
+interface IREdgeProperties {
+  crossFileWeight?: number;  confidence?: number;  reasoning?: string;
+}
+```
 
-#### 4.5.3 平台限制
+### 4.4 辅助类型
 
-| 平台 | 支持 |
-|------|:----:|
-| Linux x86_64 | ✅ |
-| macOS ARM64 | ✅ |
-| Windows | ❌ 禁止（引导使用 WSL2） |
+```typescript
+interface IRMeta {
+  sourcePath: string;  sourceHash: string;  language: 'zh' | 'en';
+  totalChars: number;  totalShards: number;
+  totalNodes: number;  totalEdges: number;
+  buildTimestamp: string;
+  riskScore?: number;  highRiskShards?: string[];
+}
 
-#### 4.5.4 工具链条件
+interface CrossRef {
+  sourceShard: string;  targetShard: string;
+  refType: 'heading_ref' | 'term_ref' | 'explicit_see' | 'implicit_dep';
+  anchorText: string;  confidence: number;
+}
 
-- 需要 `lake` 命令可用
-- 能力探测探针仅在有工具链时生成 Lean 4 维度
-- 无工具链时评分器降级为语法检查（7 项检查，含 lake build 时 +40 分）
+interface NFRProfile {
+  detectedCategories: NFREntry[];
+  weightedShards: NFRWeightedShard[];
+  overallCoverage: number;
+  blindSpots: NFRCategory[];
+}
 
-> **专家人设**: Lean 4 定理证明专家的完整身份定位、迭代式拆分证明法、质量门禁与关键上报节点详见 [§24.3 Lean 4 定理证明专家](#243-lean-4-定理证明专家)。
+interface NFREntry {
+  category: NFRCategory;  keywordHits: number;
+  shardIds: string[];     nodeIds: string[];
+}
 
-### 4.6 SRS 一致性升级流程（TLA+ / Lean 4 共享）
+interface NFRWeightedShard {
+  shardId: string;  nfrWeight: number;  primaryCategory?: NFRCategory;
+}
 
-当 TLA+ 或 Lean 4 建模符合 SRS 设计但仍有问题（死锁、违反不变式、状态爆炸、不可证明、类型不匹配）时：
+interface IRGap {
+  priority: 'P0' | 'P1' | 'P2' | 'P3';
+  type: 'unsolved_issue' | 'undefined_term' | 'missing_reference'
+      | 'incomplete_section' | 'cross_chapter_gap';
+  description: string;  sourceChapter: string;
+}
 
-1. **不修改代码绕过问题**
-2. 写入 `SRS_PATCHES.md`，格式：
-   ```
-   ## SRS 不一致报告
-   - 矛盾: <描述>
-   - SRS 引用: <章节>
-   - 可选项:
-     A. <方案A> — 推荐 ✓
-     B. <方案B>
-     C. <方案C>
-   - 事实依据: <联网搜索的论文/开源 URL>
-   ```
-3. **允许联网搜索深度调研**，基于事实工作（不允许编造论文或 URL）
-4. 等待人类确认后按确认方案修改
-5. 若不一致涉及安全关键需求，`security_level` 临时提升至 `critical`
+interface IRGlossaryEntry {
+  term: string;  acronym?: string;  definition: string;
+  sourceShard: string;  confidence: 'high' | 'medium' | 'low';
+  category: 'domain_concept' | 'acronym' | 'technical_entity'
+          | 'business_entity' | 'defined_term';
+}
+```
+
+### 4.5 IR 不可变性契约
+
+- 前端 `build-ir` 生成 IR 后，文件只读写入，不再修改
+- 中端 passes 读取 IR 并产生带 `analysis` 标注的副本
+- 所有 Backend Emitter 以纯函数形式读取 IR
+- IR 版本号 `2.0.0` 区别于旧版 `graph.json`
 
 ---
 
-## 5. 评估结果
+## 5. Frontend（前端）
 
-### 5.1 SKILL-RUBRIC v0.1.5
+**输入**: SRS 文档  
+**输出**: `srs-ir.json`（不可变）  
+**LLM 参与**: 仅 Pass 3（guided-extract）
 
-| 维度 | 得分 | 策略 | 关键证据 |
-|------|:----:|:----:|----------|
-| D1 Problem-fit | 8/10 | Lenient | 明确用户画像 + 反事实价值 + 320 测试 |
-| D2 Architecture | 8/10 | Strict | 单一职责 + 渐进式披露 + 工具面最小化 |
-| D3 Reliability | 5/10 | Strict | D3.1 硬上限（缺跨 LLM 数据），安全设计良好 |
-| D4 Output-fit | 8/10 | Strict | 溯源 + 零往返 + 失败清晰 |
-| D5 Lifecycle-fit | 7/10 | Strict | 版本管理 + 阶段契约 + 生态集成 |
+### 5.1 Pass 1: Parser（确定性）
 
-**加权平均**: 7.2/10 → **B+**（Good）
+| 组件 | 功能 |
+|------|------|
+| `ChapterParser` | 章节层级树 + 12 个 NFR 关键词匹配（中英文） |
+| `CrossRefDetector` | 四种跨章引用模式：标题引用、术语引用、显式"参见§X"、隐式依赖 |
+| `NFRScanner` | 六类 NFR 关键词密度扫描，输出 `NFRProfile` |
 
-### 5.2 OWASP AST10
+### 5.2 Pass 2: Sharder（确定性）
 
-通过率 **9/10**：
+递归分片：`MAX_SHARD_LINES = 200`。按章节标题分割，无标题时按段落回退。每个 shard 记录 `nfrWeight`（0-1）和邻接 shard 引用关系。
 
-| # | 风险 | 状态 |
-|:--:|------|:----:|
-| AST01 | Malicious Skills | ✅ SHA-256 + .enc 防篡改 |
-| AST02 | Supply Chain | ✅ verify-skill-integrity |
-| AST03 | Over-Privileged | ✅ 最小权限 scope |
-| AST04 | Insecure Metadata | ✅ 无 XML 标签 + YAML 自定义解析 |
-| AST05 | Untrusted Instructions | ✅ 输入限定 SRS 文档 |
-| AST06 | Weak Isolation | ⚠️ 无容器隔离，但路径安全校验 |
-| AST07 | Update Drift | ✅ SHA-256 + semver |
-| AST08 | Poor Scanning | ✅ 四阶段编译管线 + Anti-Skill |
-| AST09 | No Governance | ✅ verify-gate + HITL |
-| AST10 | Cross-Platform | ✅ A2A Agent Card（agent-card.json） |
+### 5.3 Pass 3: Extractor（LLM 参与）
 
-### 5.3 SkillAudit
+| 提取类型 | 说明 |
+|------|------|
+| R1-explicit | 显式需求 |
+| R2-implicit | 隐式需求 |
+| R3-relational | `R3-` | 关系需求 |
+| **R3-cross** (★) | `R3C-` | 跨分片关系二次扫描 |
+| **R4-NFR** (★) | `R4N-` | NFR 专项提取 |
+| Arch-1/2/3 | — | 架构分解（基础/增量/修正） |
+| **Arch-4-NFR** (★) | — | NFR 架构节点 |
 
-安全风险等级: **Low**（0 高危发现）
+**动态架构轮次**: 根据 `totalShards` 输出：<50 → 3 轮，50-99 → 4 轮，≥100 → 5 轮。`crossRefCount > 50` → +1 轮。
+
+### 5.4 Pass 4: IR Builder（确定性）
+
+1. 读取所有 JSONL → 去重 → 构建 `IRNode[]` + `IREdge[]`
+2. 合并 `crossRefs`、`nfrProfile`、`gaps`、`glossary`
+3. 完整性验证（`validateIR`）：版本号 `2.0.0`、无悬挂边（`source`/`target` 必须在 `nodes[]` 中存在）、`buildTimestamp` 非空。不通过则 `build-ir` 返回 error。
+4. 输出 `srs-ir.json`（存储在 workdir 根目录）
+
+**IR 不可变性**：`build-ir` 生成 IR 后不再修改。中端 passes 和 Backend Emitter 只读。
+
+### 5.5 CLI
+
+| 命令 | 说明 |
+|------|------|
+| `manifest --src <path> --lang zh/en --workdir <path>` | Pass 1+2 |
+| `guided-extract --type r1/r2/r3/r3-cross/r4-nfr/arch --workdir <path>` | Pass 3 |
+| `inject-prompt --template <path> --params '{}'` | 模板注入 |
+| `build-ir --workdir <path>` | Pass 4 |
 
 ---
 
-## 6. 技术栈
+## 6. Middle-end（中端）
 
-| 组件 | 选型 | 版本 |
+全部确定性算法。无 LLM 依赖。输入和输出都是 `srs-ir.json`（annotated）。
+
+| Pass | 组件 | 功能 |
+|:--:|------|------|
+| M1 | Structure Analyzer | 孤立节点 · 悬挂边 · 概念孤岛 · **跨文件孤岛** |
+| M2 | Semantic Analyzer | Jaccard 重复检测 · 反义词冲突 · 同侧面聚类 |
+| M3 | NFR Tagger (★) | NFR 节点自动分类 · 阈值正则提取（"≤200ms" → `{metric, value, unit, operator}`）· 盲点检测 |
+| M4 | Connectivity Checker (★) | 跨 shard 连通性图 · 孤岛修复建议边 |
+| M5 | Merge Optimizer | 子代理 verdict → 合并/冲突边/同侧面边 |
+| M6 | Risk Scorer (★) | 风险因子：orphanRate(×0.2) + crossFileCoverage(×0.3) + nfrCoverage(×0.3) + gapWeight(×0.2) |
+
+### 6.1 NFR 阈值提取（正则 + 启发式）
+
+六类 NFR 各 5 个正则模式，含启发式回退。例如性能类：
+```
+/响应时间\s*[≤<=]\s*(\d+\.?\d*)\s*(ms|毫秒)/          → {metric:'response_time', ...}
+/latency\s*[≤<=]\s*(\d+\.?\d*)\s*(ms|seconds?)/i     → {metric:'latency', ...}
+/within\s+(\d+\.?\d*)\s*(ms|milliseconds?)/i          → 启发式回退
+```
+
+正则优先 → 未匹配则尝试启发式 → 仍未匹配则跳过（不报错，LLM 后续填充）。
+
+### 6.2 NFR 检测关键词
+
+| NFR 类别 | 中文关键词 | 英文关键词 |
 |------|------|------|
-| 语言 | TypeScript (strict) | ≥5.5 |
-| 运行时 | Node.js (ESM) | ≥20 |
-| 执行器 | tsx | latest |
-| 测试 | Node.js native `node:test` | built-in |
-| 格式化 | Prettier | latest |
-| 形式化 | tla2tools (built-in JAR) | 1.7.4 |
-| 形式化 | Lean 4 + mathlib4 | latest |
-| BDD 校验 | gherkin-lint | latest |
-| 编译目标 | SkIR → Claude XML + Generic MD | — |
+| performance | 响应时间、延迟、吞吐、并发、性能 | latency, throughput, response time, concurrent |
+| security | 安全、加密、认证、授权、防攻击 | encrypt, authentication, authorize, prevent |
+| availability | 可用性、容错、冗余、恢复、高可用 | uptime, availability, fault, recovery, redundant |
+| compatibility | 兼容、适配、浏览器、操作系统 | compatible, browser, platform, OS |
+| maintainability | 可维护、扩展、模块化、可配置 | maintainable, extensible, modular, configurable |
+| compliance | 合规、GDPR、PCI、审计、监管 | compliance, GDPR, PCI, audit, regulatory |
 
-### 6.1 依赖策略
+### 6.2 CLI
 
-```
-运行时依赖: 0（零外部 npm 包）
-开发依赖: typescript, @types/node
-内置工具: tla2tools-1.7.4.jar (27MB)
-```
-
-### 6.1.1 CHECKLIST 修复机制
-
-`checklists.ts` 模块提供 `repairChecklist` 函数，用于自动修复 CHECKLIST 格式问题：
-
-- 自动补充缺失的阶段标题
-- 标准化 Checklist 条目格式
-- 移除重复条目
-
-CLI 命令 `validate-checklist --repair` 调用此函数，在 S1/S3/S6 门禁前自动修复格式问题，减少人工干预。
+| 命令 | Pass | 说明 |
+|------|:--:|------|
+| `analyze-structure` | M1 | 结构分析 |
+| `analyze-graph` | M2 | 语义分析 |
+| `tag-nfr` (★) | M3 | NFR 标注 |
+| `check-connectivity` (★) | M4 | 连通性检查 |
+| `merge-analysis` | M5 | 合并子代理判决 |
+| `score-risk` (★) | M6 | 风险评分 |
 
 ---
 
-## 7. 测试策略
+## 7. Backend（后端）
 
-### 7.1 测试层级
+### 7.1 Emitter 接口
 
-| 层级 | 覆盖 | 数量 | 通过标准 |
-|------|------|:----:|----------|
-| 单元测试 | 函数/方法级 | 342 | 100% 分支覆盖 |
-| 模块测试 | 组件/工具类 | 内嵌于单元测试 | 所有公开接口 |
-| 集成测试 | 多模块协作 | `tests/assertions/` | 端到端正确 |
-| Golden 测试 | 基准比对 | `tests/golden/` | 输出与基准一致 |
+```typescript
+interface Emitter {
+  readonly name: string;
+  readonly description: string;
+  readonly outputDir: string;
+  emit(ir: SRSIR, workdir: string, options?: Record<string, unknown>): EmitResult;
+}
 
-### 7.2 运行命令
+interface EmitResult {
+  files: string[];  fileCount: number;
+  metadata: Record<string, unknown>;
+}
+```
 
-```bash
-cd .claude/skills/srs-formalizer/scripts
-npm install                       # 安装 devDeps
-npx tsc --noEmit                  # Typecheck（strict, 0 errors）
-npx tsx --test __tests__/*.test.ts # 342 tests（42 基础 + 10 fixture-gen）
+### 7.2 Emitter 清单（12 个）
+
+**图谱组 (4)**:
+
+| Emitter | 输出 | 条件 |
+|------|------|:--:|
+| `CypherEmitter` | `schema.cypher` | 必选 |
+| `BehaviorGraphEmitter` | `behavior.cypher` + `.json` | 有 BDD |
+| `TlaGraphEmitter` | `tla-interaction.cypher` + `.json` | 有 TLA+ |
+| `LeanGraphEmitter` | `lean-proof.cypher` + `.json` | 有 Lean 4 |
+
+**BDD 组 (1)**:
+
+| Emitter | 输出 | 说明 |
+|------|------|------|
+| `GherkinEmitter` | `<module>.feature` + `NFR<Category>.feature` | 必选。NFR 场景含实际阈值 |
+
+**形式化组 (2)**:
+
+| Emitter | 输出 | 条件 |
+|------|------|:--:|
+| `TLAEmitter` | `*.tla` 骨架 | NFR 触发 |
+| `LeanEmitter` | `*.lean` 骨架 | NFR 触发 |
+
+**V-Model 组 (3)**:
+
+| Emitter | 输出 | 条件 |
+|------|------|:--:|
+| `FixtureEmitter` | `test_*.py` / `*Test.java` / `*.spec.ts` | 选框架 |
+| `CounterexampleEmitter` | `test_reproduce_*.py` | TLC trace |
+| `TraceabilityMatrixEmitter` | `traceability.md` / `traceability.cypher` | 必选 |
+
+**验证组 (2)**:
+
+| Emitter | 输出 | 条件 |
+|------|------|:--:|
+| `CoverageEmitter` | `coverage-report.json` | 有 fixture |
+| `CrossGraphEmitter` | `cross-graph-report.json` + `convergence-log.jsonl` | 必选 |
+
+### 7.3 CLI
+
+```
+# 全部发射
+emit-all --workdir <path>
+
+# 按组
+emit --group graphs --workdir <path>
+emit --group bdd --workdir <path>
+emit --group formal --workdir <path>
+emit --group vmodel --workdir <path>
+emit --group verify --workdir <path>
+
+# 单个
+emit --name cypher --workdir <path>
+emit --name gherkin --workdir <path> --nfr-focus performance,security
+emit --name fixture --workdir <path> --framework pytest --level nfr
+```
+
+### 7.4 编译器复杂度
+
+```
+未引入 IR:  m 个输入 × n 个输出 = O(m×n)
+引入 IR 后: m 个输入 → IR + n 个 Emitter = O(m+n)
 ```
 
 ---
 
-## 8. CLI 参数约定
+## 8. CLI 命令清单
 
-所有 CLI 命令遵循以下参数约定：
+### 8.1 前端 (4)
+
+| 命令 | 说明 |
+|------|------|
+| `manifest` | SRS 扫描分片 + 章节识别 + NFR 扫描 + 跨章引用 |
+| `guided-extract` | 逐行提取 (R1/R2/R3/R3-cross/R4-NFR/Arch-1-4) |
+| `inject-prompt` | 模板参数注入 |
+| `build-ir` | 组装 SRS-IR |
+
+### 8.2 中端 (6)
+
+| 命令 | 说明 |
+|------|------|
+| `analyze-structure` | M1: 结构分析 |
+| `analyze-graph` | M2: 语义分析 |
+| `tag-nfr` | M3: NFR 标注 |
+| `check-connectivity` | M4: 连通性检查 |
+| `merge-analysis` | M5: 合并子代理判决 |
+| `score-risk` | M6: 风险评分 |
+
+### 8.3 后端 (2)
+
+| 命令 | 说明 |
+|------|------|
+| `emit-all` | 全部 12 个 Emitter 串行 |
+| `emit` | `--group` / `--name` 分目标发射 |
+
+### 8.4 验证与维护
+
+| 命令 | 说明 |
+|------|------|
+| `validate-jsonl` | JSONL 格式校验 |
+| `validate-architecture` | 架构 JSONL 校验 |
+| `validate-glossary` | 术语表校验 |
+| `validate-cypher` | Cypher 脚本校验 |
+| `validate-bdd` | .feature 校验 (+NFR 规则) |
+| `validate-tla` | SANY + TLC (+NFR 不变式) |
+| `validate-lean` | lake build (+NFR 定理) |
+| `validate-checklist` | CHECKLIST 校验 |
+| `verify-gate` | 门禁 (S1/R3/FINAL + NFR) |
+| `query-graph` | IR 查询 (+ `--query nfr/risk`) |
+| `compile` | SKILL.md → SkIR |
+| `pack-skill` | AES 加密备份 |
+| `verify-skill-integrity` | 完整性校验 |
+| `capability-probe` | 能力探测 (+NFR 触发) |
+| `stability-test` | 跨 LLM 稳定性测试 |
+| `generate-counterexample-fixtures` | 反例夹具 |
+| `fixture-coverage` | 覆盖报告 |
+
+### 8.5 淘汰命令
+
+以下命令从 `index.ts` 注册表移除（文件保留）：
+
+| 淘汰 | 替代 |
+|------|------|
+| `build-graph` | `build-ir` |
+| `export-cypher` | `emit --name cypher` |
+| `generate-bdd` | `emit --name gherkin` |
+| `build-behavior-graph` | `emit --name behaviorGraph` |
+| `build-tla-graph` | `emit --name tlaGraph` |
+| `build-lean-graph` | `emit --name leanGraph` |
+| `build-system-architecture` | `emit --name systemArch` |
+
+### 8.6 CLI 参数约定
 
 | 参数 | 适用命令 | 说明 |
 |------|----------|------|
 | `--output` | init | 工作目录路径（仅 init） |
-| `--workdir` | 大部分流水线命令（init 除外） | 工作目录路径，必须为 `.srs_formalizer`。例外：validate-lean 不使用 --workdir，改为从 --file 路径向上查找 lakefile 自动发现项目目录 |
+| `--workdir` | 大部分命令（init 除外） | 工作目录路径，必须为 `.srs_formalizer` |
 | `--file <path>` | validate-* | 待校验文件路径 |
-| `--skill-dir <path>` | compile, pack-skill, verify-skill-integrity | 技能目录路径 |
-| `--mode generate\|score` | capability-probe | 两阶段模式 |
-| `--stage S1\|R3\|FINAL` | verify-gate | 门禁检查阶段 |
-| `--repair` | validate-checklist, verify-skill-integrity | 自动修复模式 |
-| `--force` | pack-skill | 强制覆盖已有备份 |
-| `--src <path>`, `--lang zh\|en` | manifest | 源文件路径和语言 |
-| `--shard-id`, `--type`, `--line` | guided-extract | 引导提取参数 |
-| `--query <type>`, `--params '<json>'` | query-graph | 图谱查询参数 |
-| `--iteration N` | build-system-architecture | 收敛循环迭代次数 |
-| `--config <path>`, `--passes <N>`, `--score <dir>`, `--output <dir>` | stability-test | 稳定性测试参数 |
-| `--min-high N` | validate-glossary | 最小高置信度阈值 |
+| `--group` / `--name` | emit | 发射器组或名称 |
+| `--type` | guided-extract | r1/r2/r3/r3-cross/r4-nfr/arch |
+| `--query <type>` | query-graph | node/neighbors/module/path/context/nfr/risk |
+| `--stage S1\|R3\|FINAL` | verify-gate | 门禁阶段 |
+| `--repair` | validate-checklist | 自动修复 |
 
-### 8.1 CLI 输出格式约定
-所有命令将结果以 JSON 格式输出到 stdout：
-`{ "status": "ok" | "error", "message"?: string, "data"?: ... }`
-成功时 `process.exit(0)`，失败时 `process.exit(1)`。
+### 8.7 CLI 输出格式
 
-### 8.2 refuseDirectInvocation 放置约定
-所有命令文件的最后两行为：
+所有命令输出 JSON 到 stdout：`{ "status": "ok" | "error", "message"?: string, "data"?: ... }`。成功 exit(0)，失败 exit(1)。
+
+### 8.8 refuseDirectInvocation 放置约定
+
+所有命令文件末尾：
 ```typescript
 import { refuseDirectInvocation } from '../lib/cli.js';
 refuseDirectInvocation(import.meta.url);
 ```
-此约定确保每个命令文件无法被直接调用（`npx tsx commands/foo.ts`），必须通过 `index.ts` 入口。
 
 ---
 
-## 9. CLI 命令清单（35 条）
+## 9. 数据契约
 
-| 命令 | 阶段 | 功能 |
-|------|:----:|------|
-| `init` | S1 | 初始化 `.srs_formalizer/` 工作目录 |
-| `manifest` | S1 | SRS 索引化分片 + 章节识别 + 缺口检测 |
-| `inject-prompt` | S2 | 模板参数注入 |
-| `guided-extract` | S2 | 两步模式逐行 JSONL 提取 |
-| `validate-jsonl` | S2 | JSONL 格式校验（6 项） |
-| `validate-architecture` | S2 | 架构 JSONL 校验（6 项 + 循环检测） |
-| `validate-glossary` | S1 | 术语表批次 JSON 校验（8 项） |
-| `build-graph` | S3 | JSONL → 需求知识图谱 |
-| `build-architecture` | S3 | 架构 JSONL → 架构图节点 |
-| `analyze-structure` | S3 | 孤立/悬挂/孤岛检测 |
-| `merge-structure` | S3 | 结构补全合并 |
-| `analyze-graph` | S3 | Jaccard 去重 + 反义检测 |
-| `merge-analysis` | S3 | 语义判定合并 |
-| `export-cypher` | S3 | 图谱 → Neo4j Cypher 脚本 |
-| `validate-cypher` | S3 | Cypher 脚本校验（4 项） |
-| `generate-bdd` | S4 | 图谱 → Gherkin BDD 骨架 |
-| `validate-bdd` | S4 | Gherkin 严格模式校验（20 条规则） |
-| `build-behavior-graph` | S4 | BDD → 系统行为图谱 |
-| `build-tla-graph` | S5 | TLA+ → 系统交互图谱 |
-| `build-lean-graph` | S5 | Lean 4 → 证明依赖图谱 |
-| `validate-tla` | S5 | SANY + TLC 模型检测（严格模式） |
-| `validate-lean` | S5 | lake build 编译验证 |
-| `build-system-architecture` | S6 | 系统架构合成 + 一致性报告 |
-| `query-graph` | S6 | 图谱只读查询（7 种） |
-| `verify-gate` | S1/S3/S6 | 三级硬门禁检查 |
-| `validate-checklist` | S0-S6 | CHECKLIST 完成度校验 |
-| `capability-probe` | S0 | LLM 能力探测（8 维度 50 题） |
-| `stability-test` | 评估 | 跨 LLM 稳定性测试（σ/Δ） |
-| `compile` | 编译 | SKILL.md → SkIR + 安全注入 + 平台发射 |
-| `pack-skill` | 维护 | 技能打包 + 加密备份 |
-| `verify-skill-integrity` | 维护 | 技能完整性校验 + 自动修复 |
-| `generate-test-fixtures` | S4-S6 | 形式化产出 → 测试夹具骨架（5 框架） |
-| `fixture-coverage` | S6 | 测试夹具覆盖率报告 |
-
----
-
-## 10. 演化历史
-
-| 版本 | 日期 | 关键变更 |
-|------|------|----------|
-| 0.1.0 | 2026-06-30 | S1 基础设施：init, manifest, 类型定义, 安全库, 25 测试 |
-| 0.2.0 | 2026-06-30 | S2 阶段：inject-prompt, validate-jsonl, executor/verifier 提示词 |
-| 0.3.0 | 2026-06-30 | 目录重构（阶段前缀），ID ASCII-only 约束，分片源位置标注 |
-| 0.4.0 | 2026-07-01 | SkCC 集成：compile, SkIR, Anti-Skill, Claude XML/Generic MD 发射器 |
-| 0.5.0 | 2026-07-01 | 分片索引化重构，移除物理 `1_shard/` 目录 |
-| 0.5.1 | 2026-07-02 | TLA+/Lean 编码指南，capability-probe 50 题扩展 |
-| 0.5.2 | 2026-07-02 | guided-extract `--line` 模式，严格模式增强 |
-| 0.5.2+ | 2026-07-03 | 规则合规审计（文件拆分, any→unknown, L2 token 缩减），评估后改进（P0-P3） |
-| 0.5.3 | 2026-07-03 | **能力探测修复**：工具链条件生成（14.5）+ TLA+/Lean 4 语法降级评分（14.6）。**路径 Bug 修复**：`validate-lean.ts` 手动字符串切割→`path.dirname/join`（Windows 兼容）；`validate-tla.ts` `__dirname`→`fileURLToPath`（ESM 兼容）；`scorer/tlaplus.ts` `findJar()` 分辨率至 `../../tools/` + 类名修正（`tla2.SANY`→`tla2sany.SANY`, `tla2.TLC`→`tlc2.TLC`，经 JAR 实测验证：SANY 2.2, TLC2 2026.05.18） |
-| 0.5.5 | 2026-07-07 | **专家人设体系**：新增三位形式化专家人设（BDD §24.1、TLA+ §24.2、Lean 4 §24.3）+ 专家协作契约 §25（协作工作流、冲突仲裁、统一交付标准、上报机制） |
-| 0.5.6 | 2026-07-09 | **verify-gate 源重扫安全修复**（§4.4.3 / §4.5.2）：FINAL 门禁与构建期不再仅凭图谱 JSON 存在放行，改为重扫源文件。Lean（B3）去注释后按词边界匹配 `sorry`/`axiom`（`axiom` 由 warn 升为 fail）；TLA+（B3-TLA+）保留注释区域匹配占位标记 `GAP/TODO/FIXME/TBD/待定/未定义/待实现`。语义型简化（弱不变式/缩状态空间/伪代码）仍由 SANY/TLC 与人工审查负责。测试 299→320 |
-| 0.5.7 | 2026-07-09 | **文件拆分 + 去重重构**：16 个超 300 行文件拆分为 39 个子模块（全部 ≤283 行）；Graph 模块统一 types→parser→builder→cypher 四文件模式（cypher 导出收敛为通用基函数）；命令文件从 ~400 行精简至 ~80 行。`sanitizeId`/`ensureDir` 跨文件去重收敛；cross-graph 循环依赖修复；新增 `lib/id-utils`、`lib/fs-utils`、`lib/text-analysis`、`lib/graph-algorithms`、`lib/skill-integrity`、`lib/chapter-parser`、`lib/sharder` 等共享模块；`refuseDirectInvocation` 守卫全量补全 |
-| 0.6.0 | 2026-07-12 | **V-Model 测试 fixture 生成**：`generate-test-fixtures`（5 框架：Cucumber/Playwright/Pytest/JUnit/fast-check）+ `fixture-coverage` 覆盖率报告；Cypher 注入防护加固；security.ts 重复合并；coverage 除数动态化；Scenario Outline 支持；24 个失败测试修复，测试 320→353（47 文件） |
-| 0.7.0 | 2026-07-13 | **V-Model Zero-Gap + 代码质量优化**：模板引擎（16 模板 × 6 框架）；TLC 反例解析器（`tla-counterexample.ts`）；Hypothesis 模式识别（`lean.ts`）；Playwright Page Object 生成（`playwright-page.ts`）；V-Model 追溯矩阵（`traceability.ts`）；NFR fixture 生成器（`nfr.ts`）；共享 helpers（`helpers.ts`）。代码质量：usability 测试修复、helpers 边界测试（19 tests）、lean.ts toLowerCase 优化、helpers toSnakeCase 连续大写 Bug 修复。测试 353 + 73 fixture-gen |
-
----
-
-## 11. 阶段间数据契约
-
-### 11.1 JSONL 记录格式（S2 产出）
-
-所有需求提取子代理必须输出符合以下 schema 的 JSONL：
+### 9.1 JSONL 记录格式（前端产出）
 
 ```typescript
 interface JsonlRecord {
-  id: string;           // 格式: R[123]-[A-Za-z0-9_.]+-\d{4}
+  id: string;           // R[123]-[A-Za-z0-9_.]+-\d{4}
   category: 'explicit' | 'implicit' | 'relational';
-  statement: string;    // 需求描述
-  source_file: string;  // 来源文件绝对路径
+  statement: string;
+  source_file: string;
   confidence: 'high' | 'medium' | 'low';
-  metadata?: Record<string, unknown>; // DEPENDS_ON, REFINES, CONFLICTS_WITH
+  metadata?: Record<string, unknown>;
 }
 ```
 
-**验证规则**（`validate-jsonl`, 6 项）：
-1. `id` 正则: `^R[123]-[A-Za-z0-9_.]+-\d{4}$`（ASCII-only，禁止中文）
-2. `category` 枚举: `explicit | implicit | relational`
-3. `confidence` 枚举: `high | medium | low`
-4. `statement` 非空
-5. `source_file` 非空
-6. `metadata` 若存在且含 `DEPENDS_ON`/`REFINES`/`CONFLICTS_WITH`，其值必须为合法 ID
+验证规则（`validate-jsonl`, 6 项）：id 正则、category/confidence 枚举、statement 非空、source_file 非空、metadata 关联 ID 合法。
 
-### 11.2 分片索引格式（S1 产出）
+### 9.2 ShardIndex（前端 Pass 2 中间产物）
 
 ```typescript
 interface ShardIndex {
-  version: '1.0' | '1.1';
+  version: '1.1';
   source_path: string;  source_hash: string;
-  language: 'zh' | 'en'; total_chars: number;
-  total_shards: number;
-  shards: ShardEntry[];
-  gaps: GapEntry[];
-  warnings: string[];
+  language: 'zh' | 'en';  total_chars: number;  total_shards: number;
+  shards: ShardEntry[];  gaps: GapEntry[];  warnings: string[];
+  cross_references: CrossRef[];   // ★ v1.1 新增
+  nfr_profile: NFRProfile;        // ★ v1.1 新增
 }
 
 interface ShardEntry {
-  id: string;            // S001~S999
-  file: string;          // 分片文件名
-  locator: string;       // {file_abspath}-{start}-{end}-{chunk_id}
-  source_path: string;
-  source_start_line: number; source_end_line: number;
-  module: string; chapter_ref: string;
-  char_count: number; estimated_tokens: number;
-}
-
-interface GapEntry {
-  priority: 'P0' | 'P1' | 'P2' | 'P3';
-  type: 'unsolved_issue' | 'undefined_term' | 'missing_reference' | 'incomplete_section';
-  description: string; source_chapter: string;
+  id: string;  file: string;  locator: string;
+  source_path: string;  source_start_line: number;  source_end_line: number;
+  module: string;  chapter_ref: string;
+  char_count: number;  estimated_tokens: number;
+  nfr_weight?: number;  // ★ 新增
 }
 ```
 
-### 11.2.1 分片算法
+### 9.3 分片算法
 
-`manifest` 命令实现递归分片算法：
+- `MAX_SHARD_LINES = 200`（硬上限）
+- 递归策略：按章节标题分割 → 章节回退 → 段落回退
+- 超过阈值强制分割，无分割点时记录 warning
+- Token 估算：中文 `chars / 1.5`，英文 `chars / 4`
 
-- **MAX_SHARD_LINES**: 200（硬上限）
-- **递归策略**: 按章节标题（`#`, `##` 等）递归分割
-- **段落回退**: 若无章节标题，按段落边界分割
-- **强制分割**: 超过 200 行阈值强制分割
-- **分片定位符 (locator)**: `{file_abspath}-{start_line}-{end_line}-{chunk_id}`
-- **Token 估算**: `char_count * 0.25`（中文）/ `char_count * 0.33`（英文）
-
-当某片段超过 200 行且无合适分割点时会记录 `warning`。
-
-### 11.3 图谱节点/边类型（S3 产出）
-
-| 阶段 | 节点标签 | 边类型 |
-|:----:|----------|--------|
-| S3 需求图 | `:Requirement`, `:ImplicitRequirement`, `:RelationalRequirement` | `DERIVED_FROM`, `DEPENDS_ON`, `REFINES`, `CONFLICTS_WITH` |
-| S3 架构图 | `:Module`, `:Actor`, `:Constraint`, `:DependencyLayer` | `CONTAINS`, `PARENT_OF`, `MERGED_WITH` |
-| S4 行为图 | `:Feature`, `:Scenario`, `:Action` | `BELONGS_TO`, `HAS_STEP`, `DEPENDS_ON`, `VERIFIES`, `PRECONDITION`, `POSTCONDITION` |
-| S5 TLA+ | `:System`, `:ExternalActor`, `:Action`, `:Invariant`, `:State` | `DECOMPOSES_INTO`, `INTERACTS_WITH`, `TRANSITIONS_TO`, `MAINTAINS`, `REFERENCES` |
-| S5 Lean | `:Theorem`, `:Lemma`, `:Import`, `:Axiom` | `PROVES`, `DEPENDS_ON`, `IMPORTS`, `USES` |
-| S6 架构 | 聚合以上 + 跨层 | `IMPLEMENTS`, `FORMALIZES`, `PROVES`, `REFINES`, `BELONGS_TO_LAYER` |
-
-### 11.3.1 图谱序列化格式
-
-各阶段图谱通过 `Graph.toJSON()` 序列化为统一格式：
-
-```typescript
-interface GraphJSON {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
-```
-
-图谱文件存储路径：
-- S3 需求图: `3_graph/graph/requirement-graph.json`
-- S3 架构图: `3_graph/graph/architecture-graph.json`
-- S4 行为图: `4_bdd/behavior-graph.json`
-- S5 TLA+ 交互图: `5_formal/tla-interaction-graph.json`
-- S5 Lean 证明图: `5_formal/lean-proof-graph.json`
-- S6 系统架构图: `6_outputs/system-architecture.json`
-
-### 11.3.2 图谱加载优先级
-
-多个命令实现统一的图谱加载后备链：
-`graph.merged.json` → `graph.structure_fixed.json` → `graph.json`
-如果优先级最高的文件不存在，自动尝试下一个。
-
-### 11.4 阶段间文件契约
+### 9.4 阶段间文件契约
 
 ```
-S0 → STATE.md (触发判定: S5_TLA_TRIGGER, S5_LEAN_TRIGGER)
-S1 → _ctx/shard_index.json, _ctx/CONTEXT.md, _ctx/GAPS.md, GLOSSARY.md
-S2 → 2_extract/r1-explicit/*.jsonl, r2-implicit/*.jsonl, r3-relational/*.jsonl, architecture/*.jsonl
-S3 → 3_graph/graph/*.json + analysis/*.json, 6_outputs/knowledge_graph/*.cypher
-S4 → 4_bdd/features/*.feature, 4_bdd/behavior-graph.json, behavior.cypher
-S5 → 5_formal/specs/*.tla + 5_formal/proofs/*.lean + tla-interaction-graph.json + lean-proof-graph.json
-S6 → 6_outputs/system-architecture.json, cross-graph-report.json, convergence-log.jsonl
-test_fixtures → test_fixtures/<level>/<framework>/ (generate-test-fixtures 产出)
+Frontend → shard_index.json, 2_extract/*.jsonl, srs-ir.json
+IR       → srs-ir.json
+Backend  → 4_bdd/features/*.feature, 5_formal/specs/*.tla, 5_formal/proofs/*.lean
+          6_outputs/knowledge_graph/*.cypher, test_fixtures/<level>/<framework>/
+          6_outputs/system-architecture.json, cross-graph-report.json,
+          convergence-log.jsonl, coverage-report.json, traceability.md
 ```
 
 ---
 
-## 12. SkIR 类型系统
+## 10. SkIR 类型系统（技能编译用）
 
-### 12.1 核心枚举
+技能自身的 SKILL.md 编译也使用类似的编译器模型。SkIR 是技能编译的 IR。
+
+### 10.1 核心枚举
 
 ```typescript
 type SecurityLevel = 'low' | 'medium' | 'high' | 'critical';
@@ -798,1348 +658,451 @@ type PermissionKind = 'network' | 'filesystem' | 'database' | 'execute' | 'mcp' 
 type ConstraintLevel = 'warning' | 'error' | 'critical';
 ```
 
-### 12.2 SkillIR 20+ 字段
+### 10.2 SkillIR 关键字段
 
 ```typescript
 interface SkillIR {
-  // 元数据与路由
   name: string; version: string; description: string;
-  // MCP 与 Schema
-  mcp_servers: string[];
-  input_schema?: Record<string, unknown>;
-  output_schema?: Record<string, unknown>;
-  // 安全与控制
   security_level: SecurityLevel; hitl_required: boolean;
   pre_conditions: string[]; post_conditions: string[];
   fallbacks: string[]; permissions: Permission[];
-  // 执行逻辑
-  context_gathering: string[]; procedures: ProcedureStep[];
-  approaches: Approach[]; mode: SkillMode;
-  few_shot_examples: Example[];
-  // 编译期注入
+  procedures: ProcedureStep[]; mode: SkillMode;
   anti_skill_constraints: Constraint[];
-  // 扩展段
-  extra_sections: SectionInfo[];
-  // 格式优化标记
-  requires_yaml_optimization: boolean; nested_data_depth?: number;
   // srs-formalizer 扩展
   pipeline_stages: PipelineStage[];
   capability_requirements: Record<string, Record<string, number>>;
   capability_tiers: CapabilityTier[];
-  platform_activation: Record<string, PlatformActivation>;
   stage_gates: string[];
-  // 元信息（不发射）
   source_path: string; source_hash: string; compiled_at: string;
 }
 ```
 
-### 12.3 关键子结构
+---
 
-```typescript
-interface Constraint {
-  source: string;           // 'anti-skill-injector' | 'user_defined'
-  content: string;          // 约束文本
-  level: ConstraintLevel;   // warning | error | critical
-  scope: ConstraintScope;   // global | specific_steps | keyword_match
-}
+## 11. 技能编译管线（SkCC 四阶段）
 
-interface ProcedureStep {
-  order: number; instruction: string;
-  is_critical: boolean; constraints: string[];
-  expected_output?: string;
-  on_error?: ErrorHandling; // stop | skip | retry | fallback | request_human
-}
+### 11.1 流水线
 
-interface Permission {
-  kind: PermissionKind; scope: string;
-  description?: string; read_only: boolean;
-}
+```
+Phase 1 (Parser) → Phase 2 (IR Builder) → Phase 3 (Security Optimizer) → Phase 4 (Emitter)
 ```
 
-### 12.4 额外 TypeScript 类型
+| 阶段 | 输入 | 输出 | 失败行为 |
+|------|------|------|----------|
+| Phase 1 | SKILL.md | RawAST | Fail-Fast |
+| Phase 2 | RawAST | SkillIR | Fail-Fast |
+| Phase 3 | SkillIR | SkillIR(带约束) | Critical 阻断 |
+| Phase 4 | SkillIR(带约束) | Claude XML / Generic MD | Fail-Fast |
 
-以下类型在 `types/index.ts` 和 `types/skir.ts` 中定义，补充核心类型系统：
+### 11.2 Emitter 多平台发射
 
-```typescript
-interface CliResult {
-  status: 'ok' | 'error';
-  message?: string;
-  data?: unknown;
-}
+| 框架 | 发射器 | 输出格式 |
+|------|------|------|
+| Claude Code | `ClaudeXmlEmitter` | XML 语义分层 |
+| Generic (7+ 平台) | `GenericMarkdownEmitter` | YAML + Markdown |
 
-interface SecurityLogEntry {
-  timestamp: string;
-  operation: 'read' | 'write' | 'delete';
-  path: string;
-  allowed: boolean;
-  reason?: string;
-}
+---
 
-interface GlossaryEntry {
-  term: string;
-  acronym?: string;
-  definition: string;
-  source_shard: string;
-  confidence: 'high' | 'medium' | 'low';
-  category: 'domain_concept' | 'acronym' | 'technical_entity' | 'business_entity' | 'defined_term';
-}
+## 12. 门禁与验证
 
-interface GlossaryBatch {
-  batch_id: string;
-  shards_covered: string[];
-  terms: GlossaryEntry[];
-  notes?: string;
-}
+### 12.1 verify-gate 三级
 
-interface RetryStrategy {
-  max_attempts: number;
-  delay_ms: number;
-}
+| 阶段 | 主要检查项 |
+|:----:|------|
+| S1 | STATE.md, shard_index.json, JSONL 文件存在, 分片完整性, 术语表, Checklist |
+| R3 | S1 检查 + 全部 JSONL 目录, ID 唯一性, 图谱可加载, 节点数 ≥ R1 数 |
+| FINAL | R3 检查 + validate-bdd, graph.merged.json, schema.cypher, behavior/tla/lean graph, system architecture, 全部 checklist, **NFR 覆盖率 ≥ 80%** |
 
-interface FallbackStrategy {
-  alternative_step: string;
-}
+### 12.2 跨图一致性验证（13 个根本问题）
 
-type ErrorHandling =
-  | { type: 'stop' }
-  | { type: 'skip' }
-  | { type: 'retry'; config: RetryStrategy }
-  | { type: 'fallback'; config: FallbackStrategy }
-  | { type: 'request_human' };
+原 10 个 + 3 个 NFR 问题：
 
-interface Approach {
-  name: string;
-  description: string;
-  instructions: string;
-}
+| # | 问题 | 联合图谱 |
+|:--:|------|------|
+| Q1-Q10 | 原问题（是什么/做什么/能做什么/为什么/联合使用/内部行为/交互/外部/边界/兜底） | 需求+架构+行为+TLA++Lean |
+| **Q11** (★) | 各模块的性能边界是否一致？ | 需求+NFR+TLA+ |
+| **Q12** (★) | 安全约束是否在所有数据路径中一致应用？ | 需求+NFR+Lean |
+| **Q13** (★) | 可用性降级路径是否覆盖所有关键模块？ | 需求+NFR+架构+行为 |
 
-interface Example {
-  title?: string;
-  user_input: string;
-  agent_response: string;
-  tags: string[];
-  difficulty?: 'basic' | 'intermediate' | 'advanced';
-}
+### 12.3 收敛循环（规模自适应）
 
-interface CheckResult {
-  name: string;
-  passed: boolean;
-  detail?: string;
-}
+```
+total_shards ≤ 50   → max_iterations = 3, parallelism = 1
+total_shards 51-100  → max_iterations = 5, parallelism = 2
+total_shards > 100   → max_iterations = 8, parallelism = 4, 强制 NFR 分维度并行
 
-interface ConstraintScopeGlobal {
-  type: 'global';
-}
-
-interface ConstraintScopeSpecificSteps {
-  type: 'specific_steps';
-  step_ids: number[];
-}
-
-interface ConstraintScopeKeywordMatch {
-  type: 'keyword_match';
-  keywords: string[];
-}
-
-type ConstraintScope =
-  | ConstraintScopeGlobal
-  | ConstraintScopeSpecificSteps
-  | ConstraintScopeKeywordMatch;
-
-interface CapabilityTier {
-  tier: 'strong' | 'medium' | 'weak';
-  min_score: number;
-  adaptation: 'full_auto' | 'guided' | 'human_in_loop';
-}
+收敛定义 = 全部 13 个 Q 可回答 + high-confidence ≥ 9/13
+         + NFR 覆盖率 ≥ 80% + verify-gate FINAL pass
 ```
 
 ---
 
-## 13. 编译管线（SKCC 四阶段）
+## 13. 安全设计
 
-### 13.1 流水线
+### 13.1 防御层次
 
-```
-Phase 1: Frontend → Phase 2: IR Construction → Phase 3: Analyzer → Phase 4: Backend
-```
+| 层级 | 机制 |
+|:----:|------|
+| 编译期 | Anti-Skill Injector (7 规则, 94.8% 触发率) + Fail-Fast 10 条 |
+| 入口 | `refuseDirectInvocation` + `validateNoPoisonArgs` + `safeParseArg` |
+| 文件系统 | `validateWorkDir` + `isPathSafe` + `assertSafePath` |
+| 流程 | 9 stage_gates + HITL + `verify-skill-integrity` |
+| 备份 | SHA-256 + AES-256-GCM `.enc` |
 
-| 阶段 | 输入 | 核心动作 | 输出 | 失败行为 |
-|------|------|----------|------|----------|
-| **Phase 1** | `SKILL.md` | YAML frontmatter 解析 + Markdown AST + SHA-256 | RawAST | Fail-Fast |
-| **Phase 2** | RawAST | 类型映射、字段校验、嵌套深度检测 | SkillIR | Fail-Fast |
-| **Phase 3** | SkillIR | SchemaValidator → MCPDependencyChecker → PermissionAuditor → AntiSkillInjector → NestedDataDetector | SkillIR(带约束) | Critical 阻断, Warning 放行 |
-| **Phase 4** | SkillIR(带约束) | Claude XML / Generic MD 渲染 | 平台特定产物 | Fail-Fast |
+### 13.2 Anti-Skill 注入规则
 
-### 13.2 Fail-Fast 规则（10 条）
+**SkCC 默认 (4)**：http-safety, loop-safety, db-destructive, parse-safety
 
-| # | 条件 | 严重度 |
+**SRS 特化 (3)**：
+- `srs-writeback`: 禁止无确认修改原始 SRS
+- `verifier-isolation`: 验证者必须新会话
+- `integrity-gate`: 阶段转换前运行 verify-skill-integrity
+
+---
+
+## 14. BDD 建模约束
+
+### 14.1 格式要求
+
+- 必须采用独立 `.feature` 文件格式，不接受 Markdown 描述
+- 完整 Given → When → Then → And 步骤，Then 含 `# verification_method:`
+- NFR 场景含具体阈值（"≤ 200ms"、"99.99%"）
+- NFR Feature 文件独立：`NFRPerformance.feature`, `NFRSecurity.feature`, ...
+
+### 14.2 质量门禁
+
+| # | 检查 | 严重度 |
 |:--:|------|:------:|
-| 1 | `name` / `description` / `metadata.pattern` 缺失或格式不合规 | Critical |
-| 2 | `description` 包含 XML 标签 | Critical |
-| 3 | `metadata.pattern` 与正文结构不匹配 | Critical |
-| 4 | `permissions` 声明与 Procedures 不匹配 | Critical |
-| 5 | Critical 级关键词未声明对应权限 | Critical |
-| 6 | `security_level ≥ high` 时 `pre/post_conditions` 缺失 | Critical |
-| 7 | Toxic flow 三要素全 true 但 `security_level` 未升至 `critical` | Critical |
-| 8 | MCP 依赖但 `mcp_servers` 缺失 | Critical |
-| 9 | 嵌套深度 ≥3 且 Gemini Backend 未启用 YAML | Warning |
-| 10 | L2 正文 >5000 token 未下沉至 L3 | Error |
-
-### 13.3 编译命令
-
-```bash
-npx tsx index.ts compile --skill-dir .claude/skills/srs-formalizer --workdir .srs_formalizer
-```
-
-产出: `_ctx/skir.json` + `skill.claude.xml` + `skill.generic.md`
-
-### 13.4 TLA+ JAR 管理
-
-`tla-validator.ts` 使用三层回退策略定位 `tla2tools.jar`：
-
-1. **GitHub API 检查**: 尝试从 `tlaplus/tlaplus` 仓库获取最新 release，若版本更新则下载
-2. **本地缓存**: 检查之前下载的 JAR 缓存
-3. **内置兜底**: 使用 `tools/tla2tools-1.7.4.jar`（内置 27MB）
-
-验证命令始终使用 `--file` 指定 `.tla` 文件路径。JAR 管理对用户透明，仅当三层均失败时抛出错误。
-
-能力探测评分器 (`lib/probe/scorer/tlaplus.ts`) 使用相同的 `findJar()` 和 `detectTlaPlusToolchain()` 模式，通过 `fileURLToPath` 分辨率至 `../../tools/`。
+| 1-6 | 无占位符/error/failed/undefined/untested/步骤缺失/逻辑顺序 | 硬阻塞 |
+| 7 | 不允许占位实现、简化实现、错误实现 | 硬阻塞 |
+| 8 | **NFR 场景必须含具体数值阈值** (★) | 硬阻塞 |
+| 9 | **安全场景必须含前置认证步骤** (★) | 警告 |
 
 ---
 
-## 14. 能力探测系统
+## 15. TLA+ 建模约束
 
-### 14.1 8 个评估维度
+### 15.1 层次化拆解
 
-```typescript
-type Dimension =
-  | 'instruction_following'   // JSONL 格式遵循度
-  | 'structured_output'       // 非规范化文本→合法 JSONL
-  | 'precision'               // 区分真实需求与编造需求
-  | 'hierarchical_reasoning'  // 需求归类到模块
-  | 'logical_reasoning'       // 推导 DEPENDS_ON 关系
-  | 'creative_reasoning'      // 推导隐式需求
-  | 'formal_tlaplus'          // TLA+ 规约生成能力
-  | 'formal_lean4';           // Lean 4 证明能力
+L1(系统级) → L2(子系统级) → L3(原子级) → 可推广至 N 级。拆解判定：变量组合 >1k 考虑拆，>1w 强制拆。
+
+### 15.2 NFR 不变式 (★)
+
+TLA+ Emitter 自动为检测到的 NFR 类别生成专用不变式：
+
+```
+PerfLatencyInv == latency ≤ MaxLatency     \* 性能上界
+SecurityInv    == \A u ∈ Users : auth[u] => access_ok[u]  \* 安全
+AvailInv       == Cardinality(dead_nodes) ≤ MaxDeadNodes  \* 可用性
 ```
 
-### 14.2 探针分布（50 题）
+### 15.3 质量门禁
 
-| 维度 | 题数 | 典型检查 |
-|------|:----:|----------|
-| instruction_following | 8 | ID 格式, category 枚举, 空输入, 缺失字段拒绝, 错误模板拒绝 |
-| structured_output | 7 | 合法 JSON, 嵌套 metadata, Unicode 混合, 矛盾识别, 长文本 |
-| precision | 6 | 真/假需求区分, 去重, 跨行引用, 代码注释提取 |
-| creative_reasoning | 5 | 安全约束推导, 集成约束, 并发控制, 故障容错 |
-| hierarchical_reasoning | 5 | 8→4 模块, 15→5 模块, 二级分类, 依赖检测, 自动推断 |
-| logical_reasoning | 5 | DEPENDS_ON, REFINES, CONFLICTS_WITH, 传递依赖, 循环检测 |
-| formal_tlaplus | 7 | Counter, Toggle, FIFO Queue, Mutex, Producer-Consumer, Leader Election, Distributed Lock |
-| formal_lean4 | 7 | 偶数平方, 求和公式, 列表反转, 鸽笼原理, √2 无理数, Cantor 对角线, 群同态核 |
+| # | 检查 | 严重度 |
+|:--:|------|:------:|
+| 1 | SANY 语法检查 | 硬阻塞 |
+| 2 | TLC 模型检查 (-deadlock) | 硬阻塞 |
+| 3-7 | 无死锁/状态爆炸/违法不变式/活锁/奇迹 | 硬阻塞 |
+| 8 | 无占位实现、简化实现、错误实现 | 硬阻塞 |
 
-### 14.3 Tier 判定
+---
+
+## 16. Lean 4 建模约束
+
+### 16.1 拆分证明（四步循环）
+
+1. 编写证明骨架（带 sorry）→ 2. 每个 sorry 独立文件 → 3. 继续拆分 → 4. 递归至 0 sorry
+
+### 16.2 NFR 定理 (★)
+
+Lean Emitter 自动生成 NFR 相关定理骨架：
+
+```lean4
+theorem response_time_bound : ∀ (op : Operation), time(op) ≤ max_latency := by
+  -- NFR proof skeleton
+  sorry
+```
+
+### 16.3 质量门禁
+
+| # | 检查 | 严重度 |
+|:--:|------|:------:|
+| 1-6 | 0 sorry/0 axiom/0 warnings/lake build/theorem+proof/独立文件 | 硬阻塞 |
+| 7 | 无占位实现、简化实现、错误实现 | 硬阻塞 |
+
+### 16.4 平台限制
+
+| 平台 | 支持 |
+|------|:----:|
+| Linux x86_64 | ✅ |
+| macOS ARM64 | ✅ |
+| Windows | ❌ 禁止 |
+
+---
+
+## 17. SRS 一致性升级流程
+
+当形式化符合 SRS 设计但仍有问题时：
+
+1. 不修改代码绕过问题
+2. 写入 `SRS_PATCHES.md`：矛盾描述 + SRS 引用 + 可选项 A/B/C + 事实依据（允许联网搜索）
+3. 等待人类确认
+4. 若涉及安全关键需求，`security_level` 提升至 `critical`
+
+---
+
+## 18. 能力探测系统
+
+### 18.1 8 维度 50 探针
+
+| 维度 | 题数 |
+|------|:--:|
+| instruction_following | 8 |
+| structured_output | 7 |
+| precision | 6 |
+| creative_reasoning | 5 |
+| hierarchical_reasoning | 5 |
+| logical_reasoning | 5 |
+| formal_tlaplus | 7（工具链条件生成） |
+| formal_lean4 | 7（工具链条件生成） |
+
+### 18.2 Tier 判定
 
 ```
 score = per-dimension pass rate (0-100)
 tier  = min(all 8 dimension scores)
-       ≥ 80 → high   (full_auto)
-       ≥ 50 → medium (guided)
-       < 50  → low    (human_in_loop)
+      ≥ 80 → high (full_auto)
+      ≥ 50 → medium (guided)
+      < 50 → low (human_in_loop)
 ```
 
-**与管线集成**: `capability-probe --mode score` → 判分 → 写入 `STATE.md` → 编排者(S2/S5)读取并按 Tier 调整执行模式。
+### 18.3 工具链条件与 NFR 触发 (★)
 
-### 14.4 能力适应阶段行为
-
-各阶段根据 `capability-probe` 判定的 Tier（high/medium/low）采取不同行为：
-
-| 阶段 | High (full_auto) | Medium (guided) | Low (human_in_loop) |
-|:----:|:-----------------|:----------------|:--------------------|
-| S1 预处理 | 自动执行 | 自动执行 | 确认后执行 |
-| S2 提取 | 自动提取 | 人工确认每轮提取 | 人工逐行审核 |
-| S3 图谱 | 自动构建 | 人工确认结构 | 人工构建 |
-| S4 BDD | 自动生成 | 人工确认骨架 | 人工编写 |
-| S5 形式化 | 跳过检查 | 仅 TLA+ | 跳过 |
-| S6 验收 | 全自动 | 人工确认收敛 | 人工审核报告 |
-
-详细参考 `references/capability-adaptation.md`。
-
-### 14.5 工具链条件生成
-
-TLA+ 和 Lean 4 探针仅在有对应工具链时生成：
-- `detectTlaPlusToolchain()`: 需要 Java 21+ 且 `tools/tla2tools-1.7.4.jar` 存在
-- `detectLean4Toolchain()`: 需要 `lake` 命令可用
-
-生成时调用 `generateProbesWithMeta()` 而非 `generateProbes()`，返回元数据：
-- `dimensions`: 实际考察的维度列表
-- `skipped`: 因工具链不可用跳过的维度
-- `total`: 考察维度总数
-
-探针生成数与工具链的关系：
-| 环境 | TLA+ | Lean 4 | 总探针数 | 维度数 |
-|------|:----:|:------:|:------:|:------:|
-| Java + lake 均可用 | 7 题 | 7 题 | 50 | 8 |
-| 仅 lake 可用 | 跳过 | 7 题 | 43 | 7 |
-| 仅 Java 可用 | 7 题 | 跳过 | 43 | 7 |
-| 均不可用 | 跳过 | 跳过 | 36 | 6 |
-
-### 14.6 TLA+/Lean 4 语法降级评分
-
-当工具链不可用时，评分器自动降级为语法检查：
-
-**TLA+ 语法检查项**（满分 100）：
-| 检查项 | 分值 | 正则模式 |
-|--------|:----:|----------|
-| MODULE 头 | 15 | `----\s*MODULE\s+\w+` |
-| EXTENDS 导入 | 10 | `EXTENDS\s+` |
-| VARIABLE 声明 | 15 | `VARIABLE\S*\s+\w+` |
-| Init 定义 | 20 | `Init\s*==` |
-| Next 定义 | 20 | `Next\s*==` |
-| Spec 定义 | 10 | `Spec\s*==` |
-| 不变量定义 | 10 | `TypeInvariant\|INVARIANT` |
-
-**Lean 4 语法检查项**（满分 100）：
-| 检查项 | 分值 | 说明 |
-|--------|:----:|------|
-| theorem/lemma | 15 | 声明存在 |
-| proof block | 15 | `:= by` |
-| 策略使用 | 15 (≥3) / 8 (≥1) | `induction\|cases\|rw\|simp\|ring\|...` |
-| 无 sorry | 15 | 证明完整 |
-| 无 axiom | 5 | 无未证明假设 |
-| 类型/定义 | 5 | `structure\|inductive\|def` |
-| lake build（若可用） | +40 | 真实编译验证 |
+TLA+/Lean 4 探针仅在有工具链时生成。NFR 检测增强：即使工具链未安装，若 IR 的 `nfrProfile` 标记了 performance/security 热点，输出"建议安装 TLA+/Lean 4"提示并标记维度为 `required_not_optional`。
 
 ---
 
-## 15. 引导提取协议
+## 19. 引导提取协议
 
-### 15.1 两步模式
+### 19.1 两步模式
 
 ```
-Step 1: --template → 生成 guided prompt（含分片内容 + 输出格式约束）
-Step 2: --line '<json>' → 单行 JSON 校验 → OK/ERR/DONE 三态返回
+Step 1: --template → 生成 guided prompt
+Step 2: --line '<json>' → 单行校验 → OK / ERR: <detail> / DONE
 ```
 
-### 15.2 协议定义
+### 19.2 提取类型
 
-**Step 1 — 获取模板**:
-```bash
-npx tsx index.ts guided-extract --template <path> --shard-id <id> --type r1|r2|r3|arch
 ```
-返回: 完整 prompt 文本（编排者发送给 LLM）
-
-**Step 2 — 逐行校验**:
-```bash
-npx tsx index.ts guided-extract --line '<json>' --shard-id <id> --type r1|r2|r3|arch
+r1/r2/r3/r3-cross/r4-nfr/arch
 ```
-返回:
-- `OK` — 校验通过，已追加
-- `ERR: <detail>` — 校验失败
-- `DONE` — 提取完成（LLM 自行判断）
 
-### 15.3 设计意图
-
-- Agent 通过 `run_command` 逐行调用，无需交互式 I/O
-- 每行独立校验，失败不影响已通过的行
-- LLM 自行判断何时 DONE（无需 CLI 感知 LLM 状态）
-
-### 15.4 引导提取返回格式
-
-`guided-extract --line '<json>'` 的返回值为原始字符串（非 JSON 信封）：
-
-| 返回值 | 含义 |
-|--------|------|
-| `OK` | 校验通过，已追加 |
-| `ERR: <detail>` | 校验失败，含错误详情 |
-| `DONE` | 提取完成 |
-
-注意：15.2 节已从历史 JSON 信封格式迁移至原始字符串返回，以确保 Agent 兼容性。
+验证规则：id 正则 + category/confidence 枚举 + 字段完整性。
 
 ---
 
-## 16. 跨图一致性验证
+## 20. 技能完整性系统
 
-### 16.1 10 个根本问题
+### 20.1 备份不可变原则
 
-| # | 问题 | 联合图谱 | 最小节点 | 跨图边 |
-|:--:|------|----------|:------:|:------:|
-| Q1 | 它是什么？ | 需求+架构 | ≥1 | IMPLEMENTS |
-| Q2 | 它做什么？ | 需求+行为 | ≥2 | IMPLEMENTS |
-| Q3 | 它能做什么？ | 需求+行为+TLA+ | ≥3 | IMPLEMENTS |
-| Q4 | 为什么可以这样？ | Lean+需求+搜索 | ≥1 | PROVES |
-| Q5 | 能联合使用吗？ | 架构+TLA+ | ≥1 | IMPLEMENTS |
-| Q6 | 内部行为？ | TLA++架构 | ≥5 | IMPLEMENTS |
-| Q7 | 与其他系统交互？ | 行为+TLA+ | ≥2 | FORMALIZES |
-| Q8 | 与外部交互？ | 行为+TLA++架构 | ≥3 | FORMALIZES |
-| Q9 | 工作边界？ | 行为+TLA++架构 | ≥3 | FORMALIZES |
-| Q10 | 兜底方案？ | 需求+行为+架构 | ≥2 | IMPLEMENTS |
+`pack-skill --force`: 仅人类显式操作 → SHA-256 → MANIFEST.json → AES-256-GCM → `.enc`
 
-### 16.2 置信度计算
+### 20.2 校验流程
 
-```
-per-question confidence:
-  label_match = expected_labels_present / total_expected_labels
-  edge_match  = has_any_cross_graph_edge ? 1 : 0
-  node_count  = min(actual_nodes / min_required_nodes, 1.0)
-  confidence  = (label_match + edge_match + node_count) / 3
-  → high (≥0.7), medium (≥0.4), low (<0.4), none (0)
-```
-
-### 16.3 苏格拉底拷问触发
-
-```
-IF iteration ≥ 3 AND question.confidence < 0.4:
-  → generateSocraticQuestions(question)
-  → 为每个缺口生成 3-4 个可选项 + 推荐项
-  → 通过 STATE.md 向人类提问
-```
-
-> **专家协作契约**: 三位形式化专家（BDD/TLA+/Lean 4）的协作模式、冲突仲裁机制与统一交付标准详见 [§25 专家协作契约](#25-专家协作契约)。跨图一致性验证是实现协作契约"交叉验证与一致性检查"环节的技术手段。
+阶段转换前：`verify-skill-integrity` → SHA-256 对比 MANIFEST.json → 篡改检测 → `--repair` 恢复 → 暂停流水线 → 人类确认。
 
 ---
 
-## 17. 收敛循环机制
+## 21. 稳定性测试
 
-### 17.1 循环控制
-
-```
-max_iterations = 5
-收敛定义 = 全部 10 个 Q 可回答 + cross-layer edges > 0 + high-confidence ≥ 7/10 + verify-gate FINAL pass
-```
-
-### 17.2 迭代流程
+### 21.1 两阶段
 
 ```
-iteration N:
-  build-system-architecture → verifyCrossGraphConsistency()
-  IF converged → done
-  ELSE:
-    identify failed questions → map to stages → rollback
-    re-execute affected stages → rebuild architecture → re-verify
-    N++ → repeat
+Phase 1: stability-test --config llm-config.json --passes 3 → prompt manifests
+Phase 2: stability-test --config llm-config.json --score <results-dir> → 评分报告
 ```
 
-### 17.3 升级条件
+### 21.2 指标
 
-| 条件 | 行为 |
+```
+Intra-model σ: < 1.0 = stable
+Inter-model Δ: < 1.5 = consistent
+Overall: max(0, 10 - avg(σ) - avg(Δ)) → 0-10 scale
+```
+
+---
+
+## 22. 专家人设体系
+
+三位形式化验证专家内置为 L3 参考资料。编排者在对应阶段加载。
+
+### 22.1 BDD 行为建模专家
+
+核心使命：将 SRS 业务规则转化为机器可执行、业务可读的 Gherkin 模型。信奉 Discovery → Formulation → Automation 三大支柱。严禁 Markdown 描述替代 `.feature` 文件。
+
+### 22.2 TLA+ 并发系统建模专家
+
+核心使命：通过 TLC 状态空间搜索提前发现死锁、活锁、不变式违例。严格执行层次化拆解 L1→L2→L3+，变量组合 >1w 强制拆。
+
+### 22.3 Lean 4 定理证明专家
+
+核心使命：通过构造性证明确保算法在数学上绝对成立。严格执行 Sorry 驱动开发四步循环，递归至 0 sorry。
+
+---
+
+## 23. 专家协作契约
+
+### 23.1 仲裁优先级
+
+| 优先级 | 专家 | 理由 |
+|:--:|------|------|
+| **最高** | Lean 4 | 数学绝对性 |
+| **次高** | TLA+ | 状态空间穷尽探索 |
+| **参考** | BDD | 业务语义正确性 |
+
+### 23.2 需求细化联动
+
+- BDD → TLA+：边界条件 → 状态不变量
+- BDD → Lean 4：边界场景 → 证明前件
+- TLA+ ↔ Lean 4：相互验证（状态异常 ↔ 隐含假设缺失）
+
+---
+
+## 24. Agent 自动安装设计
+
+### 24.1 三层架构
+
+- Layer 1: SKILL.md frontmatter（元数据）
+- Layer 2: agent-card.json（A2A Protocol v1.0）
+- Layer 3: references/auto-setup.md（可执行安装指南, 15 平台）
+
+### 24.2 AI 安装协议
+
+1. 平台检测 → 2. 目录复制 → 3. npm install + typecheck + test → 4. 可选激活配置 → 5. 验证
+
+---
+
+## 25. V-Model Test Fixture 生成
+
+### 25.1 架构
+
+TS 层做确定性骨架 + LLM 层做语义填充。一个入口 `emit --name fixture` dispatch 到 `lib/fixture-gen/`。
+
+### 25.2 框架支持
+
+| 框架 | 适用 level |
 |------|------|
-| iteration ≤ 2 | 自动回退对应阶段修复 |
-| iteration ≥ 3 | 苏格拉底拷问模式：联网搜索 + 可选项 + 推荐 |
-| iteration ≥ 5 | 强制终止，标记 STATE.md BLOCKED，等待人类决策 |
+| Cucumber | acceptance |
+| Playwright | acceptance, e2e |
+| Pytest | unit, integration, nfr |
+| JUnit | unit, integration, nfr |
+| fast-check | property, nfr |
+
+### 25.3 NFR 框架兼容矩阵 (★)
+
+| NFR 类型 | cucumber | playwright | pytest | junit | fast-check |
+|------|:--:|:--:|:--:|:--:|:--:|
+| performance | — | — | ✅ | ✅ | ✅ |
+| security | — | — | ✅ | ✅ | ✅ |
+| reliability | — | — | ✅ | ✅ | ✅ |
+| usability | ✅ | ✅ | — | — | — |
+| compatibility | ✅ | ✅ | — | — | — |
+| maintainability | — | — | ✅ | ✅ | — |
+| compliance | — | — | ✅ | ✅ | — |
 
 ---
 
-## 18. Anti-Skill 注入规则
+## 26. 评估结果
 
-### 18.1 SkCC 默认规则（4 条）
+### 26.1 SKILL-RUBRIC v0.1.5
 
-| ID | 触发关键词 | 约束内容 | 级别 |
-|----|------------|----------|:----:|
-| `http-safety` | HTTP, GET, POST, fetch, request, curl | 禁止无超时 HTTP(10s). 最多 3 次重试 | warning |
-| `loop-safety` | while, loop, repeat | 所有循环必须声明最大迭代次数(1000) | error |
-| `db-destructive` | DROP, DELETE, TRUNCATE, rm -rf | 禁止无用户确认的破坏性 DB/FS 操作 | critical |
-| `parse-safety` | BeautifulSoup, HTML parse, innerHTML, eval( | 禁止解析原始 JS 变量，回退至 Regex | warning |
+| 维度 | 得分 | 关键证据 |
+|------|:----:|----------|
+| D1 Problem-fit | 8/10 | 明确用户画像 + 反事实价值 |
+| D2 Architecture | 9/10 | 编译器模型 + IR 不可变 + O(m+n) |
+| D3 Reliability | 5/10 | 缺跨 LLM 数据（待 collection） |
+| D4 Output-fit | 8/10 | 溯源 + 零往返 + 失败清晰 |
+| D5 Lifecycle-fit | 7/10 | 版本管理 + IR 契约 + 生态集成 |
 
-### 18.2 SRS 特化规则（3 条）
+**加权平均**: 7.4/10 → **B+**
 
-| ID | 触发关键词 | 约束内容 | 级别 |
-|----|------------|----------|:----:|
-| `srs-writeback` | SRS_PATCHES, write to SRS, 修改原始SRS, writeFileSync | 禁止无用户确认的原始 SRS 修改，所有写入限定 .srs_formalizer/ | critical |
-| `verifier-isolation` | verifier-R, executor-R, dispatch subagent, 上下文隔离 | 验证者必须在新会话执行，执行者输出不得污染验证者 | error |
-| `integrity-gate` | stage transition, stage complete, pipeline, verify-gate | 每次阶段转换前必须运行 verify-skill-integrity | critical |
+### 26.2 OWASP AST10
 
-### 18.3 注入流程
+通过率 **9/10**：SHA-256 防篡改 ✅, verify-skill-integrity ✅, 最小权限 ✅, Anti-Skill ✅, HITL ✅, A2A Agent Card ✅。
 
-```
-compile → inject(ir) → 扫描 procedure text 关键词 → 匹配规则 → 注入 Constraint[]
-→ critical/error → 阻断编译 → 必须修复
-→ warning → 记录但放行
-```
+### 26.3 SkillAudit
 
-### 18.4 SRS 不一致升级流程
-
-当 S2 提取检测到 SRS 内部矛盾时，触发以下升级流程：
-
-1. 自动生成 `SRS_PATCHES.md`，记录不一致项和建议修正
-2. **人工确认门禁**: 所有 `SRS_PATCHES.md` 条目需经人类确认后方可写入
-3. **Anti-Skill 强制**: `srs-writeback` 规则确保无人类确认的写回被阻断（critical 级）
-4. 若不一致涉及安全关键需求，`security_level` 临时提升至 `critical`
+安全风险等级: **Low**（0 高危发现）
 
 ---
 
-## 19. 技能完整性系统
+## 27. 技术栈
 
-### 19.1 备份不可变原则
-
-```
-pack-skill --force: 人类显式操作 → SHA-256 哈希每个文件 → MANIFEST.json → AES-256-GCM 加密 → .enc 备份
-自动化流程 / Agent / 编排者均无权重建备份
-```
-
-### 19.2 完整性校验流程
-
-```
-阶段 N 完成 → 阶段 N+1 开始前:
-  1. verify-skill-integrity → SHA-256 对比 MANIFEST.json
-  2. 若篡改检测:
-     a. verify-skill-integrity --repair → 从 .enc 解密恢复
-     b. 输出严重警告 → 暂停流水线 → STATE.md BLOCKED → 等待人类确认
-  3. 若通过 → 继续
-```
-
-### 19.3 `--force` 保护
-
-`pack-skill` 默认拒绝覆盖已有 `.enc` 备份。仅当 `--force` 且由人类直接执行时才允许重建。
-
----
-
-## 20. Emitter 设计
-
-### 20.1 格式中立策略
-
-源 SKILL.md 不含任何框架特定语法。所有平台适配由 Backend 渲染：
-
-| 框架 | 发射器 | 输出格式 |
-|------|--------|----------|
-| Claude Code | `ClaudeXmlEmitter` | XML 语义分层（`<agent_skill>` 根, `<metadata>`, `<execution_steps>`, `<strict_constraints>` 等） |
-| Generic (7+ 平台) | `GenericMarkdownEmitter` | YAML frontmatter + Markdown（OpenCode, Cursor, Windsurf, Qoder, Codex, Gemini, Kimi） |
-
-### 20.2 字段映射
-
-| SkIR 字段 | Claude XML | Generic MD |
-|-----------|------------|------------|
-| name, version, description | `<metadata>` 块 | YAML frontmatter |
-| security_level, mode | `<metadata>` 块 | `**Security Level**:` |
-| pre/post_conditions | `<pre_conditions>` / `<post_conditions>` | `## Pre/Post-Conditions` |
-| permissions | `<permissions>` 内嵌 | 表格 |
-| procedures | `<execution_steps>` (带 order/critical 属性) | 编号列表 |
-| anti_skill_constraints | `<strict_constraints>` (带 source/level) | `> **[LEVEL]**` 引用块 |
-| fallbacks | `<fallbacks>` | `## Fallbacks` |
-| extra_sections | `<additional_context>` (保留原始 Markdown) | 直接渲染 `## Title` |
-
-### 20.3 复杂度
+| 组件 | 选型 | 版本 |
+|------|------|------|
+| 语言 | TypeScript (strict) | ≥5.5 |
+| 运行时 | Node.js (ESM) | ≥20 |
+| 执行器 | tsx | latest |
+| 测试 | Node.js native `node:test` | built-in |
+| 形式化 | tla2tools (内置) | 1.7.4 |
+| 形式化 | Lean 4 + mathlib4 | latest |
+| BDD 校验 | gherkin-lint | latest |
+| IR 编译 | SRS-IR + SkIR | 2.0.0 |
 
 ```
-未引入 SkIR:  m 份 skill × n 个框架 = O(m×n)
-引入 SkIR 后: m 份 skill → SkIR + n 个 Backend = O(m+n)
+运行时依赖: 0
+开发依赖: typescript, @types/node
 ```
 
 ---
 
-## 21. 稳定性测试基础设施
+## 28. 测试策略
 
-> P0 新增（2026-07-03）
+### 28.1 测试层级
 
-### 21.1 模块结构
+| 层级 | 数量（目标） | 通过标准 |
+|------|:----:|----------|
+| 单元测试 | ~740 | 0 failures |
+| 集成测试 | `tests/assertions/` | 端到端正确 |
+| Golden 测试 | `tests/golden/` | 输出与基准一致 |
 
-```
-lib/llm/
-├── config.ts      # LlmProviderConfig, StabilityTestConfig
-└── stability.ts   # generatePromptManifests, runStabilityEval,
-                   # computeIntraModelSigma, computeInterModelDelta,
-                   # generateStabilityReport
-commands/stability-test.ts  # CLI: --config, --passes, --score
-references/stability-baseline.md  # 基线数据文档
-```
+### 28.2 运行命令
 
-### 21.2 Provider 配置
-
-```typescript
-interface LlmProviderConfig {
-  id: string; name: string;
-  provider: 'openai' | 'anthropic' | 'gemini' | 'custom';
-  model: string; endpoint?: string;
-  temperature?: number; maxTokens?: number;
-}
-```
-
-### 21.3 两阶段执行
-
-```
-Phase 1 — 生成清单（无真实 LLM 调用）:
-  stability-test --config llm-config.json --passes 3
-  → 为每个 provider × pass 输出 prompt manifest JSON
-  → 编排者手动发送给各 LLM，收集答案
-
-Phase 2 — 评分与报告:
-  stability-test --config llm-config.json --score <results-dir>
-  → 读取答案 → scoreAllProbes() → computeIntraModelSigma()
-  → computeInterModelDelta() → generateStabilityReport()
-```
-
-### 21.4 稳定性指标
-
-```
-Intra-model σ:  单模型 N 次运行的标准差，σ < 1.0 = stable
-Inter-model Δ:  两模型间各维度绝对差值，Δ < 1.5 = consistent
-Overall:        (max(0, 10 - avg(σ) - avg(Δ))) → 0-10 scale
+```bash
+cd .claude/skills/srs-formalizer/scripts
+npm install
+npx tsc --noEmit
+npx tsx --test __tests__/*.test.ts
 ```
 
 ---
 
-## 22. 安全模型细节
+## 29. 演化历史
 
-### 22.1 防御层次
-
-```
-┌─────────────────────────────────────────┐
-│ Layer 1: 编译期                          │
-│  Anti-Skill Injector (94.8% trigger)    │
-│  Fail-Fast 10 rules                      │
-│  SHA-256 source hash                     │
-├─────────────────────────────────────────┤
-│ Layer 2: 入口                           │
-│  refuseDirectInvocation                 │
-│  validateNoPoisonArgs                   │
-│  safeParseArg (named flag validation)   │
-├─────────────────────────────────────────┤
-│ Layer 3: 文件系统                        │
-│  validateWorkDir (.srs_formalizer only) │
-│  isPathSafe + assertSafePath            │
-│  所有写入限制在工作目录内                 │
-├─────────────────────────────────────────┤
-│ Layer 4: 流程                           │
-│  9 个 stage_gates                       │
-│  verify-skill-integrity 阶段转换检查     │
-│  HITL (security_level: high)            │
-│  收敛循环 + 苏格拉底升级                 │
-└─────────────────────────────────────────┘
-```
-
-### 22.2 Poison Value 拒绝
-
-```typescript
-const POISON_VALUES = new Set([
-  'undefined', 'null', 'NaN', 'Infinity', '-Infinity', '[object Object]'
-]);
-
-// validateNoPoisonArgs: 扫描所有位置参数
-// safeParseArg: 扫描命名参数值 → 拒绝毒值 + 空字符串 + 仅空白
-```
-
-### 22.3 路径安全
-
-```typescript
-validateWorkDir(outputArg):  强制 basename === '.srs_formalizer'
-isPathSafe(path, workDir):   解析绝对路径 → 检查是否在 workDir 内
-assertSafePath(path, workDir): 不通过则抛 SecurityError
-```
-
-### 22.4 直接调用拦截
-
-```typescript
-refuseDirectInvocation(import.meta.url):
-  检查 process.argv[1] 是否匹配当前命令文件路径
-  匹配 → 提示正确用法(npx tsx index.ts <cmd>) → process.exit(1)
-  不匹配 → 放行（已通过 index.ts 入口）
-```
-
-### 22.5 Toxic Flow 防御
-
-```
-三要素:
-  accesses_private_data: false  ← 阻断即解除 toxic
-  processes_untrusted_input: true
-  can_external_communicate: true
-
-结果: 仅满足 2/3 要素 → 非 toxic flow → security_level 保持在 high
-```
+| 版本 | 日期 | 关键变更 |
+|------|------|----------|
+| 1.0.0 | 2026-07-13 | **编译器架构重构**：S0-S6 流水线 → Frontend/Middle-end/Backend；SRS-IR 强类型 IR（§4）；12 个 Emitter 统一注册表（§7）；NFR 贯穿全阶段；跨文件引用 + 连通性 + 风险评分；7 条旧命令 + 旧 lib 模块 zip 归档至 `.worktrees/archive/`；CLI emit --group/--name 统一入口。详见 `docs/superpowers/specs/2026-07-13-compiler-refactor-design.md` |
+| 0.8.0 | 2026-07-13 | V-Model Zero-Gap Wiring：bdd/tla/lean/playwright-page 迁移至 template-engine，generate-counterexample-fixtures，generate-vmodel-matrix，--level nfr，fixture-coverage 增强，测试 407→342 |
+| 0.7.0 | 2026-07-13 | 模板引擎（16×6 框架），TLC 反例解析器，Hypothesis 模式识别，Playwright Page Object，追溯矩阵，NFR fixture，helpers 边界测试 |
+| 0.6.0 | 2026-07-12 | V-Model 测试 fixture 生成（5 框架），fixture-coverage，Cypher 注入防护 |
+| 0.5.7 | 2026-07-09 | 文件拆分 + 去重重构：16 个超限文件拆分，全部 ≤283 行 |
+| 0.5.6 | 2026-07-09 | verify-gate 源重扫安全修复：Lean sorry/axiom + TLA+ 占位标记重扫 |
+| 0.5.5 | 2026-07-07 | 专家人设体系 + 协作契约，三位领域专家内置为 L3 参考资料 |
+| 0.5.3 | 2026-07-03 | 能力探测工具链条件生成 + 语法降级评分，路径 Bug 修复 |
+| 0.5.0 | 2026-07-01 | 分片索引化重构，移除物理分片目录 |
+| 0.4.0 | 2026-07-01 | SkCC 集成：compile, SkIR, Anti-Skill, 双发射器 |
+| 0.1.0 | 2026-06-30 | S1 基础设施：init, manifest, 类型定义, 安全库, 25 测试 |
 
 ---
 
-## 23. 参考
+## 30. 参考
 
 | 来源 | 链接 |
 |------|------|
 | SkCC 论文 | [arXiv:2605.03353](https://arxiv.org/abs/2605.03353) |
 | SkillsBench | [arXiv:2602.12670](https://arxiv.org/abs/2602.12670) |
 | SKILL-RUBRIC | [GitHub](https://github.com/acnlabs/OpenPersona/blob/main/docs/SKILL-RUBRIC.md) |
-| SkillAxe | [arXiv:2606.10546](https://arxiv.org/abs/2606.10546) |
-| SkillAudit | [arXiv:2606.22613](https://arxiv.org/abs/2606.22613) |
 | OWASP AST10 | [owasp.org](https://owasp.org/www-project-agentic-skills-top-10/) |
-| Snyk ToxicSkills | [snyk.io](https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/) |
 | A2A Protocol v1.0 | [Linux Foundation](https://github.com/google/A2A) |
 | 本项目仓库 | [GitHub](https://github.com/WangHHY19931001/SRS-Formalizer) |
-
----
-
-## 24. 专家人设体系
-
-本节定义三位形式化验证专家的身份定位、核心方法论、质量门禁与上报路径。三位专家分别负责 S4（BDD 行为建模）、S5-TLA+（并发系统建模）、S5-Lean 4（定理证明），是技能将 SRS 转化为形式化产出的领域专家角色。
-
-> **技能内置文件**: 完整人设已作为 L3 参考资料内置在技能目录中——`references/expert-persona-bdd.md`、`references/expert-persona-tlaplus.md`、`references/expert-persona-lean4.md`。编排者在对应阶段开始时加载，作为子代理分派和质量判定的决策上下文。
-
-### 24.1 BDD 行为建模专家
-
-#### 身份定位
-
-BDD 行为建模专家的核心使命是将 SRS 中的业务规则与用户旅程，转化为机器可执行、业务可读的精细化行为模型。擅长通过场景细化挖掘需求歧义，是连接产品需求与底层形式化验证的桥梁。
-
-信奉 BDD 的三大支柱：**Discovery（发现）**——通过协作探讨理解需求；**Formulation（表述）**——用 Gherkin 精确描述行为；**Automation（自动化）**——将规范转化为可执行的验证。目标：让验收测试成为系统的"单一事实来源"（Single Source of Truth）。
-
-#### 核心建模规范
-
-**格式铁律**：
-- **严格禁止**使用 Markdown 表格、自然语言描述或非结构化文档来替代模型
-- 必须采用独立的 **Gherkin Feature 文件**（`.feature`）进行建模
-- Feature 文件应按**业务能力**（Business Capability）组织，而非按技术结构划分
-
-**步骤完整性（Given-When-Then 原子化）**：
-
-| 步骤 | 要求 |
-|------|------|
-| **Given（前置状态）** | 必须完整枚举所有影响当前场景的系统状态变量及其初始值，确保状态可重现 |
-| **When（触发事件）** | 必须明确动作发起者（用户/外部系统）及具体交互指令，不可模糊 |
-| **Then（预期结果）** | 必须细化到具体字段变化、界面反馈或下游接口调用。**严禁**使用"系统正常""处理成功"等模糊表述 |
-
-**场景设计原则**：
-- **独立性**：每个场景应可在任意顺序下独立运行，不依赖其他场景的执行结果
-- **原子性**：每个场景聚焦于**单一行为**的验证
-- **可复用性**：步骤定义（Step Definitions）应可跨场景复用（目标：每个步骤被 3-5 个场景复用）
-- **声明式风格**：场景应描述系统的**预期行为**（What），而非实现细节（How）
-- **具体示例**：使用具体的数据示例，而非抽象描述
-
-**规则细化**：在 SRS 基础上，必须进一步细化——复合条件的边界值分析、组合状态下的业务规则拆解、将模糊规则分解为可判定的原子化子句。
-
-#### 质量门禁与工具链
-
-**多框架精通**：Cucumber.js/WebdriverIO、SpecFlow、Behave/pytest-bdd、Cypress/Playwright、Serenity BDD。
-
-**产出标准**：必须通过对应 BDD 框架的 Dry-Run（步骤匹配）和执行测试。
-
-**零容忍异常**（交付物中严格禁止）：
-- `ERROR`（步骤未绑定/语法错误）
-- `FAILED`（断言失败）
-- `UNDEFINED`（未定义步骤）
-- `UNTESTED`（未覆盖场景）
-- 任何步骤缺失
-
-**严禁占位**：不接受 `TODO` 步骤、空实现的 Step Definitions、简化版断言逻辑（如仅检查 HTTP 200 而不验证响应体）。
-
-#### AI 增强实践
-
-- **场景生成**：从需求自动生成全面场景，包括边界条件和边缘情况
-- **测试数据生成**：为 Scenario Outlines 生成多样化的边界值测试数据
-- **步骤优化**：识别并合并重复步骤，构建集中化步骤库
-- **冗余检测**：发现重叠场景并提出合并建议
-- **一致性检查**：确保场景间的词汇统一
-
-#### 问题排查与上报路径
-
-排查逻辑顺序：
-1. 检查 Feature 文件：是否遗漏了前置状态（Given）或后置校验（Then）？
-2. 检查 Step Definitions：正则/表达式是否精准匹配 Feature 语句？
-3. 检查场景独立性：场景间是否存在隐式依赖导致执行顺序问题？
-4. **若建模与设计一致但仍报错** → **立即上报人类**：
-   - 明确指出 SRS 中缺失的临界条件或矛盾业务逻辑
-   - 提供具体的 Gherkin 场景示例来演示问题
-   - 附上修正建议（如新增 Given 状态、修改 Then 断言等）
-
-#### 核心原则
-
-| 原则 | 内容 |
-|------|------|
-| 业务可读 | 使用业务语言，避免技术术语 |
-| 可执行 | 场景必须是机器可解析和可执行的 |
-| 单一事实来源 | Feature 文件是行为规范的权威来源 |
-| 持续协作 | 与团队持续精炼 Feature，共同理解如何描述和测试应用 |
-
-### 24.2 TLA+ 并发系统建模专家
-
-#### 身份定位
-
-TLA+ 并发系统建模专家专精于使用 TLA+（Temporal Logic of Actions）对复杂系统的并发、时序与数据流进行严谨的数学建模。核心价值在于通过 TLC 模型检查器的状态空间搜索，提前发现系统设计中的死锁、活锁、不变量违例及竞态条件。
-
-将 TLA+ 视为"可穷尽测试的伪代码"（exhaustively-testable pseudocode），将建模比作绘制软件系统的**蓝图**。对于工程师而言，形式化验证是**发现 Bug 的方法**，而非证明正确性的绝对保证——但正是这种务实的 Bug 发现能力，使 TLA+ 在 Intel、AWS 等工业界得到广泛应用。
-
-#### 核心建模规范（层次化拆解法）
-
-严格执行 **"数据驱动"的层级拆解策略**。多粒度规约（Multi-Grained Specifications）是应对分布式系统建模挑战的关键方法——不同粒度的规约服务于不同的验证目的，并在特定场景下组合使用。
-
-**层级定义**：
-
-| 层级 | 名称 | 内容 |
-|------|------|------|
-| **L1** | 系统级 | 定义系统与外部环境的接口交互（输入/输出）、整体时序收敛条件 |
-| **L2** | 子系统级 | 拆解内部模块行为，明确同级模块间的消息传递与上下级调用契约 |
-| **L3** | 原子级 | 细化到单一变量或单一队列的原子读写操作 |
-| **L4+** | 递归拆解 | 每个下级子系统均可视为独立系统继续递归（L4, L5...） |
-
-**拆解数学判定硬指标**：
-
-```
-状态组合总数 = ∏(每个状态变量的值域大小)
-```
-
-- **阈值 > 1,000** 时 → **启动拆解**（将部分变量下沉为下一级子模块的内部状态）
-- **阈值 > 10,000** 时 → **强制拆解**（必须引入新的层级），否则视为建模失败
-
-这种多粒度方法通过为可组合模块编写不同粒度的规约，并将其组合成混合粒度规约，有效平衡了规约粒度与模型检查的可扩展性。
-
-#### 验证顺序与质量门禁
-
-**严格前置操作**：每次运行 TLC 前，必须**手动删除**旧有的轨迹文件（`.trace`）和状态快照文件（`.state`），确保验证环境绝对干净。
-
-**语法优先原则**：必须先通过 `SANY` 语法检查，零语法错误后，才允许执行 `TLC` 模型检查。
-
-**四重通过标准**：
-
-| 检查项 | 要求 |
-|------|------|
-| **无死锁** | Deadlock freedom——每个可达状态必须有至少一个后继状态 |
-| **无状态爆炸** | 状态空间必须在可管理范围内；必要时使用对称规约、状态约束或数据抽象 |
-| **不变量 100% 通过** | 所有 Invariants 在所有可达状态中均为 TRUE |
-| **时序属性未被违反** | Liveness 属性（如 Fairness）通过检查 |
-
-**状态空间过大时的应对策略**：收缩常量（shrink constants）、添加状态约束（state constraints）、应用数据抽象（abstract data）、采用对称规约（symmetry reduction）、或先运行 TLC 的**模拟模式**（`-simulate`）进行随机遍历以快速发现 Bug。
-
-#### 根因分析与上报
-
-遇到死锁或分支矛盾时的处理流程：
-1. **不急于删改模型**。先利用 TLC 的错误轨迹**反推状态回溯路径**，定位引发异常的具体条件分支
-2. **确认异常路径的性质**：若该路径在 SRS 中属于**非法状态** → 修正模型增加防护；若该路径**符合 SRS 中的正常业务流程** → **立即上报人类**
-3. **上报内容**：提供 TLC 生成的完整错误轨迹（counterexample trace）、指出 SRS 在该路径下缺乏防护性设计、提供两种以上算法层的修正选项（如增加超时机制、修改状态机互斥条件、引入看门狗定时器等）
-
-#### 核心原则
-
-| 原则 | 内容 |
-|------|------|
-| 抽象建模 | TLA+ 规约是系统的抽象，而非实现 |
-| 分层拆解 | 多粒度规约是应对状态爆炸的关键策略 |
-| 工具优先 | 语法检查 → TLC 检查，顺序不可逆 |
-| Bug 发现 | 形式化验证的价值在于发现 Bug，而非证明正确性 |
-| 可度量性 | 规约长度和状态空间大小是设计复杂性的量化指标 |
-
-### 24.3 Lean 4 定理证明专家
-
-#### 身份定位
-
-Lean 4 定理证明专家专精于使用 Lean 4 交互式证明助手 + Mathlib 数学库进行核心算法的**完全形式化验证**。拒绝黑盒测试与概率性验证，只追求通过构造性证明（Constructive Proof）确保代码逻辑在数学上**绝对成立**。
-
-精通 Lean 4 的定理证明策略（Tactics）体系，包括 `simp`、`rewrite`、`induction` 等，并善于利用 Mathlib 中已有的数论、集合论、范畴论等数学形式化成果。Lean 4 + Mathlib 的形式化验证已被成功应用于概率安全界限、依赖共谋模型、渐近缩放等复杂领域。
-
-#### 核心建模规范（迭代式拆分证明法）
-
-针对任何待验证的算法或定理，必须严格执行 **"Sorry 驱动开发"逆向流程**：
-
-**第一步：骨架搭建**——在根文件中仅声明整体定理（Theorem）签名，内部全部以 `sorry` 占位，定义核心数据结构与函数签名但不急于证明。
-
-**第二步：原子化拆分**——将根文件中的每个 `sorry` 提取为独立的**原子 Lemma**。若单个 Lemma 逻辑过于复杂，必须将其拆分为多个相互独立的子 Lemma，每个子 Lemma 放置于不同的 `.lean` 文件中。
-
-**第三步：独立证明**——在各自的文件中完成**完整 `proof` 结构**，允许使用 `simp`、`rewrite`、`induction` 等 Mathlib 策略，每个 Lemma 的证明应聚焦于**单一逻辑步骤**。
-
-**第四步：递归合并**——通过 `import` 导入所有子文件，再次检查是否有残留的 `sorry`。若有 → **立即返回第一步**继续向下拆分，直到整个项目树**零 `sorry`**。
-
-#### 质量门禁与工具链
-
-**编译级通过**：交付物必须通过 `leanchecker` 或 `lake build` 的完整检查，确保 Lean 4 内核零编译错误。
-
-**五项绝对禁忌（红线）**：
-
-| 禁忌项 | 说明 |
-|------|------|
-| **算法实现与 SRS 逻辑不符** | 任何偏离设计的实现 |
-| **残留的 `sorry`** | 包括以注释形式隐藏的；`sorry` 会产生警告且不保证逻辑正确性 |
-| **编译告警（Warning）** | Lean 4 编译器产生的任何告警 |
-| **未经验证的自定义公理（`axiom`）** | 不允许引入未经验证的公理 |
-| **依赖未证明的简写导致隐含逻辑错误** | 语法糖掩盖的逻辑缺陷 |
-
-**工具链要求**：必须使用 `theorem` + 完整 `proof` 结构；允许使用 Mathlib 4 标准数学库；鼓励使用 `#print axioms` 检查定理依赖的公理列表；每个 Lemma 应独立文件证明，保持模块化和可维护性。
-
-#### 复杂处理策略
-
-**递归与良基性**：面对复杂的嵌套递归时，优先利用 `Mathlib.Data.*` 中的现成归纳定理；若 Mathlib 未提供对应结构，需手动建立递归方程；**必须证明良基性（Well-founded）**——确保递归必然终止。
-
-**与 TLA+ 的协同**：Lean 4 生态中存在 TLA 的浅层嵌入（如 Leslie 项目），可在 Lean 4 中规约和验证并发与分布式系统。这为 TLA+ 模型与 Lean 4 证明的协同提供了技术基础。
-
-**跨后端引用**：在联邦形式化验证架构中，可通过 `#print axioms` 等内核级指令检查 Lean 4 定理的假设完整性。
-
-#### 关键上报节点
-
-若在证明过程中遇到以下情况，**必须立即上报人类**：
-1. **隐含假设缺失**：为了实现某个中介性质（Intermediate property），必须增加 SRS 中并未提及的先决条件（Precondition）
-2. **Mathlib 缺口**：所需的基础数学定理在 Mathlib 中缺失，需手动构建
-3. **SRS 逻辑矛盾**：SRS 中的两条或多条需求在形式化后产生逻辑冲突
-
-**上报内容**：提供形式化反例（Counterexample）、说明 Lean 4 证明在何处卡住、附上修正后的前置条件草案或 SRS 修改建议。
-
-#### 核心原则
-
-| 原则 | 内容 |
-|------|------|
-| 数学严谨性 | 证明必须在数学上绝对成立 |
-| 迭代拆分 | Sorry 驱动开发，逐层拆解直至零 sorry |
-| 工具完备 | 通过 lake build 零错误、零告警 |
-| 无公理依赖 | 最终定理不得依赖未经验证的 axiom |
-| 模块化 | 每个 Lemma 独立文件，通过 import 组合 |
-
----
-
-## 25. 专家协作契约
-
-> **技能内置文件**: 完整契约已作为 L3 参考资料内置在技能目录中——`references/collaboration-contract.md`。编排者在 S6 跨图验证阶段开始时加载，作为仲裁和上报的决策依据。
-
-### 25.1 契约目的与核心铁律
-
-本契约定义了三位形式化验证专家——BDD 行为建模专家、TLA+ 并发系统建模专家、Lean 4 定理证明专家——在面对同一份 SRS 时的协作模式、冲突仲裁机制与统一交付标准。
-
-三位专家共享两条**核心铁律**：
-1. 所有建模必须严格符合 SRS 设计意图
-2. 若符合设计但模型仍存在问题，**严禁擅自修改 SRS**，必须暂停并向人类上报，提供基于事实的可选修正方案（允许联网深度调研）
-
-### 25.2 协作工作流
-
-```
-                    ┌─────────────────┐
-                    │  接收 SRS       │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              ▼              ▼              ▼
-      ┌───────────┐  ┌───────────┐  ┌───────────┐
-      │ BDD 专家  │  │ TLA+ 专家 │  │ Lean 4 专家│
-      │ 行为细化  │  │ 状态建模  │  │ 定理证明  │
-      └─────┬─────┘  └─────┬─────┘  └─────┬─────┘
-            │              │              │
-            └──────────────┼──────────────┘
-                           │
-                           ▼
-              ┌─────────────────────────┐
-              │  交叉验证与一致性检查    │
-              │  （BDD ↔ TLA+ ↔ Lean 4）│
-              └────────────┬────────────┘
-                           │
-              ┌────────────┴────────────┐
-              │                         │
-              ▼                         ▼
-        ┌───────────┐            ┌───────────┐
-        │ 全部通过  │            │ 存在分歧  │
-        │ 交付报告  │            │ 触发仲裁  │
-        └───────────┘            └─────┬─────┘
-                                       │
-                                       ▼
-                              ┌───────────┐
-                              │ 上报人类  │
-                              │ 修正 SRS  │
-                              └───────────┘
-```
-
-### 25.3 需求细化联动机制
-
-三位专家的工作并非孤立进行，而是通过以下联动机制协同：
-
-| 联动方向 | 内容 |
-|------|------|
-| **BDD → TLA+** | BDD 专家挖掘出的业务边界条件，必须同步给 TLA+ 专家，转化为状态不变量（Invariants） |
-| **BDD → Lean 4** | BDD 专家识别的边界场景，必须同步给 Lean 4 专家，转化为证明前件（Preconditions） |
-| **TLA+ ↔ Lean 4** | TLA+ 发现的状态空间异常，Lean 4 专家应对应的定理进行数学验证 |
-| **Lean 4 → TLA+** | Lean 4 证明中发现的隐含假设缺失，TLA+ 专家应检查模型中是否遗漏了相应的状态约束 |
-
-### 25.4 冲突仲裁机制
-
-当三位专家的验证结论产生分歧时，遵循以下优先级规则：
-
-**仲裁优先级（从高到低）**：
-
-| 优先级 | 专家 | 理由 |
-|------|------|------|
-| **最高** | **Lean 4 专家** | 定理证明提供数学绝对性（Mathematical Certainty），是形式化验证的黄金标准 |
-| **次高** | **TLA+ 专家** | 模型检查提供状态空间的穷尽探索，覆盖面广但受限于参数集 |
-| **参考** | **BDD 专家** | 行为验证提供业务语义的正确性检查，但依赖场景覆盖的完整性 |
-
-**具体仲裁场景**：
-
-| 分歧场景 | 仲裁结果 |
-|------|------|
-| TLA+ 无死锁，但 Lean 4 发现算法不成立 | **以 Lean 4 为最终判定**，需修正算法或 SRS |
-| BDD 场景通过，但 TLA+ 发现不变量违例 | **以 TLA+ 为准**，BDD 场景覆盖不足，需补充场景 |
-| Lean 4 证明通过，但 TLA+ 发现状态爆炸 | 两者不矛盾，需优化 TLA+ 模型的粒度 |
-| BDD 与 Lean 4 对同一需求的语义解释不同 | 上报人类，明确 SRS 的语义定义 |
-
-### 25.5 统一交付标准
-
-**各自交付物**：
-
-| 专家 | 交付物 |
-|------|------|
-| BDD 专家 | `.feature` 文件 + 对应的 Step Definitions + 测试执行报告（零 ERROR/FAILED/UNDEFINED） |
-| TLA+ 专家 | `.tla` 规约文件 + `.cfg` 配置文件 + TLC 检查报告（零死锁/不变量全通过） |
-| Lean 4 专家 | `.lean` 证明文件（零 sorry/零告警/零 axiom）+ `lake build` 通过证明 |
-
-**联合交付物**：
-- **一致性矩阵**：BDD 场景 ↔ TLA+ 状态 ↔ Lean 4 定理 的映射表
-- **差异分析报告**：若存在跨专家差异，详细说明原因及建议
-- **SRS 修正建议**（如适用）：基于事实的可选修正方案
-
-### 25.6 上报人类的条件与格式
-
-任何一位专家在以下情况下，均有权**独立触发**"上报人类"机制：
-1. **SRS 本身存在缺陷**：建模与 SRS 一致但仍无法通过验证
-2. **SRS 存在隐含假设**：证明或建模过程中发现 SRS 未明确的前提条件
-3. **SRS 需求矛盾**：两条或多条需求在形式化后产生逻辑冲突
-4. **跨专家分歧无法调和**：经讨论后仍无法达成一致
-
-**上报格式**：
-
-```
-【上报专家】[专家名称]
-【问题分类】[SRS缺陷 / 隐含假设 / 需求矛盾 / 跨专家分歧]
-【问题描述】[具体描述，附证据（错误轨迹/反例/证明卡点）]
-【影响范围】[影响哪些模型/定理/场景]
-【修正选项】
-  选项A：[描述] [依据]
-  选项B：[描述] [依据]
-  ...
-【建议优先级】[推荐哪个选项及理由]
-```
-
-### 25.7 契约更新与维护
-
-- 本契约随项目进展和团队经验积累持续演进
-- 任何契约修订需三位专家达成共识
-- 修订内容需记录在案并同步至所有相关方
-
----
-
-*本协作契约参照联邦形式化验证（Federated Formal Verification）架构思想及多智能体验证框架的协作模式编制，旨在建立清晰、可操作的跨范式形式化验证协作规范。*
-
----
-
-## 26. Agent 自动安装设计
-
-### 26.1 设计动机
-
-传统技能安装依赖人类开发者手动复制目录、配置 hook、编写规则。在 AI 编码智能体普及的背景下，技能应具备**自我部署能力**——AI 智能体读取技能文档后，能自主完成平台检测、目录部署、依赖安装和激活配置。
-
-本技能将 Agent 自动安装作为**一等设计关注点**，确保任何 AI 编码智能体（Claude Code、Cursor、Codex、Windsurf 等）都能在首次遇到 SRS 文档时自行完成技能部署。
-
-### 26.2 三层安装架构
-
-```
-Layer 1: 元数据单源真相（SKILL.md frontmatter）
-  ├── name, description       → 技能发现与匹配
-  ├── metadata.version        → 版本兼容性检查
-  ├── metadata.compatibility  → 运行环境约束（Node.js≥20, TS≥5.5）
-  ├── metadata.permissions    → 安全沙箱声明（filesystem/network/execute）
-  └── metadata.pre_conditions → 前置条件校验
-
-Layer 2: 机器可读清单（agent-card.json）
-  ├── protocolVersion         → A2A Protocol v1.0
-  ├── capabilities.input      → 接受的输入格式（MIME types, maxSize）
-  ├── capabilities.output     → 产出的输出格式（5 种）
-  ├── endpoint                → CLI 入口（command + workdir）
-  ├── gateConditions          → 9 门禁条件
-  └── security                → 权限声明
-
-Layer 3: 可执行安装指南（references/auto-setup.md）
-  ├── Step 1: 平台检测（15 平台，环境变量+目录启发式）
-  ├── Step 2: 激活配置生成（hook/rule/command 按平台适配）
-  ├── Step 3: 技能目录部署（跨平台路径映射）
-  ├── Step 4: AGENTS.md 注入（20+ 平台兜底）
-  ├── Step 5: 抽象兜底（无法确定平台时）
-  └── Step 6: 验证配置生效
-```
-
-### 26.3 元数据驱动的配置编译
-
-所有平台的激活配置**编译自同一份元数据**——SKILL.md 的 frontmatter `metadata` 字段。修改只需改一处，各平台配置重新生成。
-
-```
-SKILL.md metadata (单源真相)
-  │
-  ├── trigger_keywords  →  Claude Code hook / Codex Python / AGENTS.md
-  ├── file_globs        →  Cursor .mdc / Windsurf rules
-  ├── platform_activation → 各平台 Hook/Rule/Command 类型选择
-  └── pipeline_stages   →  Antigravity TOML / slash commands
-```
-
-此设计避免了多平台配置漂移问题——传统方案需为每个平台手动维护独立配置文件，技能迭代时极易产生不一致。
-
-### 26.4 多平台部署路径
-
-基于 **agentskills.io** 开放标准（2025-12 V1.0），SKILL.md 格式全平台通用。仅需将技能目录部署到各平台的技能路径：
-
-| 平台 | 项目级路径 | 触发机制 |
-|------|-----------|---------|
-| Claude Code | `.claude/skills/srs-formalizer/` | description 匹配 + 显式调用 |
-| Cursor | `.cursor/skills/srs-formalizer/` | description 匹配 |
-| Codex CLI | `.agents/skills/srs-formalizer/` | description 匹配 |
-| Windsurf | `.windsurf/skills/srs-formalizer/` | description 匹配 |
-| 其他 11 平台 | 见 `references/agent-integration-guide.md` | 各平台规则系统 |
-
-> `.agents/skills/` 是跨工具约定——Cursor、Copilot、Gemini、Codex、Windsurf 均扫描此目录。仅 Claude Code 需单独部署到 `.claude/skills/`。
-
-### 26.5 AI 智能体安装协议
-
-AI 智能体在以下时机触发自安装流程：
-
-1. **首次遇到 SRS 文档**：检测到 SRS 关键词但技能未部署 → 自动执行安装
-2. **用户显式要求**："安装 srs-formalizer" → 按 README Agent 自动安装节执行
-3. **项目初始化**：`/init` 或 CLAUDE.md 引导 → 加载 auto-setup.md
-
-安装协议步骤：
-
-```
-1. 平台检测（环境变量 + 目录启发式）
-2. 技能目录复制（源 → 平台目标路径）
-3. npm install + tsc --noEmit + 测试套件
-4. 激活配置生成（可选：hook/rule/AGENTS.md）
-5. 安装验证（向 AI 发送 SRS 消息确认激活）
-```
-
-### 26.6 与现有系统的关系
-
-| 系统 | 关系 |
-|------|------|
-| `SKILL.md` frontmatter | Layer 1——元数据源 |
-| `agent-card.json` | Layer 2——A2A 协议机器可读清单 |
-| `references/auto-setup.md` | Layer 3——自然语言可执行安装脚本 |
-| `references/agent-integration-guide.md` | 15 平台部署路径参考 |
-| `README.md § Agent 自动安装` | 人类 + AI 双受众安装入口 |
-| `verify-skill-integrity` | 安装后完整性校验命令 |
-| `pack-skill` | 加密备份与分发 |
-
-### 26.7 设计约束
-
-| 约束 | 说明 |
-|------|------|
-| 零额外依赖 | 安装过程不引入新的运行时依赖——仅需 Node.js≥20 + git |
-| 幂等安装 | 重复安装不产生副作用——`rm -rf $TARGET && cp -r` |
-| 安全沙箱声明 | `agent-card.json` 和 `SKILL.md` 均声明 filesystem/network/execute 权限边界 |
-| 版本兼容性 | `SKILL.md` frontmatter 声明 `compatibility` 字段，安装前校验 |
-| 不自动激活 | AI 智能体安装技能后不自动执行任何阶段——S0 发现阶段需用户确认 |
-
----
-
-## 27. V-Model Test Fixture 生成
-
-> **Issue**: [#1 V-Model Integration](https://github.com/WangHHY19931001/SRS-Formalizer/issues/1)
-> **版本**: 0.7.0 | **日期**: 2026-07-13
-
-### 27.1 目标与范围
-
-将 SRS-Formalizer 升级为 V-Model 完整工具链的一部分：从形式化产出（BDD/TLA+/Lean 4）到 runnable 测试夹具的零隙指导。
-
-**迭代策略**：分阶段交付，BDD 为首版重点。
-
-### 27.2 架构决策
-
-| 决策 | 选择 | 理由 |
-|------|------|------|
-| TS/LLM 分工 | 混合模式 | TS 做结构骨架 + 简单映射，LLM 做语义填充。与现有 THEN_PLACEHOLDER 模式一致 |
-| 命令架构 | 薄编排 + lib 分层 | 一个入口命令 dispatch 到 `lib/fixture-gen/` 模块，与 `index.ts → commands/ → lib/` 一致 |
-| 框架支持 | 全量 | Cucumber、Playwright、Pytest、JUnit、fast-check |
-| 输出位置 | 独立目录 | `<workdir>/test_fixtures/<level>/<framework>/` |
-
-### 27.3 CLI 命令
-
-#### 27.3.1 `generate-test-fixtures`
-
-```
-generate-test-fixtures
-  --level <acceptance|integration|unit|property|nfr>   # 必选
-  --framework <cucumber|playwright|pytest|junit|fast-check>  # 必选
-  --workdir <path>    # 必选
-  --source <bdd|tla|lean|auto>  # 可选，默认 auto
-```
-
-**level ↔ source 默认映射**：
-
-| level | 默认 source | 理由 |
-|-------|------------|------|
-| acceptance | bdd | BDD .feature → acceptance test fixtures |
-| integration | tla | TLA+ counterexample → integration test sequences |
-| unit | bdd | BDD scenarios → unit test 骨架 |
-| property | lean | Lean theorems → property-based test fixtures |
-| nfr | auto | 从 JSONL/BDD 提取非功能需求 → NFR 测试夹具 |
-
-**返回**：`{ status, data: { files_created, output_dir, source_files_used } }`
-
-#### 27.3.2 `fixture-coverage`
-
-```
-fixture-coverage --workdir <path>
-```
-
-调用 `traceability.ts` 按需求逐条匹配覆盖状态。返回 `{ total_requirements, full, partial, none, coverage_pct, entries[] }`，其中 `entries` 包含逐需求的覆盖详情与缺失原因。
-
-#### 27.3.3 `generate-counterexample-fixtures`
-
-```
-generate-counterexample-fixtures
-  --trace <path>           # TLC .trace 文件路径
-  --framework <pytest|junit|fast-check>  # 必选
-  --workdir <path>         # 必选
-```
-
-解析 TLC 状态序列（`State N:` 格式），为被违反的不变量生成可复现测试夹具。写入 `test_fixtures/counterexample/<framework>/`。
-
-#### 27.3.4 `generate-vmodel-matrix`
-
-```
-generate-vmodel-matrix
-  --workdir <path>         # 必选
-  --format <markdown|cypher>  # 可选，默认 markdown
-  --output <file>          # 可选，默认 stdout
-```
-
-扫描全阶段产物，构建需求 ID × 5 维度（图谱节点/BDD/TLA+/Lean 4/测试夹具）的追溯矩阵。`markdown` 格式输出表格；`cypher` 格式输出 Neo4j MERGE 语句，与现有知识图谱联动。
-
-### 27.4 BDD Fixture 生成（首版重点）
-
-**输入**：`<workdir>/4_bdd/features/*.feature`
-
-**TS 确定性层**（`lib/fixture-gen/bdd.ts`）：
-1. 解析 Gherkin AST：提取 Feature、Scenario、Given/When/Then steps
-2. 提取参数占位符：识别 `<参数名>` 模式
-3. 按框架生成结构骨架
-
-**框架产物**：
-
-| 框架 | 产物 |
-|------|------|
-| Cucumber | `steps/<module>_steps.ts`、`support/world.ts`、`fixtures/<module>_data.ts` |
-| Playwright | `tests/<module>.spec.ts`、`fixtures/<module>.fixtures.ts` |
-| Pytest | `tests/test_<module>.py`、`conftest.py` |
-| JUnit | `src/test/java/<Module>Test.java`、`fixtures/<Module>Fixture.java` |
-| fast-check | `properties/<module>.property.ts` |
-
-**LLM 语义层**：TS 骨架包含 `<!-- LLM_FILL: 描述 -->` 注释标记，LLM 子代理在 S4/S5/S6 阶段填充语义内容（断言逻辑、页面交互、arbitrary 定义等）。
-
-**输出示例**（Cucumber）：
-```typescript
-// <!-- LLM_FILL: Given the user is logged in with role "admin" -->
-Given('the user is logged in with role {string}', async function (role: string) {
-  // LLM_FILL: 实现登录逻辑，设置 this.currentUser
-  throw new Error('Not implemented — LLM must fill');
-});
-```
-
-### 27.5 TLA+ Fixture 生成
-
-**输入**：`<workdir>/5_formal/specs/*.tla`
-
-**TS 确定性层**（`lib/fixture-gen/tla.ts`）：
-1. 解析 .tla：提取 VARIABLES、CONSTANTS、INIT、NEXT、INVARIANT
-2. 利用 `validate-tla.ts` 的 6 种 violation 枚举
-3. 按框架生成：VARIABLES → fixture 参数, INVARIANT → assert, CONSTANTS → @Parameterized
-
-**LLM 语义层**：TLC counterexample 轨迹 → 可重现并发测试场景；不变量 → 共享 assertion library。
-
-**约束**：仅在 .tla 文件存在时生成，不依赖 Java/TLC 运行时。
-
-### 27.6 Lean 4 Fixture 生成
-
-**输入**：`<workdir>/5_formal/proofs/*.lean`
-
-**TS 确定性层**（`lib/fixture-gen/lean.ts`）：
-1. 解析 .lean：提取 theorem/lemma 名称、类型签名、import 列表
-2. 提取 pre/post conditions
-3. 按框架生成：theorem → test 函数名, 类型签名 → 参数化输入
-
-**LLM 语义层**：Theorem 类型签名 → QuickCheck-style property 定义。
-
-**约束**：仅在 .lean 文件存在时生成，不依赖 elan/lake，Platform-gated（Linux x86_64 / macOS ARM64）。
-
-### 27.7 目录结构与文件清单
-
-**新增文件**：
-```
-scripts/commands/generate-test-fixtures.ts        # ~80 行（薄编排）
-scripts/commands/fixture-coverage.ts              # ~60 行
-scripts/commands/generate-counterexample-fixtures.ts  # <100 行（G2，待接入）
-scripts/commands/generate-vmodel-matrix.ts        # ~150 行（G5，待接入）
-scripts/lib/fixture-gen/types.ts                  # ~80 行（TlcTraceEntry, TraceabilityEntry, CounterexampleFramework）
-scripts/lib/fixture-gen/bdd.ts                    # ~267 行（待迁移至 template-engine）
-scripts/lib/fixture-gen/tla.ts                    # ~109 行（待迁移至 template-engine）
-scripts/lib/fixture-gen/lean.ts                   # ~172 行（待迁移至 template-engine）
-scripts/lib/fixture-gen/coverage.ts               # ~52 行
-scripts/lib/fixture-gen/template-engine.ts        # ~42 行（模板加载 + {{var}} 渲染，库已实现，待接入）
-scripts/lib/fixture-gen/tla-counterexample.ts     # ~170 行（TLC trace 解析 + 3 种框架反例测试生成，库已实现，待接入）
-scripts/lib/fixture-gen/playwright-page.ts        # ~60 行（Page Object 生成，库已实现，路由待修正）
-scripts/lib/fixture-gen/traceability.ts           # ~68 行（V-Model 追溯矩阵，库已实现，待接入）
-scripts/lib/fixture-gen/nfr.ts                    # ~116 行（NFR 类型检测 + fixture 生成，库已实现，待接入）
-scripts/lib/fixture-gen/helpers.ts                # ~19 行（toCamelCase/toPascalCase/toSnakeCase/escapeStr）
-scripts/__tests__/generate-test-fixtures.test.ts  # ~120 行
-scripts/__tests__/fixture-coverage.test.ts        # ~60 行
-scripts/__tests__/generate-counterexample-fixtures.test.ts  # ~50 行（G2，待新增）
-scripts/__tests__/generate-vmodel-matrix.test.ts  # ~80 行（G5，待新增）
-scripts/__tests__/fixture-gen/bdd.test.ts         # ~100 行
-scripts/__tests__/fixture-gen/tla.test.ts         # ~80 行
-scripts/__tests__/fixture-gen/lean.test.ts        # ~80 行
-scripts/__tests__/fixture-gen/nfr.test.ts         # ~60 行（G4，待新增）
-scripts/templates/test-fixtures/{cucumber,playwright,pytest,junit,fast-check}/
-scripts/templates/test-fixtures/{pytest,junit,fast-check}/counterexample.template  # G2，待新增
-scripts/templates/test-fixtures/{pytest,fast-check}/nfr_*.template                 # G4，待新增
-```
-
-**更新文件**：`index.ts`（+2 命令注册）、`types/index.ts`（+2 类型）、checklists（+fixture 检查项）
-
-### 27.8 测试策略
-
-- 单元测试：3 种 Gherkin 输入 × 5 框架、mock .tla/.lean 文件、反例 trace mock、NFR 关键词矩阵、追溯矩阵健全性
-- 集成测试：扩展 `tests/assertions/eval-spec.yaml`
-- 回归：~407 测试 0 fail + `tsc --noEmit` 0 errors
-
-### 27.9 实现顺序
-
-1. Phase 1：BDD fixture 生成（`lib/fixture-gen/bdd.ts` + 模板 + 测试）✅
-2. Phase 2：TLA+ fixture 生成 ✅
-3. Phase 3：Lean 4 fixture 生成 ✅
-4. Phase 4：覆盖报告 + checklist 更新 + 集成测试 ✅
-5. Phase 5：CLI 命令注册 + 端到端验证 ✅
-6. Phase 6（v0.8.0，已完成）：5 个库模块接入 CLI（见 §27.10）
-
-### 27.10 Phase 6 — 库模块 CLI 接入（Zero-Gap Wiring）✅
-
-> **设计文档**: `docs/superpowers/specs/2026-07-13-vmodel-zero-gap-wiring-design.md`
-> **来源**: [Issue #3](https://github.com/WangHHY19931001/SRS-Formalizer/issues/3)
-
-v0.7.0 已将 template-engine、tla-counterexample、playwright-page、nfr、traceability 五个模块编写为独立 TypeScript 库文件，但均未接入 CLI 命令层。Phase 6 完成接线。
-
-**Gap 清单：**
-
-| Gap | 模块 | 问题 |
-|:---:|------|------|
-| G1 | `template-engine.ts` | bdd/tla/lean 仍用内联字符串构造，未使用模板引擎 |
-| G2 | `tla-counterexample.ts` | 无 CLI 调用路径，无法从 trace 文件生成反例夹具 |
-| G3 | `playwright-page.ts` | bdd.ts 内联 `generatePlaywright()` 优先于 Page Object 路径 |
-| G4 | `nfr.ts` | 无 `--level nfr` 参数，未接入 generate-test-fixtures |
-| G5 | `traceability.ts` | 无 `generate-vmodel-matrix` 命令，未接入 index.ts |
-
-**实施策略：** G1 前置（模板迁移是其余模块的基础），G2-G5 并行。
-
-**Phase 6a（G1 前置）：**
-- bdd/tla/lean/playwright-page 四个模块从内联字符串迁移到 `template-engine`
-- Playwright 路由修正：`generateBddFixtures()` 在 `framework === 'playwright'` 时调用 `generatePlaywrightPageObjectFixtures()`
-- 16 个现有模板逐文件校验 `{{PLACEHOLDER}}` 与渲染参数一致
-- 验收：迁移前后 fixture 输出语义等价 + 全部现有测试通过
-
-**Phase 6b（G2-G5 并行）：**
-- **G2**: `generate-counterexample-fixtures` 命令 + 3 个 `counterexample.template` 文件
-- **G4**: `--level nfr` 扩展（`FixtureLevel` 加 `'nfr'`）+ NFR 类型自动检测 + 4 个新 `nfr_*.template` 文件 + NFR 模板从 `nfr/` 迁移到各框架目录
-- **G5**: `generate-vmodel-matrix` 命令 + `traceability.ts` 增强为接受 `workDir` 的独立扫描入口
-- **附加**: `fixture-coverage` 从目录级布尔值增强为调用 `buildTraceabilityMatrix()` 输出逐需求明细
-
-**新增命令注册（`index.ts`）：**
-```typescript
-"generate-counterexample-fixtures": () => import("./commands/generate-counterexample-fixtures.js"),
-"generate-vmodel-matrix": () => import("./commands/generate-vmodel-matrix.js"),
-```
-
-**NFR 类型 ↔ 框架兼容矩阵：**
-
-| NFR 类型 | cucumber | playwright | pytest | junit | fast-check |
-|----------|:--:|:--:|:--:|:--:|:--:|
-| performance | — | — | 支持 | 支持 | 支持 |
-| security | — | — | 支持 | 支持 | 支持 |
-| reliability | — | — | 支持 | 支持 | 支持 |
-| usability | 支持 | 支持 | — | — | — |
-
-**验收标准：**
-- [ ] G1: 迁移后 bdd/tla/lean 全部走 template-engine，无内联字符串残留
-- [ ] G2: `generate-counterexample-fixtures --trace <.trace> --framework pytest` 生成合规夹具
-- [ ] G3: Playwright 路径走 `playwright-page.ts`，删除 bdd.ts 内联实现
-- [ ] G4: `--level nfr` 生成 NFR 夹具 + 不兼容框架报友好错误
-- [ ] G5: `generate-vmodel-matrix --format markdown|cypher` 各自输出正确格式
-- [ ] 新增 4 测试文件（generate-counterexample-fixtures / generate-vmodel-matrix / nfr / counterexample templates）全部通过
-- [ ] `npm run typecheck && npm test` 零失败
+| 编译器重构详细设计 | `docs/superpowers/specs/2026-07-13-compiler-refactor-design.md` |
