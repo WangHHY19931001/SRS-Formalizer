@@ -32,6 +32,7 @@ Commands:
   pack-skill        Pack skill directory into hash manifest + tar.gz backup
   verify-skill-integrity Verify skill file integrity (--repair to auto-restore)
   generate-test-fixtures Generate test fixtures from source artifacts (--level --framework)
+  generate-counterexample-fixtures Generate counterexample reproduce fixtures from TLC trace (--trace <path> --framework <fw>)
   fixture-coverage   Compute fixture coverage report
   generate-vmodel-matrix Build V-Model traceability matrix (--format markdown|cypher) [--output]
   build-ir           Build SRS IR graph from extracted JSONL files
@@ -78,6 +79,7 @@ const COMMANDS: Record<
   "verify-skill-integrity": () => import("./commands/verify-skill-integrity.js"),
   compile: () => import("./commands/compile.js"),
   "generate-test-fixtures": () => import("./commands/generate-test-fixtures.js"),
+  "generate-counterexample-fixtures": () => import("./commands/generate-counterexample-fixtures.js"),
   "fixture-coverage": () => import("./commands/fixture-coverage.js"),
   "generate-vmodel-matrix": () => import("./commands/generate-vmodel-matrix.js"),
   "build-ir": () => import("./commands/build-ir.js"),

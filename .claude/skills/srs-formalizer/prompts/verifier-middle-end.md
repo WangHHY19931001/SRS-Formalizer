@@ -16,7 +16,7 @@
 
 ## Part A: tag-nfr 标注正确性
 
-- [ ] **nfr_category 有效**：____/____ 条标注的 nfr_category ∈ {performance, security, reliability, usability, maintainability, compliance}？
+- [ ] **nfr_category 有效**：____/____ 条标注的 nfr_category ∈ {performance, security, availability, compatibility, maintainability, compliance}？
 - [ ] **标注依据充分**：____/____ 条标注的 NFR 在 IR-NODE statement 中有明确关键词支撑？
 - [ ] **无遗漏 NFR**：有明显 NFR 信号（"响应时间""并发用户""加密""审计"）但未标注的 IR-NODE？列出遗漏
 - [ ] **无过度标注**：category 为 nfr 但实际为功能需求的记录？列出

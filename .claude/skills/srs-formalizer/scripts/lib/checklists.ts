@@ -65,7 +65,7 @@ export const CHECKLISTS: Record<string, string> = {
 - [ ] build-architecture 成功：Module/Actor/Constraint 节点存在
 - [ ] analyze-structure 完成：orphan/dangling/island/cross-file 报告
 - [ ] analyze-graph 完成：duplicate/conflict/cluster 报告
-- [ ] emit --name cypher 成功：schema.cypher 非空
+- [ ] emit --name cypher 成功：srs-graph.cypher 非空
 - [ ] validate-cypher PASS
 - [ ] tag-nfr 完成：NFR 节点标注 + 阈值提取
 - [ ] verify-gate R3 PASS（边完整性检查）
@@ -98,7 +98,7 @@ export const CHECKLISTS: Record<string, string> = {
 - [ ] verify-gate --stage FINAL：全部 PASS
 - [ ] STATE.md 所有阶段 ✅
 - [ ] MINDMAP.md 全部模块 ✅
-- [ ] schema.cypher 可导入 Neo4j
+- [ ] srs-graph.cypher 可导入 Neo4j
 - [ ] brainstorm_context.json 存在
 - [ ] 全链路 S1→S6 完整
 `,
@@ -143,7 +143,7 @@ export const CANONICAL: Record<string, CanonicalDef> = {
   '6_outputs': {
     expected_count: 6,
     required_headers: ['S6', '验收闸门', '最终清单'],
-    required_phrases: ['verify-gate', 'STATE.md', 'MINDMAP.md', 'schema.cypher', 'brainstorm_context.json', '全链路'],
+    required_phrases: ['verify-gate', 'STATE.md', 'MINDMAP.md', 'srs-graph.cypher', 'brainstorm_context.json', '全链路'],
   },
 };
 

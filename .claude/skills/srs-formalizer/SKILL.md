@@ -198,10 +198,10 @@ Backend: emit (10 Emitters) → validate-* → verify-gate FINAL
 
 嵌套于 compiler 中的次模式：
 
-- **Inversion（逆向澄清，嵌入 S0）**：在进入 S1 前强制 interview 模式，信息不全不进 S1
-- **Generator（模板化输出，嵌入 S2~S5）**：executor 提示词采用零自由度填空模板，禁止增减字段
+- **Inversion（逆向澄清，嵌入 Frontend）**：进入 IR 构建前强制 interview 模式，信息不全不构建 IR
+- **Generator（模板化输出，嵌入 Frontend/Backend）**：executor 提示词采用零自由度填空模板，禁止增减字段
 - **Reviewer（审查分离，嵌入各阶段 stage_gates）**：verifier 提示词采用可执行 checklist，全部打勾才 APPROVED
-- **Tool Wrapper（工具包装器，全局嵌入）**：L3 渐进加载，编排者只加载当前阶段所需
+- **Emitter（发射器，嵌入 Backend）**：统一 Emitter 接口，纯函数 IR → 产物
 
 ## 工作目录结构（阶段前缀）
 
@@ -308,7 +308,7 @@ Backend: emit (10 Emitters) → validate-* → verify-gate FINAL
 **层次化拆解方法：**
 - L1 系统内外交互抽象 → L2 子系统内部行为 + 上下同级交互抽象 → L3 原子化子系统行为抽象。可推广至 4/5/6 级或更多，每个下级子系统视为独立系统继续拆解
 - 拆解判定：先写 TLA+，分析变量组合；组合结果 >1k 时考虑拆，>1w 时必须拆
-- 每个模块生成 6 类 NFR 不变式（性能/安全/可靠性/可用性/可维护性/可观测性）
+- 每个模块生成 6 类 NFR 不变式（性能/安全/可用性/兼容性/可维护性/合规）
 
 **调试与验证流程：**
 1. 删除旧的轨迹文件（`.stl`）和状态文件（`.tlc`）
@@ -375,22 +375,28 @@ Backend: emit (10 Emitters) → validate-* → verify-gate FINAL
 
 | 文件                                  | 加载时机               |
 | ------------------------------------- | ---------------------- |
-| `prompts/orchestrator_stage_S0.md`    | SRS 输入后、任何处理前 |
-| `prompts/orchestrator_stage_S1~S6.md` | 对应阶段开始时         |
+| `prompts/orchestrator_frontend.md`    | Frontend 阶段（SRS 输入后、任何处理前） |
+| `prompts/orchestrator_middle-end.md`  | Middle-end 阶段开始时   |
+| `prompts/orchestrator_backend.md`     | Backend 阶段开始时      |
 
 ### L3-Exec：子代理提示词（编排者通过 inject-prompt 按需注入）
 
-| 文件                           | 注入时机                          |
-| ------------------------------ | --------------------------------- |
-| `prompts/executor-glossary.md` | S1 术语提取（并行子代理分批复用） |
-| `prompts/executor-R*.md`       | S2 需求提取各子阶段               |
-| `prompts/executor-bdd.md`      | S4 BDD 生成（注入 BDD 专家人设） |
-| `prompts/executor-tlaplus.md`  | S5 TLA+ 建模（注入 TLA+ 专家人设） |
-| `prompts/executor-lean4.md`    | S5 Lean 4 证明（注入 Lean 4 专家人设） |
-| `prompts/verifier-R*.md`       | 校验循环（新会话执行）            |
-| `prompts/executor-arch-*.md`   | S2 架构分解三阶段                 |
-| `prompts/verifier-arch.md`     | 架构审核                          |
-| `prompts/debug-*.md`           | S5 TLC/Lean 错误诊断              |
+| 文件                                  | 注入时机                          |
+| ------------------------------------- | --------------------------------- |
+| `prompts/executor-glossary.md`        | Frontend 术语提取（并行子代理分批复用） |
+| `prompts/executor-frontend-extract.md` | Frontend 需求提取（R1/R2/R3/R3-cross/R4-NFR） |
+| `prompts/executor-frontend-clarify.md` | Frontend 隐式/关系需求澄清 |
+| `prompts/executor-frontend-arch.md`   | Frontend 架构分解（Arch-1/2/3） |
+| `prompts/executor-middle-end-contradiction.md` | Middle-end 冲突判定 |
+| `prompts/executor-bdd.md`             | Backend BDD 生成（注入 BDD 专家人设） |
+| `prompts/executor-tlaplus.md`         | Backend TLA+ 建模（注入 TLA+ 专家人设） |
+| `prompts/executor-lean4.md`           | Backend Lean 4 证明（注入 Lean 4 专家人设） |
+| `prompts/verifier-frontend-ir.md`     | Frontend IR 校验（新会话执行） |
+| `prompts/verifier-middle-end.md`      | Middle-end 校验（新会话执行） |
+| `prompts/verifier-arch.md`            | 架构审核                          |
+| `prompts/verifier-bdd.md`             | BDD 校验                          |
+| `prompts/debug-tlc.md`                | Backend TLC 错误诊断              |
+| `prompts/debug-lean.md`               | Backend Lean 错误诊断             |
 
 ### L3-Ref：参考资料（仅在需要时加载）
 

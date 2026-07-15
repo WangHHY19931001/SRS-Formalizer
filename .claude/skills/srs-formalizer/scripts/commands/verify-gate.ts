@@ -6,8 +6,8 @@
  * 根据 --stage 执行不同阶段的验证检查：
  * - S1:   基础检查（STATE.md、index.json、r1-explicit JSONL 文件存在）
  * - R3:   S1 检查 + JSONL 存在性（全子目录）、ID 唯一性、图谱可加载、节点数 >= R1 数
- * - FINAL: R3 检查 + validate-bdd 通过、graph.merged.json 存在、schema.cypher 存在、
- *         brainstorm_context.json 存在、MINDMAP.md 全部模块 ✅
+ * - FINAL: R3 检查 + BDD/TLA+/Lean verified 产物存在且匹配当前内容 sourceHash 的成功验证报告
+ *         （Lean 仅在 IR 标记 security/compliance NFR 时必选）；详见 checkFormalArtifacts。
  */
 
 import type { CliResult } from '../types/index.js';

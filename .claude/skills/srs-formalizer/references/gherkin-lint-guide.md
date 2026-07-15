@@ -1,7 +1,7 @@
 # Gherkin-Lint 参考指南
 
-`srs-formalizer` S4 阶段使用 `gherkin-lint` 校验 BDD `.feature` 文件质量。
-本指南供 S4 子代理参考。
+`srs-formalizer` Backend BDD 阶段使用 `gherkin-lint` 校验 `.feature` 文件质量。
+本指南供 BDD 子代理参考。实际校验入口为 `validate-bdd --strict --promote`，从 `outputs/bdd/draft` 读取草稿、提升到 `outputs/bdd/verified`。
 
 ---
 
@@ -31,7 +31,7 @@ gherkin-lint -r ./my-rules/
 
 ### 3.1 标准模式（`.gherkin-lintrc`）
 
-技能在 `init` 时生成到工作目录 `4_bdd/` 下。
+技能在 `init` 时生成到工作目录 `outputs/bdd/draft/` 下。
 
 ### 3.2 严格模式（`.gherkin-lintrc-strict`）
 
@@ -43,12 +43,12 @@ gherkin-lint -r ./my-rules/
 - 强制所有 Scenario Outline 的变量都被使用
 
 ```bash
-gherkin-lint -c .claude/skills/srs-formalizer/templates/.gherkin-lintrc-strict .srs_formalizer/4_bdd/
+gherkin-lint -c .claude/skills/srs-formalizer/templates/.gherkin-lintrc-strict .srs_formalizer/outputs/bdd/draft/
 ```
 
 ### 3.3 srs-formalizer 标准配置
 
-技能在 `init` 时生成 `.gherkin-lintrc` 到工作目录 `4_bdd/` 下：
+技能在 `init` 时生成 `.gherkin-lintrc` 到工作目录 `outputs/bdd/draft/` 下：
 
 ```json
 {
@@ -134,7 +134,7 @@ cd 4_bdd && gherkin-lint -c .gherkin-lintrc
 # 校验所有 feature 文件
 npx gherkin-lint -c .claude/skills/srs-formalizer/templates/.gherkin-lintrc \
   -i "**/node_modules/**" \
-  .srs_formalizer/4_bdd/
+  .srs_formalizer/outputs/bdd/draft/
 ```
 
 ## 7. 常见错误与修复
@@ -193,7 +193,7 @@ module.exports = rule;
 
 ```bash
 npm install -g gplint
-gplint --fix .srs_formalizer/4_bdd/
+gplint --fix .srs_formalizer/outputs/bdd/draft/
 ```
 
 > **建议**：srs-formalizer 优先使用 `gplint`（功能更完整）。如不可用则回退到 `gherkin-lint`。
