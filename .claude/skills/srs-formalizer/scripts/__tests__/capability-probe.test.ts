@@ -16,8 +16,33 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { detectTlaPlusToolchain } from '../lib/probe/scorer/tlaplus.js';
+import { detectLean4Toolchain } from '../lib/probe/scorer/lean4.js';
 
 const TMP = path.join(os.tmpdir(), `capability-probe-test-${Date.now()}`);
+
+// Toolchain availability is determined at runtime per design §18.3:
+// "TLA+/Lean 4 探针仅在有工具链时生成"
+const TLA_AVAILABLE = detectTlaPlusToolchain();
+const LEAN_AVAILABLE = detectLean4Toolchain();
+
+// Per-dimension probe counts (constant regardless of toolchain)
+const BASE_DIM_COUNTS: Record<string, number> = {
+  instruction_following: 8,
+  structured_output: 7,
+  precision: 6,
+  hierarchical_reasoning: 5,
+  logical_reasoning: 5,
+  creative_reasoning: 5,
+};
+const TLA_DIM_COUNT = 7;
+const LEAN_DIM_COUNT = 7;
+
+// Compute expected total and per-dimension counts dynamically based on toolchain availability
+const EXPECTED_DIM_COUNTS: Record<string, number> = { ...BASE_DIM_COUNTS };
+if (TLA_AVAILABLE) { EXPECTED_DIM_COUNTS.formal_tlaplus = TLA_DIM_COUNT; }
+if (LEAN_AVAILABLE) { EXPECTED_DIM_COUNTS.formal_lean4 = LEAN_DIM_COUNT; }
+const EXPECTED_TOTAL = Object.values(EXPECTED_DIM_COUNTS).reduce((a, b) => a + b, 0);
 
 // ========== answer-generation helpers ==========
 
@@ -441,7 +466,7 @@ describe('capability-probe command', () => {
   });
 
   // ========== T1: generate mode ==========
-  it('T1: generate mode outputs 50 probes with correct structure and dimension counts', async () => {
+  it('T1: generate mode outputs expected number of probes with correct structure and dimension counts (toolchain-aware per design §18.3)', async () => {
     const { main } = await import('../commands/capability-probe.js');
     const result = await main(['--mode', 'generate']);
 
@@ -450,8 +475,9 @@ describe('capability-probe command', () => {
 
     const probes = result.data as TestProbeItem[];
 
-    // 8 + 7 + 6 + 5 + 5 + 5 + 7 + 7 = 50
-    assert.equal(probes.length, 50);
+    // Expected total = base 36 + (TLA: 7 if available) + (Lean: 7 if available)
+    assert.equal(probes.length, EXPECTED_TOTAL,
+      `Expected ${EXPECTED_TOTAL} probes (TLA: ${TLA_AVAILABLE ? 'on' : 'off'}, Lean: ${LEAN_AVAILABLE ? 'on' : 'off'})`);
 
     // Verify per-dimension distribution
     const dimCounts: Record<string, number> = {};
@@ -459,22 +485,19 @@ describe('capability-probe command', () => {
       dimCounts[p.dimension] = (dimCounts[p.dimension] ?? 0) + 1;
     }
 
-    const expectedCounts: Record<string, number> = {
-      instruction_following: 8,
-      structured_output: 7,
-      precision: 6,
-      hierarchical_reasoning: 5,
-      logical_reasoning: 5,
-      creative_reasoning: 5,
-      formal_tlaplus: 7,
-      formal_lean4: 7,
-    };
-
-    for (const [dim, count] of Object.entries(expectedCounts)) {
+    for (const [dim, count] of Object.entries(EXPECTED_DIM_COUNTS)) {
       assert.equal(dimCounts[dim], count, `Dimension ${dim} should have ${count} probes`);
     }
 
-    const expectedDims = Object.keys(expectedCounts);
+    // Dimensions that should be skipped due to missing toolchain must NOT appear
+    if (!TLA_AVAILABLE) {
+      assert.equal(dimCounts['formal_tlaplus'], undefined, 'formal_tlaplus must be skipped when TLA+ toolchain unavailable');
+    }
+    if (!LEAN_AVAILABLE) {
+      assert.equal(dimCounts['formal_lean4'], undefined, 'formal_lean4 must be skipped when Lean 4 toolchain unavailable');
+    }
+
+    const expectedDims = Object.keys(EXPECTED_DIM_COUNTS);
 
     for (const p of probes) {
       assert.ok(typeof p.probe_id === 'string' && p.probe_id.length > 0, 'probe_id must be non-empty string');

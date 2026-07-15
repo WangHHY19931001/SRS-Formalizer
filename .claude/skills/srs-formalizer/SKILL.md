@@ -16,7 +16,7 @@ tags:
     verification,
   ]
 metadata:
-  version: "1.0.0"
+  version: "1.0.1"
   compatibility: requires Node.js>=20, typescript>=5.5, Claude Code>=1.0
   pattern: compiler
   domain: formal-methods
@@ -209,17 +209,16 @@ Backend: emit (10 Emitters) → validate-* → verify-gate FINAL
 .srs_formalizer/
 ├── srs-ir.json            # 核心中间表示 (v2.0.0)
 ├── _ctx/                  # shard_index.json (索引化分片)
-├── ir/
+├── 2_extract/             # Frontend: 需求提取 + 架构分解
 │   ├── r1-explicit/       # R1 显式需求 JSONL
 │   ├── architecture/      # 架构分解 JSONL
 │   ├── r2-implicit/       # R2 隐式需求 JSONL
 │   └── r3-relational/     # R3 关系需求 JSONL
-├── middle-end/
-│   ├── structure/         # 结构分析输出
-│   ├── nfr/               # NFR 标签 + 阈值分析
-│   ├── connectivity/      # 连通性检查
-│   └── risk/              # 风险评分
-├── outputs/
+├── 3_graph/                # Middle-end: 图谱构建 + 分析
+│   ├── graph/             # 图谱构建输出
+│   └── analysis/          # 结构/NFR/连通性/风险分析输出
+│       └── subagent_prompts/  # 子代理判决提示词
+├── outputs/                # Backend 产物生命周期 (draft/verified/validation)
 │   ├── graphs/            # Cypher 知识图谱
 │   ├── bdd/
 │   │   ├── draft/         # Gherkin 草稿
@@ -233,7 +232,10 @@ Backend: emit (10 Emitters) → validate-* → verify-gate FINAL
 │   │   ├── draft/         # Lean 4 草稿
 │   │   ├── verified/      # lake build 通过的证明
 │   │   └── validation/    # Lean 4 验证报告
+│   ├── fixtures/          # V-Model 测试夹具
 │   └── reports/           # 验证报告 + 收敛日志
+├── backups/                # 技能加密备份
+└── STATE.md                # 阶段状态追踪
 ```
 
 阶段号前缀方便快速排查——`ls` 一眼看出每个阶段是否存在。
