@@ -19,7 +19,7 @@
 - [ ] **reasoning 充分**：每条 reasoning ≥20 字符？
 - [ ] **id 格式**：匹配 `^ARCH-SYS-\d{4}$`？
 - [ ] **round 字段正确**：每条记录的 round ∈ {1, 2, 3, 4, 5}？round 值不跳跃？
-- [ ] **nfr_tags 有效**：每条 nfr_tags 值 ∈ {performance, security, reliability, usability, maintainability, compliance}？
+- [ ] **nfr_tags 有效**：每条 nfr_tags 值 ∈ {performance, security, availability, compatibility, maintainability, compliance}？
 
 ## 架构轮次专项检查
 

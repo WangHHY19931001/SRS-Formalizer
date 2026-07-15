@@ -6,7 +6,7 @@
 - [ ] merge-structure 完成：补全建议已应用
 - [ ] analyze-graph 完成：duplicate/conflict/cluster 报告已生成
 - [ ] merge-analysis 完成：语义判定已合并
-- [ ] export-cypher 成功：`6_outputs/knowledge_graph/schema.cypher` 非空
+- [ ] emit --name cypher 成功：`outputs/graphs/srs-graph.cypher` 非空
 - [ ] validate-cypher PASS
 - [ ] verify-gate --stage R3 PASS
 - [ ] 图边完整性：每条边的 source/target 节点存在

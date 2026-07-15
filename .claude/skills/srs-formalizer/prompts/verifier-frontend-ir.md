@@ -22,7 +22,7 @@
 - [ ] **metadata 内容正确**：
   - explicit: metadata == {}（空对象）
   - implicit: metadata.derived_from 存在且引用真实 IR-NODE id
-  - nfr: metadata.nfr_category ∈ {performance, security, reliability, usability, maintainability, compliance}
+  - nfr: metadata.nfr_category ∈ {performance, security, availability, compatibility, maintainability, compliance}
 - [ ] **confidence 有效**：____/____ 条的 confidence ∈ {high, medium, low}？
 
 ### 隐式需求专项（逐条 implicit 记录）

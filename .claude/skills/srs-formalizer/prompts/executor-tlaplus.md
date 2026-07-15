@@ -57,8 +57,8 @@
 |----------|---------------|-----------|
 | `performance` | `ResponseTimeInv` | 请求-响应时间 ≤ 阈值，队列长度 ≤ 上限 |
 | `security` | `AccessControlInv` | 未授权访问 → 状态不变，敏感数据不泄露 |
-| `reliability` | `DurabilityInv` | 已确认操作不可回滚，故障后可恢复 |
-| `usability` | `FeedbackInv` | 每个用户动作有可观测的系统反馈 |
+| `availability` | `AvailInv` | 故障节点数 ≤ 上限，已确认操作不可回滚且故障后可恢复 |
+| `compatibility` | `CompatInv` | 跨平台/浏览器行为一致，接口契约保持兼容 |
 | `maintainability` | `AuditInv` | 每个状态转换产生审计记录 |
 | `compliance` | `ComplianceInv` | 数据保留策略强制满足，删除动作有据可查 |
 

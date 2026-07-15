@@ -155,7 +155,7 @@
 }
 ```
 
-NFR 类别（`<NFR_CAT>`）：`performance` | `security` | `reliability` | `usability` | `maintainability` | `compliance`
+NFR 类别（`<NFR_CAT>`）：`performance` | `security` | `availability` | `compatibility` | `maintainability` | `compliance`
 
 ## Guided-Extract 协议
 

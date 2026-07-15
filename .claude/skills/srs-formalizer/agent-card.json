@@ -3,7 +3,7 @@
   "agentCard": {
     "name": "srs-formalizer",
     "description": "将 SRS（软件需求规格说明）文档转化为需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约和 Lean 4 证明。TS 脚本做确定性机械工作，LLM 子代理做语义判断。",
-    "version": "0.5.2",
+    "version": "1.0.1",
     "provider": {
       "name": "srs-formalizer",
       "url": "https://github.com/WangHHY19931001/SRS-Formalizer"
@@ -33,13 +33,9 @@
       "lean-proof"
     ],
     "pipelineStages": [
-      "S0-discovery",
-      "S1-preprocess",
-      "S2-extract",
-      "S3-graph",
-      "S4-bdd",
-      "S5-formal",
-      "S6-gate"
+      "frontend",
+      "middle-end",
+      "backend"
     ],
     "security": {
       "level": "high",
@@ -66,7 +62,7 @@
       "validate-glossary",
       "verify-gate"
     ],
-    "skillPattern": "pipeline",
-    "nestedPatterns": ["inversion", "generator", "reviewer", "tool-wrapper"]
+    "skillPattern": "compiler",
+    "nestedPatterns": ["inversion", "generator", "reviewer", "emitter"]
   }
 }

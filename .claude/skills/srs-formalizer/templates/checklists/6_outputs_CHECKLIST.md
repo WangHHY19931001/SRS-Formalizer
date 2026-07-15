@@ -21,7 +21,7 @@
 ## 产物完整性
 - [ ] STATE.md 所有阶段 ✅
 - [ ] MINDMAP.md 全部模块 ✅
-- [ ] `6_outputs/knowledge_graph/` 下全部 5 个 .cypher 文件存在
+- [ ] `outputs/graphs/` 下全部 5 个 .cypher 文件存在（srs-graph/behavior-graph/tla-interaction/lean-proof/traceability）
 - [ ] `6_outputs/brainstorming/brainstorm_context.json` 存在
 - [ ] `6_outputs/deliverables.md` 存在
 - [ ] `6_outputs/convergence-log.jsonl` 记录完整（每次迭代均有日志）
