@@ -2,8 +2,8 @@
  * questions.ts — Probe generation for the capability probe system
  *
  * This file aggregates probes from per-dimension files in the questions/ directory.
- * TLA+ and Lean 4 probes are conditionally included — only when their required
- * toolchains (Java + tla2tools.jar for TLA+, lake for Lean 4) are available.
+ * All 50 probes across 8 dimensions are always generated. Toolchain availability
+ * affects only scoring mode (actual runtime vs syntactic fallback), not probe set.
  */
 
 import type { ProbeItem } from './types.js';
@@ -20,9 +20,7 @@ import { detectLean4Toolchain } from './scorer/lean4.js';
 
 export interface ProbeGenerationResult {
   probes: ProbeItem[];
-  /** Dimensions included */
   dimensions: string[];
-  /** Dimensions skipped due to missing toolchain */
   skipped: string[];
   total: number;
 }
@@ -35,19 +33,13 @@ export function generateProbes(): ProbeItem[] {
     ...generateHierarchicalReasoningProbes(),
     ...generateLogicalReasoningProbes(),
     ...generateCreativeReasoningProbes(),
+    ...generateTlaPlusProbes(),
+    ...generateLean4Probes(),
   ];
-
-  if (detectTlaPlusToolchain()) {
-    probes.push(...generateTlaPlusProbes());
-  }
-  if (detectLean4Toolchain()) {
-    probes.push(...generateLean4Probes());
-  }
 
   return probes;
 }
 
-/** Generate probes with toolchain-awareness, returning metadata about skipped dimensions */
 export function generateProbesWithMeta(): ProbeGenerationResult {
   const dimensions: string[] = [
     'instruction_following',
@@ -56,22 +48,21 @@ export function generateProbesWithMeta(): ProbeGenerationResult {
     'hierarchical_reasoning',
     'logical_reasoning',
     'creative_reasoning',
+    'formal_tlaplus',
+    'formal_lean4',
   ];
   const skipped: string[] = [];
 
   const tlaOk = detectTlaPlusToolchain();
   const leanOk = detectLean4Toolchain();
 
-  if (tlaOk) { dimensions.push('formal_tlaplus'); }
-  else { skipped.push('formal_tlaplus'); }
-
-  if (leanOk) { dimensions.push('formal_lean4'); }
-  else { skipped.push('formal_lean4'); }
+  if (!tlaOk) { skipped.push('formal_tlaplus'); }
+  if (!leanOk) { skipped.push('formal_lean4'); }
 
   return {
     probes: generateProbes(),
     dimensions,
     skipped,
-    total: 6 + (tlaOk ? 1 : 0) + (leanOk ? 1 : 0),
+    total: 8,
   };
 }
