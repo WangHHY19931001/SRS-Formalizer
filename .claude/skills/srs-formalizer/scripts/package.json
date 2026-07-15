@@ -9,9 +9,9 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.5.0",
+    "@types/node": "^20.19.43",
     "gherkin-lint": "^3.0.0",
-    "gherklin": "^1.0.0"
+    "gherklin": "^1.0.0",
+    "typescript": "^5.5.0"
   }
 }
