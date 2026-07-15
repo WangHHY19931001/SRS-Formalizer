@@ -109,13 +109,13 @@ function subdivideShard(
   lang: 'zh' | 'en',
 ): ShardDraft[] {
   const lineCount = endLine - startLine + 1;
-  if (lineCount <= MAX_SHARD_LINES) {
-    const shardLines = lines.slice(startLine, endLine + 1);
-    return [createShardEntry(absPath, startLine, endLine, '', '', shardLines, lang)];
-  }
-
   const rangeChapters = allChapters.filter(c => c.line >= startLine && c.line <= endLine);
+
   if (rangeChapters.length === 0) {
+    if (lineCount <= MAX_SHARD_LINES) {
+      const shardLines = lines.slice(startLine, endLine + 1);
+      return [createShardEntry(absPath, startLine, endLine, '', '', shardLines, lang)];
+    }
     return forceSplitByParagraphs(lines, startLine, endLine, absPath, lang);
   }
 
@@ -125,6 +125,14 @@ function subdivideShard(
     const nextLevel = Math.min(...levels);
     chaptersAtLevel = rangeChapters.filter(c => c.level === nextLevel);
     return subdivideShard(lines, startLine, endLine, absPath, allChapters, nextLevel, lang);
+  }
+
+  if (chaptersAtLevel.length === 1) {
+    const subChapters = rangeChapters.filter(c => c.level > minLevel);
+    if (subChapters.length >= 2) {
+      const nextLevel = minLevel + 1;
+      return subdivideShard(lines, startLine, endLine, absPath, allChapters, nextLevel, lang);
+    }
   }
 
   const result: ShardDraft[] = [];
@@ -188,7 +196,7 @@ function detectGaps(content: string, chapters: ChapterInfo[]): GapEntry[] {
       chapters[0]?.title ??
       '';
     gaps.push({
-      priority: 'P1',
+      priority: 'P0',
       type: 'unsolved_issue',
       description: 'Document contains unresolved items (TBD/TODO/尚未解决)',
       source_chapter: sourceChapter,
@@ -214,7 +222,7 @@ export function buildShardIndex(
   nfrProfile: NFRProfile,
 ): ShardIndex {
   const lines = content.split('\n');
-  const sourceHash = createHash('sha256').update(content).digest('hex').substring(0, 16);
+  const sourceHash = createHash('sha256').update(content).digest('hex');
 
   let drafts: ShardDraft[];
   if (content.trim().length === 0) {
@@ -234,9 +242,11 @@ export function buildShardIndex(
     const text = lines.slice(startIdx, endIdx).join('\n');
     const hash = createHash('sha256').update(text).digest('hex').substring(0, 8);
     const id = `${shortName}-${i}-${hash}`;
+    const safeModule = draft.module.replace(/[/\\?%*:|"<>]/g, '_');
+    const modulePart = safeModule ? `-${safeModule}` : '';
     return {
       id,
-      file: `${shortName}-s${String(i).padStart(3, '0')}.md`,
+      file: `${shortName}${modulePart}-s${String(i).padStart(3, '0')}.md`,
       locator: draft.locator,
       source_path: draft.source_path,
       source_start_line: draft.source_start_line,

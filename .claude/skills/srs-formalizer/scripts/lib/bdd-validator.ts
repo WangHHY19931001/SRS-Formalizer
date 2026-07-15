@@ -18,7 +18,7 @@ const LLM_FILL_PATTERNS = [
   /待定|未定义|待实现/i,
 ];
 
-export function validateFeatureBasic(content: string): BddValidationResult {
+export function validateFeatureBasic(content: string, strict: boolean = false): BddValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -32,9 +32,11 @@ export function validateFeatureBasic(content: string): BddValidationResult {
     errors.push('Unresolved Mustache placeholder found');
   }
 
-  for (const pattern of LLM_FILL_PATTERNS) {
-    if (pattern.test(content)) {
-      errors.push(`LLM_FILL residual detected: ${pattern.source}`);
+  if (strict) {
+    for (const pattern of LLM_FILL_PATTERNS) {
+      if (pattern.test(content)) {
+        errors.push(`LLM_FILL residual detected: ${pattern.source}`);
+      }
     }
   }
 

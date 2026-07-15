@@ -3,23 +3,23 @@
   "total": 3,
   "passed": 3,
   "failed": 0,
-  "durationMs": 5064,
-  "gitCommit": "61b4f697eb770e312583c5d4679c418b2322158b",
+  "durationMs": 6038,
+  "gitCommit": "d7bfd1ff926153fbc842401d783cfa4c93476aa7",
   "results": [
     {
       "name": "lifecycle-and-report-binding",
       "passed": true,
-      "durationMs": 1216
+      "durationMs": 1429
     },
     {
       "name": "tla-toolchain",
       "passed": true,
-      "durationMs": 2620
+      "durationMs": 3146
     },
     {
       "name": "artifact-contracts",
       "passed": true,
-      "durationMs": 1228
+      "durationMs": 1463
     }
   ]
 }

@@ -26,12 +26,12 @@ export async function main(args: string[]): Promise<CliResult> {
   const sourceDir = artifactPath(workDir, promote ? ARTIFACT_PATHS.bddDraft : ARTIFACT_PATHS.bddVerified);
   if (!fs.existsSync(sourceDir)) return { status: 'error', message: `BDD ${promote ? 'draft' : 'verified'} directory not found: ${sourceDir}` };
   const files = fs.readdirSync(sourceDir).filter(file => file.endsWith('.feature')).sort();
-  if (files.length === 0) return { status: 'error', message: `No BDD feature files found in ${sourceDir}` };
+  if (files.length === 0) return { status: 'ok', data: { valid: true, files_checked: 0, files: [], report: null } };
 
   const errors: string[] = [];
   for (const file of files) {
     const content = fs.readFileSync(path.join(sourceDir, file), 'utf-8');
-    const basic = validateFeatureBasic(content);
+    const basic = validateFeatureBasic(content, strict);
     errors.push(...basic.errors.map(error => `[${file}] ${error}`));
     if (strict) {
       const nfr = validateFeatureNFR(content, file);

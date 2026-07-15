@@ -76,13 +76,13 @@ Feature: Login
   });
 
   it('detects LLM_FILL residuals', () => {
-    const content = `Feature: <LLM_FILL>
-  Scenario: Test
+    const content = `Feature: Test
+  Scenario: <THEN_PLACEHOLDER>
     Given something
     When something
     Then result
 `;
-    const result = validateFeatureBasic(content);
+    const result = validateFeatureBasic(content, true);
     assert.equal(result.valid, false);
     assert.ok(result.errors.some(e => e.includes('LLM_FILL residual')));
   });
@@ -94,7 +94,7 @@ Feature: Login
     When something
     Then result
 `;
-    const result = validateFeatureBasic(content);
+    const result = validateFeatureBasic(content, true);
     assert.equal(result.valid, false);
     assert.ok(result.errors.some(e => e.includes('LLM_FILL residual')));
   });

@@ -98,7 +98,12 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   const mergedNFR = mergeNFRProfiles(nfrProfiles);
-  const sourceHash = crypto.createHash('sha256').update(absSrc).digest('hex').slice(0, 16);
+  const hashStream = crypto.createHash('sha256');
+  for (const sourcePath of sourceFiles) {
+    const fileContent = fs.readFileSync(sourcePath, 'utf-8');
+    hashStream.update(fileContent);
+  }
+  const sourceHash = hashStream.digest('hex');
 
   const shardIndex: ShardIndex = {
     version: '1.1',
@@ -117,6 +122,36 @@ export async function main(args: string[]): Promise<CliResult> {
   const outputDir = path.join(workDir, '1_input');
   fs.mkdirSync(outputDir, { recursive: true });
   fs.writeFileSync(path.join(outputDir, 'shard_index.json'), JSON.stringify(shardIndex, null, 2), 'utf-8');
+
+  let contextTerms: string[] = [];
+  for (const sourcePath of sourceFiles) {
+    const fileContent = fs.readFileSync(sourcePath, 'utf-8');
+    const lines = fileContent.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line) continue;
+      if (line.includes('| 术语 |') || line.includes('| Term |')) {
+        for (let j = i + 1; j < lines.length; j++) {
+          const termLine = lines[j];
+          if (!termLine || !termLine.startsWith('|')) break;
+          const parts = termLine.split('|').map(s => s.trim()).filter(Boolean);
+          if (parts.length >= 2 && parts[0]) {
+            contextTerms.push(parts[0]);
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  const contextContent = `# SRS Context
+## Source
+${absSrc}
+
+## Terms
+${contextTerms.length > 0 ? contextTerms.join('\n') : '未找到术语表'}
+`;
+  fs.writeFileSync(path.join(outputDir, 'CONTEXT.md'), contextContent, 'utf-8');
 
   return { status: 'ok', data: { total_files: sourceFiles.length, total_shards: allShards.length, total_gaps: allGaps.length, index_path: path.join(outputDir, 'shard_index.json') } };
 }
