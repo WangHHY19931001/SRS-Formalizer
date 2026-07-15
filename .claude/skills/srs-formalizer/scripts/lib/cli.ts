@@ -33,12 +33,33 @@ export function validateNoPoisonArgs(args: string[]): void {
 
 /**
  * Parse a named argument (--key value).
- * Rejects: missing key, poison values, empty strings, whitespace-only.
+ * Rejects: missing value, poison values, empty strings, whitespace-only,
+ * duplicate flag occurrences (per design §7.3: 重复参数必须返回 error).
  * Returns the validated value or null if the key is not present.
  */
 export function safeParseArg(args: string[], name: string): string | null {
+  // Count flag occurrences — duplicates are rejected per design §7.3:
+  //   "未知名称、未注册组或重复参数必须返回 { status: "error" } 并以非零退出"
+  let count = 0;
+  for (const a of args) {
+    if (a === name) count++;
+  }
+  if (count === 0) return null;
+  if (count > 1) {
+    throw new Error(
+      `InvalidArgument: ${name} appears ${count} times. ` +
+      `Duplicate flag parameters are rejected per design §7.3. ` +
+      `Check your orchestrator prompt or command construction.`
+    );
+  }
+
+  // Single occurrence — extract the value that follows the flag
   const idx = args.indexOf(name);
-  if (idx === -1 || idx + 1 >= args.length) return null;
+  if (idx + 1 >= args.length) {
+    throw new Error(
+      `InvalidArgument: ${name} is missing a value (flag at end of args).`
+    );
+  }
   const raw = args[idx + 1]!;
 
   // Reject literal poison values that LLMs sometimes emit
