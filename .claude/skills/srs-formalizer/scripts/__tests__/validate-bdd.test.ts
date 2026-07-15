@@ -67,13 +67,15 @@ describe('validate-bdd command', () => {
     assert.equal(result.status, 'error');
   });
 
-  it('returns an error when no verified feature files exist', async () => {
+  it('returns ok when no verified feature files exist', async () => {
     const workDir = createWorkDir('empty-features');
 
     const { main } = await import('../commands/validate-bdd.js');
     const result = await main(['--workdir', workDir]);
 
-    assert.equal(result.status, 'error');
+    assert.equal(result.status, 'ok');
+    assert.equal(result.data?.valid, true);
+    assert.equal(result.data?.files_checked, 0);
   });
 
   it('rejects non-.srs_formalizer workdir', async () => {
