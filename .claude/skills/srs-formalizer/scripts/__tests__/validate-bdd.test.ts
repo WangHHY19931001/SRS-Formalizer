@@ -74,8 +74,9 @@ describe('validate-bdd command', () => {
     const result = await main(['--workdir', workDir]);
 
     assert.equal(result.status, 'ok');
-    assert.equal(result.data?.valid, true);
-    assert.equal(result.data?.files_checked, 0);
+    const data = result.data as Record<string, unknown>;
+    assert.equal(data.valid, true);
+    assert.equal(data.files_checked, 0);
   });
 
   it('rejects non-.srs_formalizer workdir', async () => {
