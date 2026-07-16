@@ -8,10 +8,6 @@ const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '..', '..', '..', '..'
 import {
   ARTIFACT_DIRECTORIES,
   ARTIFACT_PATHS,
-  EMITTER_GROUPS,
-  EMITTER_REGISTRY,
-  emitterNames,
-  emittersInGroup,
   hashFiles,
   writeValidationReport,
 } from '../lib/artifacts/index.js';
@@ -22,17 +18,6 @@ describe('artifact contracts', () => {
     assert.equal(ARTIFACT_PATHS.bddDraft, path.join('outputs', 'bdd', 'draft'));
     assert.equal(ARTIFACT_PATHS.tlaVerified, path.join('outputs', 'tlaplus', 'verified'));
     assert.equal(ARTIFACT_PATHS.leanValidation, path.join('outputs', 'lean4', 'validation'));
-  });
-
-  it('registers every emitter exactly once with a supported group', () => {
-    const names = emitterNames();
-    assert.equal(new Set(names).size, names.length);
-    assert.equal(EMITTER_REGISTRY.length, 10);
-    for (const entry of EMITTER_REGISTRY) {
-      assert.ok(EMITTER_GROUPS.includes(entry.group));
-    }
-    assert.deepEqual(emittersInGroup('bdd').map(entry => entry.name), ['gherkin']);
-    assert.deepEqual(emittersInGroup('formal').map(entry => entry.name), ['tlaSpec', 'leanProof']);
   });
 
   it('keeps canonical documentation and registry emitter counts aligned', () => {

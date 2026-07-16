@@ -6,7 +6,6 @@
   "scripts": {
     "test": "npx tsx --test __tests__/*.test.ts",
     "evals": "npx tsx evals.ts",
-    "benchmark": "npx tsx benchmark-middle-end.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

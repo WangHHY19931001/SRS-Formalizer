@@ -15,12 +15,3 @@ export {
   type ValidationTool,
 } from './validation-report.js';
 export { promoteFiles, promoteDirectory } from './promotion.js';
-export {
-  EMITTER_GROUPS,
-  EMITTER_REGISTRY,
-  emitterNames,
-  emittersInGroup,
-  findEmitter,
-  type EmitterGroup,
-  type RegisteredEmitter,
-} from './emitter-registry.js';
