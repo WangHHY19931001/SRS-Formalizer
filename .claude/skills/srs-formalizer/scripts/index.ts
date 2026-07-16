@@ -234,6 +234,8 @@ const COMMANDS: Record<
   "verify-skill-integrity": () => import("./commands/verify-skill-integrity.js"),
   "assemble-ir": () => import("./commands/assemble-ir.js"),
   "check-connectivity": () => import("./commands/check-connectivity.js"),
+  "hash-compute": () => import("./commands/hash-compute.js"),
+  "tlc-trace-parse": () => import("./commands/tlc-trace-parse.js"),
 };
 
 async function main(): Promise<void> {
