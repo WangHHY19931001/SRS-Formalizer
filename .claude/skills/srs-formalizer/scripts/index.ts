@@ -74,7 +74,7 @@ const COMMAND_GROUPS: CommandGroup[] = [
   {
     title: "One-Shot Pipeline",
     commands: [
-      { name: "pipeline", desc: "Complete SRS formalization pipeline with session persistence", usage: "pipeline --src <srs-file> --lang zh|en --workdir .srs_formalizer [--strict] [--full] [--skip-init]" },
+      { name: "pipeline", desc: "Complete SRS formalization pipeline with progress reporting and session persistence", usage: "pipeline --src <srs-file> --lang zh|en --workdir .srs_formalizer [--strict] [--full] [--auto-validate] [--skip-init] [--verbose]" },
     ],
   },
   {
@@ -132,18 +132,25 @@ Usage:
   npx tsx index.ts ${cmd.usage ?? cmd.name}
 
 Common Options:
-  --workdir <path>   Working directory (must be .srs_formalizer)
-  --src <path>       Source SRS file
-  --lang zh|en       SRS language
-  --strict           Enable strict validation mode
-  --promote          Promote draft artifacts to verified after successful validation
-  --full             Full pipeline mode (auto-enables --strict, adds recovery hints)
-  --format fmt       Output format (json|text|openai|anthropic)
-  --output <path>    Output file/directory path
-  --skip-init        Skip initialization (resume existing workdir)
+  --workdir <path>      Working directory (must be .srs_formalizer)
+  --src <path>          Source SRS file
+  --lang zh|en          SRS language
+  --strict              Enable strict validation mode
+  --promote             Promote draft artifacts to verified after successful validation
+  --full                Full pipeline mode (auto-enables --strict + --auto-validate)
+  --auto-validate       Auto-run BDD validation after emit
+  --verbose             Enable verbose output with memory usage stats
+  --format fmt          Output format (json|text|openai|anthropic)
+  --output <path>       Output file/directory path
+  --skip-init           Skip initialization (resume existing workdir)
+
+Environment Variables:
+  NO_COLOR=1            Disable colored output
+  VERBOSE=1             Same as --verbose
 
 Run "npx tsx index.ts --help" for a list of all commands.
 Run "npx tsx index.ts tools-schema" for agent tool-calling integration.
+Run "npx tsx index.ts health-check" to verify your environment first.
 `);
       return;
     }
