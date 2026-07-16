@@ -6,7 +6,7 @@ import type { Framework, FixtureFile } from '../fixture-gen/types.js';
 import { generateBddFixtures } from '../fixture-gen/bdd.js';
 import { generateTlaFixtures } from '../fixture-gen/tla.js';
 import { generateLeanFixtures } from '../fixture-gen/lean.js';
-import { generateNfrFixtures, supportsFramework } from '../fixture-gen/nfr.js';
+import { generateNfrFixtures, supportsFramework } from '../fixture-gen/nfr/index.js';
 import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
 
 type FixtureLevel = 'unit' | 'integration' | 'e2e' | 'nfr';

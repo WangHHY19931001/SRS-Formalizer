@@ -61,6 +61,7 @@ const COMMAND_GROUPS: CommandGroup[] = [
     title: "Validation & Promotion",
     commands: [
       { name: "validate-jsonl", desc: "Validate JSONL file (6 checks)", usage: "validate-jsonl --file <path> --workdir .srs_formalizer" },
+      { name: "validate-semantics", desc: "Validate SRS-IR semantic consistency (types, refs, properties, thresholds)", usage: "validate-semantics --workdir .srs_formalizer [--strict]" },
       { name: "validate-architecture", desc: "Validate architecture JSONL records (6 checks)", usage: "validate-architecture --workdir .srs_formalizer" },
       { name: "validate-cypher", desc: "Validate .cypher script file (4 checks)", usage: "validate-cypher --file <path> --workdir .srs_formalizer" },
       { name: "validate-bdd", desc: "Validate .feature files (add --strict --promote to verify and promote)", usage: "validate-bdd --strict --promote --workdir .srs_formalizer" },
@@ -224,6 +225,7 @@ const COMMANDS: Record<
   "inject-prompt": () => import("./commands/inject-prompt.js"),
   "guided-extract": () => import("./commands/guided-extract.js"),
   "validate-jsonl": () => import("./commands/validate-jsonl.js"),
+  "validate-semantics": () => import("./commands/validate-semantics.js"),
   "analyze-structure": () => import("./commands/analyze-structure.js"),
   "merge-structure": () => import("./commands/merge-structure.js"),
   "analyze-graph": () => import("./commands/analyze-graph.js"),

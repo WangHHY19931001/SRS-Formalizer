@@ -448,6 +448,44 @@ interface IRGlossaryEntry {
 | `merge-analysis` | M5 | 合并子代理判决 |
 | `score-risk` (★) | M6 | 风险评分 |
 
+### 6.4 Pass 依赖与并行化
+
+五个自动 Pass 的 I/O 与依赖关系如下。`pipeline.ts` 使用 `lib/pipeline/middle-end-runner.ts` 按三阶段并行执行：
+
+| Pass | 读 IR | 写 IR | 写分析文件 | 依赖 |
+|:----:|:----:|:----:|:----:|------|
+| M1 analyze-structure | ✓ | — | ✓ | — |
+| M2 analyze-graph | ✓ | — | ✓ | — |
+| M3 tag-nfr | ✓ | ✓ (mutates) | — | — |
+| M4 check-connectivity | ✓ | — | — | — |
+| M6 score-risk | ✓ | ✓ (mutates) | — | M3（需 `nfrProfile.overallCoverage`） |
+
+> M5 merge-analysis 为 LLM 子代理步骤，不在自动 pipeline 中执行。
+
+```mermaid
+flowchart LR
+    subgraph P1["Phase 1 (parallel)"]
+        M1["M1<br/>analyze-structure"]
+        M2["M2<br/>analyze-graph"]
+    end
+    M3["M3<br/>tag-nfr<br/>(mutates IR)"]
+    subgraph P3["Phase 3 (parallel)"]
+        M4["M4<br/>check-connectivity"]
+        M6["M6<br/>score-risk<br/>(mutates IR)"]
+    end
+    P1 --> M3 --> P3
+```
+
+**并行化策略**（`lib/pipeline/middle-end-runner.ts`）：
+
+1. **Phase 1**（并行）：`analyze-structure` + `analyze-graph` — 均只读原始 IR，写不同分析文件，无冲突
+2. **Phase 2**（串行）：`tag-nfr` — 修改 IR 添加 NFR 标签，必须独占执行
+3. **Phase 3**（并行）：`check-connectivity` + `score-risk` — 均读取 NFR 标签后的 IR；`score-risk` 虽修改 IR 但仅写 `meta.riskScore` 与 `meta.highRiskShards`，不影响 `check-connectivity` 只读的 `nodes[]`/`edges[]`
+
+**安全性**：`check-connectivity` 使用同步 `readFileSync` 读取完整 IR 到内存后操作其副本，`score-risk` 的 `writeFileSync` 不影响前者的内存副本。Node.js 单线程执行确保同步 I/O 操作不会真正并发。
+
+**性能基准**：运行 `npm run benchmark` 生成不同节点规模下各阶段耗时报告（输出 `bench-results.json`）。
+
 ---
 
 ## 7. Backend（后端）
@@ -618,6 +656,7 @@ emit --name fixture --workdir <path> --framework pytest --level nfr
 | 命令 | 说明 |
 |------|------|
 | `validate-jsonl` | JSONL 格式校验 |
+| `validate-semantics` | SRS-IR 语义一致性校验（类型/引用/属性/阈值，4 类检查，`--strict` 门禁模式） |
 | `validate-architecture` | 架构 JSONL 校验 |
 | `validate-glossary` | 术语表校验 |
 | `validate-cypher` | Cypher 脚本校验 |
@@ -634,7 +673,35 @@ emit --name fixture --workdir <path> --framework pytest --level nfr
 | `stability-test` | 跨 LLM 稳定性测试 |
 | `fixture-coverage` | 覆盖报告 |
 
-### 8.5 淘汰命令
+### 8.5 Agent 集成与流水线
+
+| 命令 | 说明 |
+|------|------|
+| `pipeline` | 一键完整形式化流水线（含进度报告、会话持久化、自动验证） |
+| `tools-schema` | 输出 OpenAI/Anthropic 兼容的 Tool/Function Calling Schema |
+| `health-check` | 环境验证与能力自报告 |
+| `status` | 工作目录状态面板（阶段、产物、下一步操作） |
+| `export-audit` | 导出审计包（追溯矩阵、验证报告、hash 链） |
+
+**一键流水线流程图:**
+
+```mermaid
+flowchart TD
+    HC["health-check"] --> INIT["init --output"]
+    INIT --> MANIFEST["manifest --src --lang"]
+    MANIFEST --> GE["guided-extract<br/>(LLM 填充)"]
+    GE --> BIR["build-ir"]
+    BIR --> ME["middle-end 6 passes"]
+    ME --> EMIT["emit --group all"]
+    EMIT --> VAL["validate-* --strict --promote"]
+    VAL --> VG["verify-gate --stage FINAL"]
+    VG --> AUDIT["export-audit"]
+
+    GE -.->|"--skip-init 恢复"| BIR
+    EMIT -.->|"--auto-validate"| VAL
+```
+
+### 8.6 淘汰命令
 
 以下命令从 `index.ts` 注册表移除（文件保留）：
 
@@ -648,7 +715,7 @@ emit --name fixture --workdir <path> --framework pytest --level nfr
 | `build-lean-graph` | `emit --name leanGraph` |
 | `build-system-architecture` | `build-architecture`（独立 CLI，非 emit） |
 
-### 8.6 CLI 参数约定
+### 8.7 CLI 参数约定
 
 | 参数 | 适用命令 | 说明 |
 |------|----------|------|
@@ -661,11 +728,11 @@ emit --name fixture --workdir <path> --framework pytest --level nfr
 | `--stage S1\|R3\|FINAL` | verify-gate | 门禁阶段 |
 | `--repair` | validate-checklist | 自动修复 |
 
-### 8.7 CLI 输出格式
+### 8.8 CLI 输出格式
 
 所有命令输出 JSON 到 stdout：`{ "status": "ok" | "error", "message"?: string, "data"?: ... }`。成功 exit(0)，失败 exit(1)。
 
-### 8.8 refuseDirectInvocation 放置约定
+### 8.9 refuseDirectInvocation 放置约定
 
 所有命令文件末尾：
 ```typescript

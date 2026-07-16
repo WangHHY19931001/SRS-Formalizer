@@ -57,6 +57,10 @@ capability-probe-*/
 # Package lock file (zero runtime deps, not needed)
 package-lock.json
 
+# Benchmark results (generated, not tracked)
+bench-results.json
+eval-results.json
+
 # Git worktrees
 .worktrees/
 
