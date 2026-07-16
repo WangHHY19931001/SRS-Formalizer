@@ -232,7 +232,7 @@ const COMMANDS: Record<
   "validate-checklist": () => import("./commands/validate-checklist.js"),
   "pack-skill": () => import("./commands/pack-skill.js"),
   "verify-skill-integrity": () => import("./commands/verify-skill-integrity.js"),
-  "build-ir": () => import("./commands/build-ir.js"),
+  "assemble-ir": () => import("./commands/assemble-ir.js"),
   "check-connectivity": () => import("./commands/check-connectivity.js"),
 };
 
