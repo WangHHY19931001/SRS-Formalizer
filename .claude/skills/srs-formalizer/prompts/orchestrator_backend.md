@@ -2,7 +2,7 @@
 
 ## 角色
 
-你是 SRS-Formalizer 编译器的 Backend 阶段编排者。从 Middle-end 产出的 `srs-ir.json` 驱动 **10 个已注册 Emitter** 生成全部产物，并通过追溯矩阵与收敛循环确保最终交付质量。Emitter 注册表是唯一的发射入口；不得绕过 `emit` 调用未注册的 `emit-all`、`CrossGraphEmitter`、`CoverageEmitter` 等历史名称。
+你是 SRS-Formalizer 的 Backend 阶段编排者。从 Middle-end 产出的 `srs-ir.json` 驱动 Agent 经提示词生成全部产物（Cypher/BDD/TLA+/Lean/fixture/traceability），并通过追溯矩阵与收敛循环确保最终交付质量。emit 命令已归档；Agent 直接调用 executor-backend-*.md 提示词生成 draft，再经 `validate-* --strict --promote` 提升。不得调用已归档的 `emit`、`emit-all`、`CrossGraphEmitter`、`CoverageEmitter` 等历史名称。
 
 ## 架构概览
 
@@ -11,23 +11,22 @@ srs-ir.json（含 _analysis）
   │
   ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  emit --group graphs    →  CypherEmitter, BehaviorGraphEmitter, │
-│                            TlaGraphEmitter, LeanGraphEmitter    │
-│  emit --group bdd       →  GherkinEmitter (4 级严格校验)        │
-│  emit --group formal    →  TLAEmitter (全模块), LeanEmitter     │
-│                            (security/compliance 触发)            │
-│  emit --group vmodel    →  FixtureEmitter, CounterexampleEmitter│
-│  emit --group verify    →  TraceabilityMatrixEmitter             │
+│  executor-backend-cypher.md      →  outputs/graphs/*.cypher    │
+│  executor-bdd.md                 →  outputs/bdd/draft/*.feature│
+│  executor-tlaplus.md             →  outputs/tlaplus/draft/*.tla│
+│  executor-lean4.md               →  outputs/lean4/draft/*.lean │
+│  executor-backend-fixture.md     →  outputs/fixtures/**        │
+│  executor-backend-traceability.md→  outputs/reports/*          │
 └──────────────────────────────────────────────────────────────┘
   │
   ▼
-[收敛循环] ── 13 个根本问题 → 苏格拉底升级 → 人工决策
+[validate-* --strict --promote] ── draft → verified
   │
   ▼
 [verify-gate FINAL] ── 最终交付
 ```
 
-注册表固定为 10 项（详见 DESIGN.md §7.2 与 `lib/artifacts/emitter-registry.ts`）：`cypher`、`behaviorGraph`、`tlaGraph`、`leanGraph`、`gherkin`、`tlaSpec`、`leanProof`、`fixture`、`counterexample`、`traceabilityMatrix`。`--group` 与 `--name` 互斥且二选一；`all` 等同于按上述顺序串行调用 10 个 Emitter，**不**等同于已验证交付，仅产生 draft 或确定性产物。
+Agent 按 executor-backend-*.md 提示词生成 draft 产物。每个产物经对应 `validate-* --strict --promote` 提升到 verified。`verify-gate --stage FINAL` 仅消费 verified 产物。Agent 生成 draft **不**等同于已验证交付，仅产生 draft 或确定性产物。
 
 ## 前置条件
 
@@ -37,22 +36,16 @@ srs-ir.json（含 _analysis）
 
 ## 执行流程
 
-### Emitter Group 1：图谱（graphs）
+### Backend 步骤 1：Cypher 知识图谱（graphs）
 
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
-  --group graphs --workdir .srs_formalizer
-```
+加载提示词 `prompts/executor-backend-cypher.md`，Agent 将 IR 节点和边转换为 Neo4j Cypher 语句，输出至 `outputs/graphs/srs-graph.cypher`。
 
-**CypherEmitter** (`cypher`)：将 IR 节点和边转换为 Neo4j Cypher 语句，输出至 `outputs/graphs/srs-graph.cypher`。
+**派生图谱（Agent 从 verified 下游产物生成）**：
+- 行为图谱：消费 `outputs/bdd/verified/*.feature` 与 SRS-IR 构建，输出 `outputs/graphs/behavior-graph.cypher` + `behavior-graph.json`。仅当 verified BDD 存在时才有语义价值。
+- TLA+ 交互图：消费 `outputs/tlaplus/verified/*.tla` 构建系统交互图，输出 `outputs/graphs/tla-interaction.cypher` + `tla-interaction-graph.json`。
+- Lean 证明图：消费 `outputs/lean4/verified/*.lean` 构建证明依赖图，输出 `outputs/graphs/lean-proof.cypher` + `lean-proof-graph.json`。
 
-**BehaviorGraphEmitter** (`behaviorGraph`)：消费 `outputs/bdd/verified/*.feature` 与 SRS-IR 构建 BDD 行为图谱，输出 `outputs/graphs/behavior-graph.cypher` + `behavior-graph.json`。仅当 verified BDD 存在时才发射有效产物。
-
-**TlaGraphEmitter** (`tlaGraph`)：消费 `outputs/tlaplus/verified/*.tla` 构建系统交互图，输出 `outputs/graphs/tla-interaction.cypher` + `tla-interaction-graph.json`。
-
-**LeanGraphEmitter** (`leanGraph`)：消费 `outputs/lean4/verified/*.lean` 构建证明依赖图，输出 `outputs/graphs/lean-proof.cypher` + `lean-proof-graph.json`。
-
-后三个图谱 Emitter 是**确定性**的，但其语义价值依赖于上游 verified 产物；若 verified 目录为空，它们会输出空图谱而不报错——编排者需在收敛循环中据此回退补全。
+后三个派生图谱的语义价值依赖于上游 verified 产物；若 verified 目录为空，Agent 输出空图谱而不报错——编排者需在收敛循环中据此回退补全。
 
 验证：
 ```bash
@@ -61,14 +54,9 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-cypher \
   --workdir .srs_formalizer
 ```
 
-### Emitter Group 2：BDD（bdd）
+### Backend 步骤 2：BDD（bdd）
 
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
-  --group bdd --workdir .srs_formalizer
-```
-
-**GherkinEmitter** (`gherkin`)：从 IR 节点生成 `outputs/bdd/draft/<module>.feature`。每个 Feature 含 Given/When/Then 骨架，Then 部分以 `<THEN_PLACEHOLDER>` 标记，等待 BDD 子代理填充。
+加载提示词 `prompts/executor-bdd.md`，Agent 从 IR 节点生成 `outputs/bdd/draft/<module>.feature`。每个 Feature 含 Given/When/Then 骨架，Then 部分以 `<THEN_PLACEHOLDER>` 标记，等待 BDD 子代理填充。
 
 **四级严格校验**（任一级失败即打回 Frontend）：
 
@@ -84,7 +72,7 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-bdd \
   --strict --promote --workdir .srs_formalizer
 ```
 
-**草稿提升**：Emitter 只写入 `outputs/bdd/draft`。先由 `inject-prompt --template prompts/executor-bdd.md` 分派 LLM 子代理填充 Then 步骤，再执行上述带 `--promote` 的严格验证；只有成功后文件才迁入 `outputs/bdd/verified`，并写入匹配当前 verified 内容 `sourceHash` 的验证报告。行为图谱只消费 verified 输入。
+**草稿提升**：Agent 只写入 `outputs/bdd/draft`。先分派 `executor-bdd.md` 子代理填充 Then 步骤，再执行上述带 `--promote` 的严格验证；只有成功后文件才迁入 `outputs/bdd/verified`，并写入匹配当前 verified 内容 `sourceHash` 的验证报告。行为图谱只消费 verified 输入。
 
 **失败回退机制**：四级校验任一级 `status: error` → BDD 不合格。编排者执行以下回退：
 1. 提取失败原因和失败节点
@@ -96,19 +84,16 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-bdd \
 - 无 GAP / PLACEHOLDER / UNDEFINED / 待定 / 未定义
 - 无 `error`、`failed`、`undefined`、`untested`
 - 每个 Then 含 `# verification_method:` 标注
-- 行为图谱成功构建（`emit --name behaviorGraph`）
+- 行为图谱成功构建（Agent 从 verified BDD 生成）
 - 产出 `outputs/graphs/behavior-graph.cypher`
 
-### Emitter Group 3：形式化（formal）
+### Backend 步骤 3：形式化（formal）
 
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
-  --group formal --workdir .srs_formalizer
-```
+加载提示词 `prompts/executor-tlaplus.md` 与 `prompts/executor-lean4.md`，Agent 生成 TLA+（全模块）与 Lean 4（条件触发）草稿。
 
-#### TLAEmitter（全模块强制 L1→L2→L3）
+#### TLA+（全模块强制 L1→L2→L3）
 
-**全模块覆盖**：TLAEmitter (`tlaSpec`) 为**所有模块**生成 TLA+ 规约草稿，写入 `outputs/tlaplus/draft/*.tla` 与 matching `*.cfg`。每个模块的 `.tla` 与 `.cfg` 必须成对存在，否则严格验证拒绝。
+**全模块覆盖**：Agent 经 `executor-tlaplus.md` 为**所有模块**生成 TLA+ 规约草稿，写入 `outputs/tlaplus/draft/*.tla` 与 matching `*.cfg`。每个模块的 `.tla` 与 `.cfg` 必须成对存在，否则严格验证拒绝。
 
 **层次化拆解（强制 L1→L2→L3）**：
 - L1：系统内外交互抽象（多进程/多模块边界）
@@ -140,13 +125,13 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-tla \
 
 产出物：
 - verified TLA+ 规约文件（L1/L2/L3）位于 `outputs/tlaplus/verified/`
-- TLA+ 交互图位于 `outputs/graphs/tla-interaction.cypher`（由 `tlaGraph` Emitter 发射）
+- TLA+ 交互图位于 `outputs/graphs/tla-interaction.cypher`（Agent 从 verified TLA+ 生成）
 
-#### LeanEmitter（security/compliance 触发）
+#### Lean 4（security/compliance 触发）
 
 触发条件：IR 节点 `nfrCategory` 为 `security` 或 `compliance`。**非安全/合规关键模块不生成 Lean 证明。**
 
-**严格证明完成流程**：LeanEmitter (`leanProof`) 只生成 `outputs/lean4/draft/` 中的 Lake 项目骨架与拆分计划（含 `lakefile.lean` 或 `lakefile.toml`、可选 `lean-toolchain`、`**/*.lean`），子代理必须完成实际 theorem/lemma。`validate-lean --strict --promote` 要求 Lake 项目根存在，会拒绝 `sorry`、`admit`、`axiom`、全量 `import Mathlib`、`: True` 弱化证明和任何 `lake build` warning；全部通过后才提升到 `outputs/lean4/verified`，并写入匹配当前 `.lean`/Lake 项目/`lean-toolchain` 内容 `sourceHash` 的报告。
+**严格证明完成流程**：Agent 经 `executor-lean4.md` 只生成 `outputs/lean4/draft/` 中的 Lake 项目骨架与拆分计划（含 `lakefile.lean` 或 `lakefile.toml`、可选 `lean-toolchain`、`**/*.lean`），子代理必须完成实际 theorem/lemma。`validate-lean --strict --promote` 要求 Lake 项目根存在，会拒绝 `sorry`、`admit`、`axiom`、全量 `import Mathlib`、`: True` 弱化证明和任何 `lake build` warning；全部通过后才提升到 `outputs/lean4/verified`，并写入匹配当前 `.lean`/Lake 项目/`lean-toolchain` 内容 `sourceHash` 的报告。
 
 硬门禁：
 
@@ -169,16 +154,11 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-lean \
 
 产出物：
 - `.lean` 证明文件位于 `outputs/lean4/verified/`
-- Lean 证明图谱位于 `outputs/graphs/lean-proof.cypher`（由 `leanGraph` Emitter 发射）
+- Lean 证明图谱位于 `outputs/graphs/lean-proof.cypher`（Agent 从 verified Lean 生成）
 
-### Emitter Group 4：V-Model（vmodel）
+### Backend 步骤 4：V-Model 测试夹具（vmodel）
 
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
-  --group vmodel --workdir .srs_formalizer
-```
-
-**FixtureEmitter** (`fixture`)：基于 V-Model 测试方法论生成测试夹具骨架，输出至 `outputs/fixtures/`：
+加载提示词 `prompts/executor-backend-fixture.md`，Agent 基于 V-Model 测试方法论生成测试夹具骨架，输出至 `outputs/fixtures/`：
 - 单元测试骨架（对应 L3 TLA+ 原子化行为）
 - 集成测试骨架（对应 L2 子系统交互）
 - 系统测试骨架（对应 L1 系统边界）
@@ -186,20 +166,13 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
 
 支持的框架（详见 DESIGN.md §25）：pytest / JUnit / Cucumber / Playwright / fast-check。
 
-**CounterexampleEmitter** (`counterexample`)：从 TLC 反例 trace 生成可复现的 `test_counterexample_*.py` 脚本，写入 `outputs/fixtures/`。仅当存在 TLC 反例时产出。
+**反例夹具**：Agent 从 TLC 反例 trace 生成可复现的 `test_counterexample_*.py` 脚本，写入 `outputs/fixtures/`。仅当存在 TLC 反例时产出（可借助 `tlc-trace-parse` 工具解析 trace）。
 
-独立入口：也可通过 `generate-test-fixtures --level --framework` 与 `generate-counterexample-fixtures --trace --framework` 直接调用，绕过 emit 注册表（详见 DESIGN.md §8.3）。
+### Backend 步骤 5：追溯矩阵（verify）
 
-### Emitter Group 5：追溯矩阵（verify）
+加载提示词 `prompts/executor-backend-traceability.md`，Agent 构建 V-Model 追溯矩阵，将 IR 需求节点与 BDD/TLA+/Lean/fixture 产物交叉引用，输出 `outputs/reports/traceability.md` 与 `traceability.cypher`。
 
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
-  --group verify --workdir .srs_formalizer
-```
-
-**TraceabilityMatrixEmitter** (`traceabilityMatrix`)：构建 V-Model 追溯矩阵，将 IR 需求节点与 BDD/TLA+/Lean/fixture 产物交叉引用，输出 `outputs/reports/traceability.md` 与 `traceability.cypher`。
-
-注意：当前注册表中 `verify` 组**仅**含此 Emitter。历史设计中的 `CrossGraphEmitter`（跨图一致性 + 收敛日志）从未落入注册表；跨图一致性检查由编排者在收敛循环中通过组合查询 `query-graph` 与读取各 verified 报告完成，**不**由单一 Emitter 自动产出。
+注意：跨图一致性检查由编排者在收敛循环中通过组合查询 `query-graph` 工具与读取各 verified 报告完成，**不**由单一脚本自动产出。
 
 #### 13 个根本问题
 
@@ -225,7 +198,8 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
 
 ```
                     ┌──────────────────────────────────────────────────┐
-                    │  TraceabilityMatrixEmitter + query-graph 组合查询  │
+                    │  追溯矩阵 (executor-backend-traceability.md)       │
+                    │  + query-graph 组合查询                            │
                     │  交叉引用四层图谱 → 追溯矩阵 + 缺口列表            │
                     └──────────────┬───────────────────────────────────┘
                                    │
@@ -258,7 +232,7 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
 | 5 | 仍未收敛 → 标记 STATE.md BLOCKED，列出所有未解决项，等待人工介入 |
 
 - 最大迭代次数: **5**
-- 每次迭代追加 `outputs/reports/convergence-log.jsonl`（编排者维护，非 Emitter 产出）
+- 每次迭代追加 `outputs/reports/convergence-log.jsonl`（编排者维护，非脚本产出）
 
 **苏格拉底升级**：对每个不可回答的问题：
 1. 联网搜索确认事实（搜索相关论文、开源项目、技术文档）
@@ -267,7 +241,7 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts emit \
 4. 通过 `STATE.md` 向人类提问
 5. 人类确认后回退修复
 
-### Emitter Group 6：最终交付（verify-gate FINAL）
+### Backend 步骤 6：最终交付（verify-gate FINAL）
 
 ```bash
 npx tsx .claude/skills/srs-formalizer/scripts/index.ts verify-gate \
@@ -301,33 +275,33 @@ Read references/collaboration-contract.md
 
 ## 约束
 
-- **Emitter 注册表固定为 10 项**：不得调用未注册的 `CrossGraphEmitter`/`CoverageEmitter`/`JsonEmitter`/`VModelEmitter` 等历史名称
-- **GherkinEmitter 四级校验**：任一级失败即打回 Frontend，不进入后续 Emitter
-- **TLAEmitter 全模块覆盖**：每个模块强制生成 L1/L2/L3 + 6 类 NFR 不变式；验证只用内置 `tla2tools-1.7.4.jar`
-- **LeanEmitter 条件触发**：仅当 IR 节点 `nfrCategory` 为 `security` 或 `compliance` 时生成
+- **emit 命令已归档**：Agent 直接经 executor-backend-*.md 提示词生成 draft；不得调用已归档的 `emit`/`emit-all`，也不得引用 `CrossGraphEmitter`/`CoverageEmitter`/`JsonEmitter`/`VModelEmitter` 等历史名称
+- **BDD 四级校验**：任一级失败即打回 Frontend，不进入后续 Backend 步骤
+- **TLA+ 全模块覆盖**：每个模块强制生成 L1/L2/L3 + 6 类 NFR 不变式；验证只用内置 `tla2tools-1.7.4.jar`
+- **Lean 4 条件触发**：仅当 IR 节点 `nfrCategory` 为 `security` 或 `compliance` 时生成
 - **TLA+ 严格模式**：不允许死锁、无限状态、奇迹、活锁、占位实现
 - **Lean 4 平台限制**：Windows 禁止使用，引导 WSL2
-- **草稿与 verified 物理隔离**：Emitter 只写 draft；提升需 `validate-* --strict --promote` + matching `sourceHash` 报告
+- **草稿与 verified 物理隔离**：Agent 只写 draft；提升需 `validate-* --strict --promote` + matching `sourceHash` 报告
 - **SRS 不一致升级**：TLA+ 和 Lean 4 发现设计缺陷时，写入 `SRS_PATCHES.md`，暂停等用户确认
 - 最大 5 次收敛迭代，超过则人工介入
 - 联网搜索结果必须记录 URL 和时间戳
 
 ## 产出物
 
-| 产出 | 位置 | 来源 Emitter |
+| 产出 | 位置 | 来源 |
 |------|------|------|
-| 需求图谱（Cypher） | `outputs/graphs/srs-graph.cypher` | `cypher` |
-| 行为图谱（Cypher） | `outputs/graphs/behavior-graph.cypher` | `behaviorGraph` |
-| TLA+ 交互图谱 | `outputs/graphs/tla-interaction.cypher` | `tlaGraph` |
-| Lean 证明图谱 | `outputs/graphs/lean-proof.cypher` | `leanGraph` |
-| BDD Feature 草稿 | `outputs/bdd/draft/*.feature` | `gherkin` |
+| 需求图谱（Cypher） | `outputs/graphs/srs-graph.cypher` | `executor-backend-cypher.md` |
+| 行为图谱（Cypher） | `outputs/graphs/behavior-graph.cypher` | Agent（从 verified BDD） |
+| TLA+ 交互图谱 | `outputs/graphs/tla-interaction.cypher` | Agent（从 verified TLA+） |
+| Lean 证明图谱 | `outputs/graphs/lean-proof.cypher` | Agent（从 verified Lean） |
+| BDD Feature 草稿 | `outputs/bdd/draft/*.feature` | `executor-bdd.md` |
 | BDD Feature 验证 | `outputs/bdd/verified/*.feature` + `validation/*.json` | 子代理 + `validate-bdd --promote` |
-| TLA+ 规约草稿 | `outputs/tlaplus/draft/*.tla` + matching `*.cfg` | `tlaSpec` |
+| TLA+ 规约草稿 | `outputs/tlaplus/draft/*.tla` + matching `*.cfg` | `executor-tlaplus.md` |
 | TLA+ 规约验证 | `outputs/tlaplus/verified/*.tla` + matching `*.cfg` + `validation/*.json` | 子代理 + `validate-tla --promote` |
-| Lean 4 证明草稿 | `outputs/lean4/draft/{lakefile.*, **/*.lean, lean-toolchain?}` | `leanProof` |
+| Lean 4 证明草稿 | `outputs/lean4/draft/{lakefile.*, **/*.lean, lean-toolchain?}` | `executor-lean4.md` |
 | Lean 4 证明验证 | `outputs/lean4/verified/{lakefile.*, **/*.lean, lean-toolchain?}` + `validation/*.json` | 子代理 + `validate-lean --promote` |
-| 测试夹具 | `outputs/fixtures/test_*.py` 等 | `fixture` |
-| 反例复现脚本 | `outputs/fixtures/test_counterexample_*.py` | `counterexample` |
-| 追溯矩阵 | `outputs/reports/traceability.md` + `.cypher` | `traceabilityMatrix` |
+| 测试夹具 | `outputs/fixtures/test_*.py` 等 | `executor-backend-fixture.md` |
+| 反例复现脚本 | `outputs/fixtures/test_counterexample_*.py` | Agent（从 TLC trace + `tlc-trace-parse`） |
+| 追溯矩阵 | `outputs/reports/traceability.md` + `.cypher` | `executor-backend-traceability.md` |
 | 收敛日志 | `outputs/reports/convergence-log.jsonl` | 编排者维护 |
 | 交付清单 | `outputs/reports/deliverables.md` | 编排者维护 |

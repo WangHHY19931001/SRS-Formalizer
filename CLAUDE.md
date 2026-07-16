@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 srs-formalizer — 将 SRS 文档转化为形式化产出（Cypher · Gherkin · TLA+ · Lean 4）的 AI Agent 技能。
 
-**架构**：编译器模型（Frontend → Middle-end → Backend）。所有产物从单一 SRS-IR (`srs-ir.json`) 派生。10 个 Emitter 生成目标输出。
+**架构**：编译器模型（Frontend → Middle-end → Backend）。所有产物从单一 SRS-IR (`srs-ir.json`) 派生。脚本只做门禁校验与专用算法，语义工作由 Agent 经 SKILL.md + prompts + references 完成。17 命令（10 门禁 + 7 工具）。
 
 ## 构建与测试
 
@@ -13,13 +13,13 @@ cd .claude/skills/srs-formalizer/scripts
 
 npm install                          # devDeps: typescript, @types/node, gherkin-lint, gherklin
 npm run typecheck                   # strict 模式, 0 errors 必须
-npm test                            # 487 tests, 0 fail 必须
+npm test                            # 200 tests, 0 fail 必须
 npm run evals                       # 工具链与生命周期确定性评估必须通过
 ```
 
 **运行单个测试文件：**
 ```bash
-npx tsx --test __tests__/init.test.ts
+npx tsx --test __tests__/assemble-ir.test.ts
 npx tsx --test __tests__/srs-ir-types.test.ts
 ```
 
@@ -27,45 +27,35 @@ npx tsx --test __tests__/srs-ir-types.test.ts
 
 ## 架构
 
-编译器三段式：**Frontend**（Parse → Shard → Extract → Build IR）→ **Middle-end**（6 analysis passes）→ **Backend**（10 Emitters）。
+编译器三段式：**Frontend**（Parse → Shard → Extract → Build IR）→ **Middle-end**（6 analysis passes）→ **Backend**（Agent 生成产物 + validate-* 门禁）。
 
 ```
 scripts/
-├── index.ts             # CLI 入口（注册表模式, 全部 refuseDirectInvocation）
-├── commands/            # 命令（全部 ≤300 行）
+├── index.ts             # CLI 入口（注册表模式, 全部 refuseDirectInvocation, 17 命令）
+├── commands/            # 17 命令（10 门禁校验器 + 7 工具，全部 ≤300 行）
 ├── lib/
-│   ├── frontend/           # 前端 (Parser, Sharder, NFRScanner, Builder, RoundCalculator)
-│   ├── middle-end/         # 中端 (NFRThresholds, NFRTagger, Connectivity, RiskScorer)
-│   ├── emitters/           # 后端 (Emitter 接口 + 注册表 + 10 个 Emitter)
-│   ├── fixture-gen/        # V-Model 测试 fixture 生成
+│   ├── verify-gate/        # 三级门禁 (S1/R3/FINAL)
+│   ├── artifacts/          # 产物路径契约 + hash 绑定 + 提升
+│   ├── middle-end/         # connectivity-checker (图连通性)
 │   ├── bdd-validator.ts    # BDD Phase 1+2 校验
 │   ├── bdd-tool-runner.ts  # BDD Phase 3+4 (gherkin-lint + Gherklin)
+│   ├── tla-validator.ts    # TLA+ SANY+TLC 校验
 │   ├── cli.ts              # 参数解析、毒值拒绝、路径安全
 │   ├── security.ts         # 路径安全（与 cli.ts 重复，保留用于独立导入）
 │   ├── graph.ts            # 图数据结构
 │   ├── jsonl.ts            # JSONL 读写与校验
 │   ├── graph-algorithms.ts # 统一图算法（BFS/连通分量/最短路径/2-hop/图加载/相似度）
 │   ├── graph-operations.ts # 图合并/冲突边/同侧面边操作
+│   ├── cypher.ts           # Cypher 语法校验
 │   ├── id-utils.ts         # 共享 ID 清理
 │   ├── fs-utils.ts         # 共享文件系统工具
 │   ├── text-analysis.ts    # NLP 工具
-│   ├── prompt-templates.ts # 子代理审查提示词模板
 │   ├── skill-integrity.ts  # 技能完整性加解密
-│   ├── anti-skill.ts       # Anti-Skill 安全约束注入
-│   ├── skir/               # SkIR 构建 + 发射器
-│   ├── tla-graph/          # TLA+ 图谱实现
-│   ├── lean-graph/         # Lean 4 图谱实现
-│   ├── behavior-graph/     # BDD 图谱实现
-│   ├── system-architecture/ # 系统架构实现
-│   ├── llm/                # LLM 稳定性测试
-│   ├── probe/              # 能力探测
-│   ├── cross-graph/        # 跨图验证
-│   ├── verify-gate/        # 三级门禁
-│   └── architecture/       # 架构图构建
+│   └── checklists.ts       # 检查表工具
 ├── types/
 │   ├── srs-ir.ts         # ★ SRS-IR 强类型（20+ 类型）
 │   └── index.ts          # JsonlRecord, CliResult
-├── __tests__/            # ~477 测试
+├── __tests__/            # 200 测试
 └── templates/            # 模板 + bdd-nfr-scenarios.json
 ```
 
@@ -80,7 +70,7 @@ scripts/
 | 5 | `path.join()` 强制 | 禁止字符串拼接路径 |
 | 6 | 毒值拒绝 | `undefined/null/NaN/[object Object]` 入口拦截 |
 | 7 | 所有命令经 `index.ts` | `refuseDirectInvocation` 阻止直接调用 |
-| 8 | `--output` vs `--workdir` | `init` 用 `--output`，其余命令用 `--workdir` |
+| 8 | `--output` vs `--workdir` | Bootstrap 替代已归档的 init；所有保留命令用 `--workdir` |
 | 9 | `.srs_formalizer` 强制 | `validateWorkDir` 校验 basename |
 | 10 | 所有写入限工作目录 | `isPathSafe` + `assertSafePath` 双校验 |
 | 11 | 形式化产物生命周期 | draft 只能经 `validate-… --strict --promote` 进入 verified；FINAL 重新计算 verified 内容 hash，并仅消费匹配 `sourceHash` 的成功报告 |
@@ -88,7 +78,7 @@ scripts/
 
 ## 产物生命周期（强制）
 
-Emitter 只能写入 draft 或确定性目录，不能直接将 BDD、TLA+ 或 Lean 4 产物标记为 verified：
+Agent 只能写入 draft 或确定性目录，不能直接将 BDD、TLA+ 或 Lean 4 产物标记为 verified：
 
 - BDD：`outputs/bdd/draft` → `outputs/bdd/verified`
 - TLA+：`outputs/tlaplus/draft` → `outputs/tlaplus/verified`
@@ -115,6 +105,5 @@ security/compliance 关键词命中 → 强制。四步拆分证明循环。
 - **错误处理**: `try/catch → { status, message }`，通过 CliResult 返回。
 - **CLI 输出**: JSON 到 stdout (`{ status, message?, data? }`)，成功 exit(0)。
 - Commit: Conventional Commits, `Co-Authored-By: Claude <noreply@anthropic.com>`
-- 提交前: `npm run typecheck` 0 errors + `npm test` 487 tests pass + `npm run evals` pass
+- 提交前: `npm run typecheck` 0 errors + `npm test` 200 tests pass + `npm run evals` pass
 - TLA+ 覆盖所有模块，6 类 NFR 不变式必生成
-- `capability-probe` 探针仅在有工具链时生成 TLA+/Lean 4 维度

@@ -4,19 +4,19 @@
 
 An AI agent skill that formalizes SRS documents into Cypher graphs, Gherkin BDD, TLA+ specs, and Lean 4 proofs. The actual code lives under `.claude/skills/srs-formalizer/scripts/`. The root is mostly docs and config.
 
-**Architecture**: Compiler model (Frontend → Middle-end → Backend). All artifacts derive from a single SRS-IR (`srs-ir.json`). 10 Emitters generate outputs (Cypher, Gherkin, TLA+, Lean 4, fixtures, traceability, etc.). TS scripts do deterministic transforms; LLM sub-agents do semantic filling.
+**Architecture**: Agent-driven (Agent 驱动 + 脚本门禁). Scripts only do deterministic gate validation + specialized algorithms; all semantic work (parsing/extraction/analysis/generation) is done by Agent via SKILL.md + prompts + references. 17 commands: 10 Gate Validators + 7 Independent Tools. All artifacts derive from a single SRS-IR (`srs-ir.json`).
 
 ## Build & verify (run from `.claude/skills/srs-formalizer/scripts/`)
 
 ```bash
 npm install                         # devDeps: typescript, @types/node, gherkin-lint, gherklin
 npx tsc --noEmit                    # strict mode, must be 0 errors
-npx tsx --test __tests__/*.test.ts  # 487 tests, must be 0 failures
+npx tsx --test __tests__/*.test.ts  # 200 tests, must be 0 failures
 npm run evals                       # deterministic toolchain/lifecycle evaluation
 npm run typecheck && npm test       # shortcuts
 ```
 
-Single test file: `npx tsx --test __tests__/init.test.ts`
+Single test file: `npx tsx --test __tests__/assemble-ir.test.ts`
 
 **Before any commit**: `npm run typecheck`, `npm test`, and `npm run evals` must all pass. Non-negotiable.
 
@@ -25,15 +25,15 @@ Single test file: `npx tsx --test __tests__/init.test.ts`
 - **Zero runtime npm deps** — only devDeps allowed. Never add a runtime dependency.
 - **Strict TS** — `strict`, `noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noFallthroughCasesInSwitch`.
 - **0 `any`** — use `unknown` + `instanceof Error` for error handling.
-- **Max 300 lines/file** (current max is 297).
+- **Max 300 lines/file** (current max is 298).
 - **`path.join()` only** — never string-concatenate paths. Use `path.dirname`/`path.join`.
 - **Poison values rejected** — `undefined/null/NaN/[object Object]` caught at CLI entry by `validateNoPoisonArgs`.
 - **All commands routed through `index.ts`** — `refuseDirectInvocation` guard on all registered commands.
 
 ## Key conventions
 
-- **`--output` vs `--workdir`**: `init` uses `--output`, everything else uses `--workdir`.
-- **Artifact lifecycle**: emitters create only draft or deterministic output. Promotion requires `validate-… --strict --promote`; TLA+ runs bundled SANY and TLC, Lean validates a complete Lake project, and FINAL consumes only verified sources with a report whose `sourceHash` matches current content.
+- **Bootstrap (Agent creates workdir structure manually) replaces the archived init command; all remaining commands use --workdir**.
+- **Artifact lifecycle**: Agent creates draft artifacts; promotion requires `validate-… --strict --promote`; TLA+ runs bundled SANY and TLC, Lean validates a complete Lake project, and FINAL consumes only verified sources with a report whose `sourceHash` matches current content.
 - **`.srs_formalizer` basename enforced** — `validateWorkDir` checks it.
 - **All writes scoped to workdir** — `isPathSafe` + `assertSafePath` dual check.
 - **New code uses `cli.ts`** for arg parsing and path safety. `security.ts` exists but is legacy.
@@ -43,34 +43,34 @@ Single test file: `npx tsx --test __tests__/init.test.ts`
 
 ## Architecture in 30 seconds
 
-Compiler three-stage: **Frontend** (Parse → Shard → Extract → Build IR) → **Middle-end** (6 analysis passes) → **Backend** (10 Emitters). All outputs from a single `srs-ir.json`.
+Agent-driven: **Frontend** (Agent parses SRS → shards → extracts JSONL → assemble-ir) → **Middle-end** (Agent analyzes structure/semantics/NFR/risk + check-connectivity tool) → **Backend** (Agent generates Cypher/BDD/TLA+/Lean/fixtures/traceability → validate-* --strict --promote). All outputs derive from a single `srs-ir.json`.
 
 ```
 scripts/
-├── index.ts             # CLI entrypoint (registry pattern)
-├── commands/            # commands, all ≤300 lines
+├── index.ts             # CLI entrypoint (registry pattern, 17 commands)
+├── commands/            # 17 commands (10 gate validators + 7 tools), all ≤300 lines
 ├── lib/
-│   ├── frontend/        # Parser, Sharder, NFRScanner, Builder, RoundCalculator
-│   ├── middle-end/      # NFRThresholds, NFRTagger, Connectivity, RiskScorer
-│   ├── emitters/        # 10 Emitters (Cypher, Gherkin, TLA+, Lean, Fixture...)
-│   ├── fixture-gen/     # V-Model test fixture generators
+│   ├── verify-gate/     # 三级门禁 (S1/R3/FINAL)
+│   ├── artifacts/       # 产物路径契约 + hash 绑定 + 提升
+│   ├── middle-end/      # connectivity-checker (图连通性)
 │   ├── bdd-validator.ts # BDD Phase 1+2 validation
 │   ├── bdd-tool-runner.ts # Phase 3+4 (gherkin-lint + Gherklin)
-│   └── ... (graph, jsonl, cli, etc.)
+│   ├── tla-validator.ts # TLA+ SANY+TLC validation
+│   ├── graph*.ts        # 图数据结构与算法
+│   ├── cypher.ts, jsonl.ts, cli.ts, fs-utils.ts, id-utils.ts
+│   ├── skill-integrity.ts, text-analysis.ts, checklists.ts, security.ts
 ├── types/
 │   ├── srs-ir.ts        # SRS-IR type system (SRSIR, IRNode, IREdge, NFRCategory...)
 │   └── index.ts         # JsonlRecord, CliResult
-└── __tests__/           # test files
+└── __tests__/           # 200 tests
 ```
 
 ## Key CLI commands
 
 | Group | Commands |
 |------|------|
-| Frontend | `manifest`, `guided-extract`, `inject-prompt`, `build-ir` |
-| Middle-end | `analyze-structure`, `analyze-graph`, `tag-nfr`, `check-connectivity`, `merge-analysis`, `score-risk` |
-| Backend | `emit --group graphs\|bdd\|formal\|vmodel\|verify\|all` |
-| Validate | `validate-jsonl`, `validate-architecture`, `validate-cypher`, `validate-bdd --strict --promote`, `validate-tla --strict --promote`, `validate-lean --strict --promote`, `verify-gate` |
+| Gate Validators | `validate-jsonl`, `validate-semantics`, `validate-architecture`, `validate-cypher`, `validate-bdd --strict --promote`, `validate-tla --strict --promote`, `validate-lean --strict --promote`, `validate-glossary`, `validate-checklist`, `verify-gate` |
+| Independent Tools | `assemble-ir`, `check-connectivity`, `query-graph`, `hash-compute`, `tlc-trace-parse`, `verify-skill-integrity`, `pack-skill` |
 
 ## Gotchas
 
