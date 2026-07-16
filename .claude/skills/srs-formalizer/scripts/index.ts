@@ -17,97 +17,30 @@ interface CommandGroup {
 
 const COMMAND_GROUPS: CommandGroup[] = [
   {
-    title: "Project Setup",
+    title: "Gate Validators (门禁校验器，只做确定性校验)",
     commands: [
-      { name: "init", desc: "Initialize .srs_formalizer working directory", usage: "init --output .srs_formalizer" },
-      { name: "health-check", desc: "Environment verification and capability self-report", usage: "health-check [--workdir .srs_formalizer]" },
+      { name: "validate-jsonl", desc: "校验 JSONL 记录格式 (6 项)", usage: "validate-jsonl --file <path> --workdir .srs_formalizer" },
+      { name: "validate-semantics", desc: "校验 srs-ir.json 语义一致性 [--strict]", usage: "validate-semantics --workdir .srs_formalizer [--strict]" },
+      { name: "validate-architecture", desc: "校验架构 JSONL (6 项)", usage: "validate-architecture --workdir .srs_formalizer" },
+      { name: "validate-cypher", desc: "校验 .cypher 语法 (4 项)", usage: "validate-cypher --file <path> --workdir .srs_formalizer" },
+      { name: "validate-bdd", desc: "校验 .feature (Phase1-4) [--strict --promote]", usage: "validate-bdd [--strict --promote] --workdir .srs_formalizer" },
+      { name: "validate-tla", desc: "校验 .tla + .cfg (SANY+TLC) [--strict --promote]", usage: "validate-tla --name <module> [--strict --promote] --workdir .srs_formalizer" },
+      { name: "validate-lean", desc: "校验 Lake 项目 (lake build) [--strict --promote]", usage: "validate-lean [--strict --promote] --workdir .srs_formalizer" },
+      { name: "validate-glossary", desc: "校验术语 JSON (8 项)", usage: "validate-glossary --file <path> --workdir .srs_formalizer" },
+      { name: "validate-checklist", desc: "校验 CHECKLIST.md 完整性", usage: "validate-checklist --workdir .srs_formalizer" },
+      { name: "verify-gate", desc: "三级门禁 (S1|R3|FINAL)", usage: "verify-gate --stage <S1|R3|FINAL> --workdir .srs_formalizer" },
     ],
   },
   {
-    title: "Agent Integration (Issue #14)",
+    title: "Independent Tools (独立工具，处理 LLM 不便操作的数据结构/算法)",
     commands: [
-      { name: "tools-schema", desc: "Output OpenAI/Anthropic Tool Calling schemas for agent integration", usage: "tools-schema [--format openai|anthropic] [--output <file>]" },
-      { name: "status", desc: "Show workdir status dashboard (stage, artifacts, next actions)", usage: "status --workdir .srs_formalizer [--format json|text]" },
-    ],
-  },
-  {
-    title: "Frontend (SRS → IR)",
-    commands: [
-      { name: "manifest", desc: "Shard SRS and recognize chapters", usage: "manifest --src <srs-file> --lang zh|en --workdir .srs_formalizer" },
-      { name: "guided-extract", desc: "Interactive line-by-line JSONL extraction with validation", usage: "guided-extract --workdir .srs_formalizer" },
-      { name: "build-ir", desc: "Build SRS IR graph from extracted JSONL files", usage: "build-ir --workdir .srs_formalizer" },
-      { name: "inject-prompt", desc: "Inject params into a template and output result", usage: "inject-prompt --template <path> --params '<json>'" },
-    ],
-  },
-  {
-    title: "Middle-end (IR Analysis)",
-    commands: [
-      { name: "analyze-structure", desc: "Analyze graph for structural defects", usage: "analyze-structure --workdir .srs_formalizer" },
-      { name: "merge-structure", desc: "Merge sub-agent completion suggestions into graph", usage: "merge-structure --workdir .srs_formalizer" },
-      { name: "analyze-graph", desc: "Analyze graph for semantic issues (duplicates, conflicts)", usage: "analyze-graph --workdir .srs_formalizer" },
-      { name: "merge-analysis", desc: "Merge sub-agent analysis verdicts into graph", usage: "merge-analysis --workdir .srs_formalizer" },
-      { name: "tag-nfr", desc: "Detect and tag NFR nodes in srs-ir.json", usage: "tag-nfr --workdir .srs_formalizer" },
-      { name: "check-connectivity", desc: "Check cross-shard connectivity in srs-ir.json", usage: "check-connectivity --workdir .srs_formalizer" },
-      { name: "score-risk", desc: "Compute risk score from srs-ir.json", usage: "score-risk --workdir .srs_formalizer" },
-    ],
-  },
-  {
-    title: "Backend (Emit Artifacts)",
-    commands: [
-      { name: "emit", desc: "Emit artifacts from IR (--group graphs|bdd|formal|vmodel|verify|all)", usage: "emit --group all --workdir .srs_formalizer" },
-    ],
-  },
-  {
-    title: "Validation & Promotion",
-    commands: [
-      { name: "validate-jsonl", desc: "Validate JSONL file (6 checks)", usage: "validate-jsonl --file <path> --workdir .srs_formalizer" },
-      { name: "validate-semantics", desc: "Validate SRS-IR semantic consistency (types, refs, properties, thresholds)", usage: "validate-semantics --workdir .srs_formalizer [--strict]" },
-      { name: "validate-architecture", desc: "Validate architecture JSONL records (6 checks)", usage: "validate-architecture --workdir .srs_formalizer" },
-      { name: "validate-cypher", desc: "Validate .cypher script file (4 checks)", usage: "validate-cypher --file <path> --workdir .srs_formalizer" },
-      { name: "validate-bdd", desc: "Validate .feature files (add --strict --promote to verify and promote)", usage: "validate-bdd --strict --promote --workdir .srs_formalizer" },
-      { name: "validate-glossary", desc: "Validate glossary JSON file (8 checks + gate)", usage: "validate-glossary --file <path> --workdir .srs_formalizer" },
-      { name: "validate-tla", desc: "Validate .tla file with SANY + TLC (--strict --promote)", usage: "validate-tla --name <module> --strict --promote --workdir .srs_formalizer" },
-      { name: "validate-lean", desc: "Validate .lean file with lake build (--strict --promote)", usage: "validate-lean --strict --promote --workdir .srs_formalizer" },
-      { name: "validate-checklist", desc: "Validate CHECKLIST.md file", usage: "validate-checklist --stage <S0-S6> --workdir .srs_formalizer" },
-      { name: "verify-gate", desc: "Run verification gate checks (--stage S1|R3|FINAL)", usage: "verify-gate --stage FINAL --workdir .srs_formalizer" },
-    ],
-  },
-  {
-    title: "One-Shot Pipeline",
-    commands: [
-      { name: "pipeline", desc: "Complete SRS formalization pipeline with progress reporting and session persistence", usage: "pipeline --src <srs-file> --lang zh|en --workdir .srs_formalizer [--strict] [--full] [--auto-validate] [--skip-init] [--verbose]" },
-    ],
-  },
-  {
-    title: "Audit & Reporting (Issue #15)",
-    commands: [
-      { name: "export-audit", desc: "Export audit package with traceability, validation reports, hash chains", usage: "export-audit --workdir .srs_formalizer --output <audit-dir>" },
-    ],
-  },
-  {
-    title: "Graph & Architecture",
-    commands: [
-      { name: "query-graph", desc: "Graph query and traversal interface", usage: "query-graph --query <type> --params '<json>' --workdir .srs_formalizer" },
-      { name: "build-architecture", desc: "Build architecture graph from JSONL files", usage: "build-architecture --workdir .srs_formalizer" },
-    ],
-  },
-  {
-    title: "Test Fixtures",
-    commands: [
-      { name: "generate-test-fixtures", desc: "Generate test fixtures from verified artifacts", usage: "generate-test-fixtures --level unit|integration|e2e --framework <fw> --workdir .srs_formalizer" },
-      { name: "generate-counterexample-fixtures", desc: "Generate counterexample fixtures from TLC trace", usage: "generate-counterexample-fixtures --trace <path> --framework <fw> --workdir .srs_formalizer" },
-      { name: "fixture-coverage", desc: "Compute fixture coverage report", usage: "fixture-coverage --workdir .srs_formalizer" },
-      { name: "generate-vmodel-matrix", desc: "Build V-Model traceability matrix", usage: "generate-vmodel-matrix --format markdown|cypher [--output <path>] --workdir .srs_formalizer" },
-    ],
-  },
-  {
-    title: "Skill Development",
-    commands: [
-      { name: "compile", desc: "Compile SKILL.md into SkIR, inject safety constraints, emit artifacts", usage: "compile --skill-dir <path> --workdir .srs_formalizer" },
-      { name: "pack-skill", desc: "Pack skill directory into hash manifest + tar.gz backup", usage: "pack-skill --skill-dir <path> --output <backup.tar.gz>" },
-      { name: "verify-skill-integrity", desc: "Verify skill file integrity (--repair to auto-restore)", usage: "verify-skill-integrity --skill-dir <path> [--repair]" },
-      { name: "capability-probe", desc: "LLM capability probe evaluation (--mode generate|score)", usage: "capability-probe --mode generate|score [--file <path>]" },
-      { name: "stability-test", desc: "Cross-LLM stability test", usage: "stability-test --config <path> [--passes 3] [--score <dir>]" },
+      { name: "assemble-ir", desc: "JSONL → srs-ir.json 装配 + 完整性校验", usage: "assemble-ir --workdir .srs_formalizer" },
+      { name: "check-connectivity", desc: "图连通性/SCC/孤岛检测", usage: "check-connectivity --workdir .srs_formalizer" },
+      { name: "query-graph", desc: "IR 查询接口 (node/neighbors/module/path)", usage: "query-graph --query <type> --params '<json>' --workdir .srs_formalizer" },
+      { name: "hash-compute", desc: "计算/比对 SHA-256 sourceHash", usage: "hash-compute --file <path> [--compare <hash>] --workdir .srs_formalizer" },
+      { name: "tlc-trace-parse", desc: "解析 TLC 反例 trace 为状态序列", usage: "tlc-trace-parse --trace <path> --workdir .srs_formalizer" },
+      { name: "verify-skill-integrity", desc: "技能完整性校验 [--repair]", usage: "verify-skill-integrity --skill-dir <path> [--repair]" },
+      { name: "pack-skill", desc: "加密备份 (仅人类 --force)", usage: "pack-skill --skill-dir <path> --output <backup.tar.gz> --force" },
     ],
   },
 ];
@@ -125,33 +58,16 @@ function printUsage(command?: string): void {
     const cmd = getCommandHelp(command);
     if (cmd) {
       console.log(`
-SRS-Formalizer — ${cmd.name}
+SRS-Formalizer v2.0.0 — ${cmd.name}
 ${"─".repeat(60)}
 ${cmd.desc}
 
 Usage:
   npx tsx index.ts ${cmd.usage ?? cmd.name}
 
-Common Options:
-  --workdir <path>      Working directory (must be .srs_formalizer)
-  --src <path>          Source SRS file
-  --lang zh|en          SRS language
-  --strict              Enable strict validation mode
-  --promote             Promote draft artifacts to verified after successful validation
-  --full                Full pipeline mode (auto-enables --strict + --auto-validate)
-  --auto-validate       Auto-run BDD validation after emit
-  --verbose             Enable verbose output with memory usage stats
-  --format fmt          Output format (json|text|openai|anthropic)
-  --output <path>       Output file/directory path
-  --skip-init           Skip initialization (resume existing workdir)
+All commands output JSON { status, message?, data? }.
 
-Environment Variables:
-  NO_COLOR=1            Disable colored output
-  VERBOSE=1             Same as --verbose
-
-Run "npx tsx index.ts --help" for a list of all commands.
-Run "npx tsx index.ts tools-schema" for agent tool-calling integration.
-Run "npx tsx index.ts health-check" to verify your environment first.
+For full spec see: docs/DESIGN.md
 `);
       return;
     }
@@ -159,58 +75,27 @@ Run "npx tsx index.ts health-check" to verify your environment first.
   }
 
   console.log(`
-SRS-Formalizer v1.1.0 — AI Agent Skill for SRS Formalization
-${"═".repeat(60)}
-Compiler architecture: SRS → Frontend → Middle-end → Backend → Verified Artifacts
-
-Usage: npx tsx index.ts <command> [options]
-       npx tsx index.ts --help              Show this help message
-       npx tsx index.ts --help <command>    Show help for a specific command
-
-Global Options:
-  --help     Show help (add command name for detailed help)
+SRS-Formalizer v2.0.0 — Agent-driven SRS formalization skill
+脚本只做门禁校验与专用算法，语义工作由 Agent 经 SKILL.md + prompts 完成。
 `);
 
   for (const group of COMMAND_GROUPS) {
     console.log(`\n${group.title}:`);
-    console.log("─".repeat(50));
     for (const cmd of group.commands) {
-      const padding = " ".repeat(Math.max(0, 28 - cmd.name.length));
+      const padding = " ".repeat(Math.max(1, 24 - cmd.name.length));
       console.log(`  ${cmd.name}${padding}${cmd.desc}`);
     }
   }
 
   console.log(`
-Quick Start (Complete Pipeline):
-${"─".repeat(50)}
-  # 1. Check environment first
-  npx tsx index.ts health-check
 
-  # 2. Run full pipeline (pauses at guided-extract for AI agent)
-  npx tsx index.ts pipeline --src ../examples/online-store-srs.md --lang zh --workdir .srs_formalizer --full
+Usage: npx tsx index.ts <command> [options]
+       npx tsx index.ts --help              Show this help message
+       npx tsx index.ts --help <command>    Show help for a specific command
 
-  # 3. After guided-extract completes, resume with validation
-  npx tsx index.ts pipeline --skip-init --workdir .srs_formalizer --strict
+All commands output JSON { status, message?, data? }.
 
-  # 4. Check status and next actions at any time
-  npx tsx index.ts status --workdir .srs_formalizer --format text
-
-  # 5. Export audit package when done
-  npx tsx index.ts export-audit --workdir .srs_formalizer --output ./audit-report
-
-Agent Integration (Tool Calling):
-${"─".repeat(50)}
-  # Generate OpenAI-compatible tool schemas
-  npx tsx index.ts tools-schema --format openai --output ./tools.json
-
-  # Generate Anthropic-compatible tool schemas
-  npx tsx index.ts tools-schema --format anthropic
-
-For more information, see:
-  docs/DESIGN.md     - Complete design specification (SSOT)
-  README.md          - Project overview and quick start
-  SKILL.md           - Skill usage guide for AI agents
-  AGENTS.md          - Repository guide for contributors
+For full spec see: docs/DESIGN.md
 `);
 }
 
