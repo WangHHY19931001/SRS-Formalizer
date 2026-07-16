@@ -2,8 +2,8 @@
   "protocolVersion": "1.0",
   "agentCard": {
     "name": "srs-formalizer",
-    "description": "将 SRS（软件需求规格说明）文档转化为需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约和 Lean 4 证明。TS 脚本做确定性机械工作，LLM 子代理做语义判断。",
-    "version": "1.0.1",
+    "description": "将 SRS（软件需求规格说明）文档转化为需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约和 Lean 4 证明。TS 脚本做确定性机械工作，LLM 子代理做语义判断。支持 OpenAI/Anthropic Tool Calling 集成，提供一键流水线和会话状态持久化。",
+    "version": "1.1.0",
     "provider": {
       "name": "srs-formalizer",
       "url": "https://github.com/WangHHY19931001/SRS-Formalizer"
@@ -17,12 +17,13 @@
       "output": {
         "formats": [
           "application/jsonl",
+          "application/json",
           "text/x-cypher",
           "text/x-gherkin",
           "text/x-tla",
           "text/x-lean"
         ],
-        "description": "JSONL 需求记录、Neo4j Cypher 图谱、Gherkin .feature 文件、TLA+ 规约、Lean 4 证明"
+        "description": "JSONL 需求记录、Neo4j Cypher 图谱、Gherkin .feature 文件、TLA+ 规约、Lean 4 证明、审计报告、工具Schema"
       }
     },
     "taskTypes": [
@@ -30,13 +31,39 @@
       "knowledge-graph-generation",
       "bdd-generation",
       "tla-specification",
-      "lean-proof"
+      "lean-proof",
+      "audit-export",
+      "status-reporting"
     ],
     "pipelineStages": [
       "frontend",
       "middle-end",
-      "backend"
+      "backend",
+      "validation",
+      "audit"
     ],
+    "naturalLanguageAliases": {
+      "@formalize": "pipeline --src <file> --lang zh --workdir .srs_formalizer --full",
+      "@formalize-en": "pipeline --src <file> --lang en --workdir .srs_formalizer --full",
+      "@status": "status --workdir .srs_formalizer --format text",
+      "@generate-bdd": "emit --group bdd --workdir .srs_formalizer",
+      "@validate-all": "validate-bdd --strict --promote --workdir .srs_formalizer",
+      "@full-pipeline": "pipeline --skip-init --workdir .srs_formalizer --strict",
+      "@export-audit": "export-audit --workdir .srs_formalizer --output ./_audit",
+      "@tools-schema": "tools-schema --format openai",
+      "@health-check": "health-check"
+    },
+    "toolCalling": {
+      "schemaCommand": "tools-schema",
+      "supportedFormats": ["openai", "anthropic"],
+      "cliPrefix": "npx tsx index.ts"
+    },
+    "sessionSupport": {
+      "persistence": true,
+      "stateFile": "_ctx/session.json",
+      "multiTurn": true,
+      "resumable": true
+    },
     "security": {
       "level": "high",
       "hitlRequired": true,
@@ -60,7 +87,8 @@
       "validate-lean",
       "validate-checklist",
       "validate-glossary",
-      "verify-gate"
+      "verify-gate",
+      "health-check"
     ],
     "skillPattern": "compiler",
     "nestedPatterns": ["inversion", "generator", "reviewer", "emitter"]
