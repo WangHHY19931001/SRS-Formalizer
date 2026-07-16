@@ -1,10 +1,12 @@
 # SRS-Formalizer 设计文档
 
-> **版本**: 1.0.1 | **日期**: 2026-07-13 | **状态**: Active
+> **版本**: 2.0.0 | **日期**: 2026-07-16 | **状态**: Active
 >
 > 本文档是 srs-formalizer 技能开发的**唯一事实依据**（Single Source of Truth）。
 > 所有设计决策、架构约束、规则合规、评估结果均记录于此。
 > 代码变更必须首先更新本文档；本文档与代码不一致时，以本文档为准。
+>
+> 上一版本（v1.0.1，编译器三段式 + 脚本承担大量语义工作）归档于 `docs/DESIGN-v1.0.1.md`。
 
 ---
 
@@ -16,24 +18,24 @@
 |------|-----|
 | 名称 | `srs-formalizer` |
 | 类型 | `framework`（基础框架型技能） |
-| 主模式 | `compiler`（编译器三段式） |
+| 主模式 | `agent-driven`（Agent 驱动 + 脚本门禁） |
 | 领域 | `formal-methods` |
 | 安全等级 | `high` |
 | HITL | 强制 |
-| 版本 | 1.0.1（语义化版本） |
+| 版本 | 2.0.0（语义化版本） |
 
 ### 1.2 核心能力
 
-将 **SRS（软件需求规格说明）** 文档转化为形式化产出，采用编译器模型（Frontend → Middle-end → Backend）：
+将 **SRS（软件需求规格说明）** 文档转化为形式化产出：
 
-| 产出 | 格式 | 发射器 | 触发条件 |
-|------|------|------|----------|
-| 需求知识图谱 | Neo4j Cypher | CypherEmitter | 必选 |
-| BDD 测试骨架 | Gherkin `.feature` | GherkinEmitter | 必选 |
-| TLA+ 形式化规约 | `.tla` | TLAEmitter | **所有模块必选**；先生成草稿，完成 L1→L2→L3 与严格验证后交付 |
-| Lean 4 定理证明 | `.lean` | LeanEmitter | security/compliance NFR 触发；先生成拆分计划，完成严格验证后交付 |
-| 测试夹具 | pytest/JUnit/Cucumber/Playwright/fast-check | FixtureEmitter | 可选（选框架） |
-| 追溯矩阵 | Markdown / Cypher | TraceabilityMatrixEmitter | 必选 |
+| 产出 | 格式 | 触发条件 |
+|------|------|----------|
+| 需求知识图谱 | Neo4j Cypher | 必选 |
+| BDD 测试骨架 | Gherkin `.feature` | 必选 |
+| TLA+ 形式化规约 | `.tla` | 所有模块必选；先生成草稿，完成 L1→L2→L3 与严格验证后交付 |
+| Lean 4 定理证明 | `.lean` | security/compliance NFR 触发；先生成拆分计划，完成严格验证后交付 |
+| 测试夹具 | pytest/JUnit/Cucumber/Playwright/fast-check | 可选（选框架） |
+| 追溯矩阵 | Markdown / Cypher | 必选 |
 
 ### 1.3 何时不该使用
 
@@ -56,89 +58,43 @@
 
 ---
 
-## 2. 架构设计
+## 2. 重构核心理念（v2.0.0 核心变更）
 
-### 2.1 编译器三阶段架构
+### 2.1 为什么要重构
 
-受 SkCC (arXiv:2605.03353) 启发，本技能采用经典编译器三段式架构：
+v1.0.1 采用编译器三段式架构，脚本（commands/ + lib/）承担了大量本应由 LLM 完成的语义工作：章节解析、需求提取、NFR 分类、冲突检测、风险评估、产物生成（10 个 Emitter）、流程编排等。这导致：
 
-```mermaid
-flowchart TD
-    A["📄 SRS Document<br/>(.md / .html)"] --> B
+- **职责错位**：脚本做语义判断（如 NFR 关键词匹配、Jaccard 重复检测）准确性不如 LLM，且无法处理 SRS 的语义多样性；
+- **脚本膨胀**：39 个命令、~50 个 lib 模块、~50 个测试文件，维护成本高；
+- **Agent 边界模糊**：脚本与 Agent 职责重叠，难以判断某件事该谁做；
+- **能力浪费**：LLM 被脚本的确定性输出束缚，无法发挥语义理解优势。
 
-    subgraph B["Frontend (SRS → IR)"]
-        direction TB
-        B1["Parse<br/>识别章节/术语"] --> B2["Shard<br/>分片索引"]
-        B2 --> B3["Extract<br/>JSONL提取 (LLM)"]
-        B3 --> B4["Build IR<br/>srs-ir.json v2.0.0"]
-    end
+### 2.2 新架构原则：脚本只做两件事
 
-    B --> C
+重构后脚本严格分为两类，**不再有"编译器阶段"概念**：
 
-    subgraph C["Middle-end (IR Analysis · 6 Passes)"]
-        direction TB
-        C1["analyze-structure"] --> C2["analyze-graph"]
-        C2 --> C3["tag-nfr"]
-        C3 --> C4["check-connectivity"]
-        C4 --> C5["merge-analysis"]
-        C5 --> C6["score-risk"]
-    end
+| 类别 | 职责 | 性质 | 可调用者 |
+|------|------|------|----------|
+| **门禁校验器 (Gate Validators)** | 对已存在产物做格式/规范/检查表类的**确定性校验**，只返回 pass/fail，绝不产生语义产物 | 纯检查、纯读 | Agent 在阶段转换时调用 |
+| **独立工具 (Independent Tools)** | 处理 LLM 不便操作的**数据结构**或执行**专用算法**；Agent 主动调用以完成它无法可靠完成的事 | 纯计算/纯算法 | Agent 按需调用 |
 
-    C --> D
+### 2.3 脚本禁止做的事（全部交给 Agent）
 
-    subgraph D["Backend (10 Emitters)"]
-        direction TB
-        D1["CypherEmitter<br/>知识图谱"]
-        D2["GherkinEmitter<br/>BDD测试"]
-        D3["TlaEmitter<br/>TLA+规约"]
-        D4["LeanEmitter<br/>定理证明"]
-        D5["FixtureEmitter<br/>测试夹具"]
-        D6["TraceabilityEmitter<br/>追溯矩阵"]
-    end
+- **语义判断**：解析章节、提取需求、NFR 分类、冲突检测、风险评估、子代理判决合并
+- **产物生成**：Cypher/Gherkin/TLA+/Lean/fixture/traceability 的内容编写
+- **流程编排**：pipeline 编排、status 报告、阶段决策、健康检查
+- **模板填空**：inject-prompt 的字符串替换
+- **技能元管理**：compile（SKILL.md 编译）、capability-probe、stability-test、tools-schema
 
-    D --> E{"validate-*<br/>--strict --promote"}
-    E -->|Pass| F["✅ Verified<br/>outputs/*/verified/"]
-    E -->|Fail| G["❌ Draft<br/>outputs/*/draft/"]
-    F --> H["verify-gate --stage FINAL"]
-    H --> I["📊 Audit Package<br/>export-audit"]
+### 2.4 Agent 承担的工作通过三层载体驱动
 
-    style B fill:#e1f5ff,stroke:#0288d1
-    style C fill:#fff4e1,stroke:#f57c00
-    style D fill:#f1e8ff,stroke:#7b1fa2
-    style F fill:#e8f5e9,stroke:#388e3c
-    style G fill:#ffebee,stroke:#d32f2f
-    style I fill:#f3e5f5,stroke:#7b1fa2
-```
+| 载体 | 职责 | 加载时机 |
+|------|------|----------|
+| `SKILL.md` | 工作流定义、阶段划分、调用门禁/工具的时机、Bootstrap 指令 | 技能激活时（L2） |
+| `prompts/` | 编排者、执行者、验证者、调试者的阶段提示词 | 编排者按阶段注入子代理（L3） |
+| `references/` | IR schema、生成指南、编码规范、专家人设 | 子代理按需加载（L3） |
 
-**核心设计原则**:
-
-| 原则 | 说明 |
-|------|------|
-| **单一 IR** | 所有产物从同一个 `srs-ir.json` 生成，保证一致性 |
-| **前端/后端解耦** | 新增输出格式只需实现新 Emitter，不影响现有逻辑 |
-| **IR 不可变** | 前端构建后 IR 只读，Emitter 为纯函数 |
-| **O(m+n) 复杂度** | m 个输入源 + n 个 Backend Emitter |
-| **可增量** | 局部 SRS 变更 → 局部 IR 重建 → 受影响 Emitter 重发射 |
-
-### 2.2 与传统七阶段映射
-
-| 编译器阶段 | 对应原阶段 | CLI |
-|:----:|:--:|------|
-| **Frontend** | S0-S3 | `manifest` → `guided-extract` → `build-ir` |
-| **Middle-end** | S3 分析 | `analyze-structure` → `analyze-graph` → `tag-nfr` → `check-connectivity` → `merge-analysis` → `score-risk` |
-| **Backend** | S4-S6 | `emit --group graphs\|bdd\|formal\|vmodel\|verify` |
-
-### 2.3 设计模式
-
-```
-主模式: compiler
-├── Inversion  @Frontend — 信息不全不进入 IR 构建，强制 interview
-├── Generator  @Frontend — 零自由度填空模板，禁止增减字段
-├── Reviewer   @Middle-end — 结构/语义/NFR 分析 passes
-└── Emitter    @Backend  — 统一 Emitter 接口，纯函数 IR → 产物
-```
-
-### 2.4 渐进式披露（Progressive Disclosure）
+### 2.5 渐进式披露（Progressive Disclosure）
 
 | 级别 | 内容 | Token | 加载时机 |
 |:----:|------|-------|----------|
@@ -146,46 +102,155 @@ flowchart TD
 | L2 | SKILL.md 正文 | ≤5,000 | 技能激活时 |
 | L3 | references/ + templates/ + prompts/ | 按需 | 指令明确要求时 |
 
-### 2.5 提示词类型与角色
+### 2.6 提示词类型与角色
 
-| 类型 | 数量 | 角色 | 约束 |
-|------|:----:|------|------|
-| **编排者** (Orchestrator) | 3 | 阶段级决策者：执行 CLI、分派子代理 | 技能完整性校验先于每阶段转换 |
-| **执行者** (Executor) | 5 | 模板填充者：结构化输入 → 结构化 JSONL | 禁止增减字段、编造数据 |
-| **执行者-领域** (Executor-Domain) | 3 | BDD/TLA+/Lean 4 领域专家 | 注入完整专家人设 |
-| **验证者** (Verifier) | 4 | 独立审查者：新会话中逐项核验 | 强制新会话、禁止信任执行者报告 |
-| **调试** (Debug) | 2 | 被动诊断：TLA+/Lean 构建失败时触发 | 不修改源代码，仅输出诊断报告 |
+| 类型 | 角色 | 约束 |
+|------|------|------|
+| **编排者** (Orchestrator) | 阶段级决策者：调用门禁/工具、分派子代理、做流程决策 | 技能完整性校验先于每阶段转换 |
+| **执行者** (Executor) | 语义填充者：解析/提取/分析/生成结构化产物 | 禁止编造数据、禁止跳过门禁 |
+| **执行者-领域** (Executor-Domain) | BDD/TLA+/Lean 4 领域专家 | 注入完整专家人设 |
+| **验证者** (Verifier) | 独立审查者：新会话中逐项核验 | 强制新会话、禁止信任执行者报告 |
+| **调试** (Debug) | 被动诊断：TLA+/Lean 构建失败时触发 | 不修改源代码，仅输出诊断报告 |
 
 ---
 
-## 3. 设计决策
+## 3. 脚本清单（17 个，从 39 个缩减）
 
-### 3.1 核心约束
+所有命令经 `npx tsx index.ts <command>` 调用，输出 JSON `{ status, message?, data? }`，成功 exit(0) / 失败 exit(1)。
 
-| # | 决策 | 原因 |
-|:--:|------|------|
-| 1 | **零运行时 npm 依赖** | 技能自包含，不引入供应链风险 |
-| 2 | **TypeScript strict** | `strict`, `noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noFallthroughCasesInSwitch` |
-| 3 | **TS 只做确定性转换** | 不调用 LLM、不产生随机数、不依赖外部 API |
-| 4 | **所有文件操作限定工作目录** | `.srs_formalizer/` 内，路径安全双校验 |
-| 5 | **所有 CLI 经 index.ts** | `refuseDirectInvocation` 阻止绕过 |
-| 6 | **统一错误处理** | `try/catch → { status, message }`，不抛异常 |
-| 7 | **毒值拒绝** | `undefined/null/NaN/[object Object]` 入口拦截 |
-| 8 | **文件大小** | ≤300 行（当前最大 283） |
-| 9 | **禁止 `any`** | 所有错误类型用 `unknown` + `instanceof Error` |
-| 10 | **`path.join()` 强制** | 禁止字符串拼接路径 |
-| 11 | **`init` 用 `--output`，其余用 `--workdir`** | `validateWorkDir` 强制 `.srs_formalizer` 命名 |
+### 3.1 门禁校验器（10 个）
 
-### 3.2 为什么选编译器模型
+| 命令 | 校验对象 | 检查项 | 关键参数 |
+|------|----------|--------|----------|
+| `validate-jsonl` | JSONL 记录 | 6 项：id 正则 `^R[123]-[A-Za-z0-9_.]+-\d{4}$`、category/confidence 枚举、statement 非空、source_file 非空、metadata 关联 ID 合法 | `--file <path> --workdir <path>` |
+| `validate-semantics` | srs-ir.json | 4 类：类型一致性、引用完整性（无悬挂边）、属性合法性、阈值合法性；NFR 类别必须为六类正式分类；`--strict` 门禁模式 | `--workdir <path> [--strict]` |
+| `validate-architecture` | 架构 JSONL | 6 项架构记录格式检查 | `--workdir <path>` |
+| `validate-cypher` | .cypher | 4 项语法检查 | `--file <path> --workdir <path>` |
+| `validate-bdd` | .feature | Phase1 TS 结构 + Phase2 NFR 专项 + Phase3 gherkin-lint + Phase4 Gherklin；`--strict --promote` 提升 | `--strict --promote --workdir <path>` |
+| `validate-tla` | .tla + matching .cfg | 静态审计 + 内置 `tools/tla2tools-1.7.4.jar` SANY + TLC；`--strict --promote` 提升 | `--name <module> --strict --promote --workdir <path>` |
+| `validate-lean` | Lake 项目 | `lake build` + sorry/axiom/warning 审计；`--strict --promote` 提升 | `--strict --promote --workdir <path>` |
+| `validate-glossary` | 术语 JSON | 8 项 + 门禁 | `--file <path> --workdir <path>` |
+| `validate-checklist` | CHECKLIST.md | 检查表完整性 | `--stage <S0-S6> --workdir <path> [--repair]` |
+| `verify-gate` | 工作目录 | S1/R3/FINAL 三级门禁（详见 §7.10） | `--stage S1\|R3\|FINAL --workdir <path>` |
 
-受 SkCC 启发，srs-formalizer 本质上是 SRS → IR → 多目标产物的编译过程：
+### 3.2 独立工具（7 个）
 
-- **单一 IR**: `srs-ir.json` 承载所有语义信息
-- **确定性**: IR 不可变，Emitter 为纯函数
-- **可扩展**: 新增输出格式只需实现新 Emitter 并注册
-- **可增量**: 局部 SRS 变更 → 局部 IR 重建 → 受影响 Emitter 重发射
+| 命令 | 类别 | 功能 | 关键参数 |
+|------|------|------|----------|
+| `assemble-ir` | 数据结构装配 | 读取所有 JSONL → 去重 → 装配 `srs-ir.json` + 引用完整性校验（悬挂边/重复 ID/版本号 `2.0.0`/buildTimestamp 非空）。不分析、不发射、不修改 JSONL | `--workdir <path>` |
+| `check-connectivity` | 图算法 | 跨 shard 连通性、强连通分量（SCC）、孤岛检测、桥接边建议。LLM 在大图上无法可靠执行 | `--workdir <path>` |
+| `query-graph` | 数据结构查询 | node/neighbors/module/modules/path 查询接口，避免 LLM 直读大 JSON | `--query <type> --params '<json>' --workdir <path>` |
+| `hash-compute` | 确定性算法 | 计算/比对 sourceHash，绑定验证报告；FINAL 门禁与审计依赖 | `--file <path> [--compare <expected>] [--workdir <path>]` |
+| `tlc-trace-parse` | 专用解析器 | 解析 TLC 反例 trace 为状态序列，供 Agent 生成反例 fixture | `--trace <path> [--workdir <path>]` |
+| `verify-skill-integrity` | 安全关键 | SHA-256 比对 MANIFEST.json，`--repair` 从加密备份恢复 | `--skill-dir <path> [--repair]` |
+| `pack-skill` | 安全关键 | **仅人类显式操作** → SHA-256 → MANIFEST.json → AES-256-GCM `.enc` | `--skill-dir <path> --force` |
 
-### 3.3 为什么 NFR 条件触发 TLA+/Lean 4
+### 3.3 移除清单（24 个命令 + 对应 lib 归档）
+
+**Frontend 移除（5）**：`init`、`manifest`、`guided-extract`、`inject-prompt`、`build-architecture`
+→ Agent 按 SKILL.md Bootstrap 段创建工作目录与模板；解析/分片/NFR 扫描/跨章引用/提取全部由 executor 提示词驱动；架构 JSONL 装配并入 `assemble-ir`
+
+**Middle-end 移除（6）**：`analyze-structure`、`merge-structure`、`analyze-graph`、`merge-analysis`、`tag-nfr`、`score-risk`
+→ 孤儿/悬挂边由 Agent 读 IR 判断；语义重复/冲突/聚类、NFR 分类与阈值提取、风险评分公式计算全部由 executor 提示词驱动；子代理判决合并由 Agent 直接做
+
+**Backend 移除（5）**：`emit`、`generate-test-fixtures`、`generate-counterexample-fixtures`、`generate-vmodel-matrix`、`fixture-coverage`
+→ 全部 10 个 Emitter 删除；Cypher/Gherkin/TLA+/Lean/fixture/traceability 内容由 Agent 经提示词 + 模板 + 专家人设生成；validate-* 门禁校验
+
+**编排/元/工具移除（8）**：`pipeline`、`status`、`health-check`、`export-audit`、`tools-schema`、`compile`、`capability-probe`、`stability-test`
+→ Agent 经 SKILL.md 编排；状态/健康检查由 Agent 读文件；审计包由 Agent 用 `hash-compute` 组装；compile/probe/stability/tools-schema 与 SRS 处理无关，归档
+
+**对应 lib 归档**（约 50 个文件 → 约 20 个保留）至 `.worktrees/archive/2026-07-16/`：
+- `frontend/`（除 builder 逻辑并入 assemble-ir）
+- `emitters/`（全部 10 个 Emitter）
+- `fixture-gen/`（全部）
+- `architecture/`、`behavior-graph/`、`lean-graph/`、`tla-graph/`、`system-architecture/`、`traceability/`、`cross-graph/`
+- `skir/`、`probe/`、`llm/stability/`
+- `emitter-claude-xml.ts`、`emitter-generic-md.ts`、`prompt-templates.ts`
+- `architecture/builder.ts` 中架构子图装配逻辑迁移至 `assemble-ir`
+
+**保留的 lib**：`verify-gate/`、`bdd-validator.ts`、`bdd-tool-runner.ts`、`tla-validator.ts`、`artifacts/{paths,promotion,validation-report}.ts`、`middle-end/connectivity-checker.ts`、`graph*.ts`、`security.ts`、`cli.ts`、`fs-utils.ts`、`jsonl.ts`、`id-utils.ts`、`skill-integrity.ts`、`text-analysis.ts`（供 Agent 引用的纯工具函数）
+
+---
+
+## 4. Agent 工作流
+
+Agent 经 SKILL.md 驱动整个流程。每个阶段：Agent 做语义工作 → 调用门禁校验 → 通过后进入下一阶段。
+
+### 4.1 Bootstrap（替代 init）
+
+Agent 按 SKILL.md Bootstrap 段指令创建工作目录结构（无脚本）：
+
+```
+.srs_formalizer/
+├── srs-ir.json            # 核心中间表示 (v2.0.0)，assemble-ir 产出
+├── _ctx/shard_index.json  # Frontend 产出（Agent 写）
+├── 2_extract/             # Frontend: 需求提取 + 架构分解 JSONL
+│   ├── r1-explicit/
+│   ├── r2-implicit/
+│   ├── r3-relational/
+│   └── architecture/
+├── 3_graph/               # Middle-end 分析输出（Agent 写）
+│   ├── graph/
+│   └── analysis/
+├── outputs/               # Backend 产物生命周期
+│   ├── graphs/            # Cypher 知识图谱（确定性产物，无 draft/verified 生命周期）
+│   ├── bdd/{draft,verified,validation}/
+│   ├── tlaplus/{draft,verified,validation}/
+│   ├── lean4/{draft,verified,validation}/
+│   ├── fixtures/
+│   └── reports/
+├── backups/               # 技能加密备份
+└── STATE.md               # 阶段状态追踪（Agent 维护）
+```
+
+阶段号前缀（`2_`, `3_`）便于 `ls` 排查；Backend 使用 `outputs/` 子树承载 draft/verified 生命周期（详见 `lib/artifacts/paths.ts` 的 `ARTIFACT_PATHS`）。
+
+### 4.2 Frontend 阶段（Agent 主导）
+
+| 步骤 | Agent 工作 | 产出 | 门禁/工具 |
+|------|-----------|------|-----------|
+| F1 | 读 SRS → 识别章节层级、术语、跨章引用 → 分片（MAX_SHARD_LINES=200）→ NFR 关键词扫描 → 产出 `shard_index.json` | `_ctx/shard_index.json` | `validate-checklist --stage S1` |
+| F2 | 按 shard 逐个提取 R1/R2/R3/R3-cross/R4-NFR/Arch 需求为 JSONL 记录 | `2_extract/**/*.jsonl` | `validate-jsonl --file <each>` |
+| F3 | 架构分解（Arch-1/2/3/4-NFR）为 JSONL | `2_extract/architecture/**/*.jsonl` | `validate-architecture --workdir` |
+| F4 | 术语提取 | glossary JSON | `validate-glossary --file` |
+| F5 | 调用工具装配 IR | `srs-ir.json` | `assemble-ir --workdir` |
+
+**动态架构轮次**（Agent 根据 `totalShards` 决定）：<50 → 3 轮，50-99 → 4 轮，≥100 → 5 轮；`crossRefCount > 50` → +1 轮。
+
+**分片算法**（Agent 遵循）：`MAX_SHARD_LINES = 200`；递归策略：按章节标题分割 → 章节回退 → 段落回退；Token 估算：中文 `chars/1.5`，英文 `chars/4`。
+
+**shard ID 规则**：`S001`~`S999`（纯 ASCII）；每个分片含 `locator`（`{file_abspath}-{start}-{end}-{chunk_id}`）；R1 提取 ID 格式 `R1-<shard_id>-NNNN`。
+
+### 4.3 Middle-end 阶段（Agent 主导 + 图算法工具）
+
+| 步骤 | Agent 工作 | 产出 | 门禁/工具 |
+|------|-----------|------|-----------|
+| M1 | 读 IR → 判断孤儿节点、悬挂边、概念孤岛、跨文件孤岛 | `3_graph/analysis/structure.json` | `validate-semantics --strict` |
+| M2 | 读 IR → Jaccard 重复检测、反义词冲突、同侧面聚类 | `3_graph/analysis/semantic.json` | — |
+| M3 | 读 IR → NFR 节点分类、阈值正则提取、盲点检测 → 写回 IR 的 `nfrProfile` | `srs-ir.json`（mutate nfrProfile） | `validate-semantics --strict` |
+| M4 | 调用图算法工具检查跨 shard 连通性 | `3_graph/analysis/connectivity.json` | `check-connectivity --workdir` |
+| M5 | 子代理冲突判决 → Agent 直接合并/标记冲突边/同侧面边 | `srs-ir.json`（mutate edges） | — |
+| M6 | 读 IR → 按风险公式计算风险评分 → 写回 `meta.riskScore` | `srs-ir.json`（mutate meta） | — |
+
+**NFR 阈值提取**（Agent 执行，正则优先 → 启发式回退 → 跳过不报错）：六类 NFR 各 5 个正则模式，详见 `references/nfr-threshold-extraction-guide.md`。
+
+**NFR 分类**（全系统唯一）：`performance`、`security`、`availability`、`compatibility`、`maintainability`、`compliance`。SRS-IR 枚举、BDD 模板、TLA+ 不变式、Lean 定理、门禁与报告均只能使用这六项。`reliability`、`observability` 等术语可作为别名或映射信号，但不得成为独立类别。
+
+| NFR 类别 | 中文关键词 | 英文关键词 |
+|------|------|------|
+| performance | 响应时间、延迟、吞吐、并发、性能 | latency, throughput, response time, concurrent |
+| security | 安全、加密、认证、授权、防攻击 | encrypt, authentication, authorize, prevent |
+| availability | 可用性、容错、冗余、恢复、高可用 | uptime, availability, fault, recovery, redundant |
+| compatibility | 兼容、适配、浏览器、操作系统 | compatible, browser, platform, OS |
+| maintainability | 可维护、扩展、模块化、可配置 | maintainable, extensible, modular, configurable |
+| compliance | 合规、GDPR、PCI、审计、监管 | compliance, GDPR, PCI, audit, regulatory |
+
+**风险评分公式**（Agent 计算，`references/risk-scoring-formula.md` 详述）：
+```
+riskScore = orphanRate × 0.2 + crossFileCoverage × 0.3 + nfrCoverage × 0.3 + gapWeight × 0.2
+```
+
+**NFR 条件触发 TLA+/Lean 4**（Agent 判断）：
 
 | NFR 类别 | 触发条件 | 强制产物 |
 |------|------|:--:|
@@ -193,15 +258,62 @@ flowchart TD
 | security/compliance 关键词 ≥1 | 安全关键 | 强制 Lean 4 |
 | availability 关键词 ≥3 | 高可用 | 建议 TLA+ |
 
-不适用时 Emitter 自动跳过。
+不适用时 Agent 跳过对应产物生成。
+
+### 4.4 Backend 阶段（Agent 生成 + 门禁提升）
+
+| 步骤 | Agent 工作 | 产出 | 门禁/工具 |
+|------|-----------|------|-----------|
+| B1 | 读 IR → 生成 Cypher 知识图谱 | `outputs/graphs/srs-graph.cypher` | `validate-cypher --file` |
+| B2 | 读 IR → 生成 BDD `.feature` 草稿 | `outputs/bdd/draft/*.feature` | `validate-bdd --strict --promote` |
+| B3 | 读 IR → 生成 TLA+ 草稿 + matching `.cfg` | `outputs/tlaplus/draft/*.tla` + `*.cfg` | `validate-tla --name <m> --strict --promote` |
+| B4 | 读 IR（security/compliance NFR）→ 生成 Lean 4 Lake 项目草稿 | `outputs/lean4/draft/{lakefile,**/*.lean}` | `validate-lean --strict --promote` |
+| B5 | 读 IR + verified 形式化产物 → 生成测试夹具 | `outputs/fixtures/**` | — |
+| B6 | 读 IR + 所有 verified 产物 → 生成追溯矩阵 | `outputs/reports/traceability.{md,cypher}` | — |
+| B7 | 读 verified 产物 + 验证报告 → 计算 hash → 组装审计包 | 审计目录 | `hash-compute` + `verify-gate --stage FINAL` |
+
+**产物生命周期状态机**（Agent 写 draft，validate-* `--promote` 提升，verify-gate FINAL 收口）：
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft: Agent 生成
+    Draft --> Verified: validate-* --strict --promote
+    Verified --> FINAL: verify-gate --stage FINAL
+    Draft --> [*]: 删除/重新生成
+    Verified --> Draft: 源文件变更使hash失效
+```
+
+草稿目录与 verified 目录必须物理隔离。只有对应严格验证成功、验证报告包含输入 `sourceHash`、工具版本、执行时间和通过结论时，产物才可由 draft 迁入 verified。BDD 对已排序 `.feature` 集合计算 hash；TLA+ 对每个模块的 matching `.tla`/`.cfg` 配对计算 hash；Lean 对全部 `.lean`、Lake 项目定义及可选 `lean-toolchain` 计算 hash。FINAL 重新计算当前 verified 输入 hash，且只接受 `artifactKind`、`lifecycle: "verified"`、`passed: true` 和 `sourceHash` 均匹配的报告；过期、跨类型、畸形报告或草稿均不得消费。
+
+### 4.5 跨图一致性验证（13 个根本问题）
+
+Agent 在 Backend 末尾执行跨图收敛验证：
+
+| # | 问题 | 联合图谱 |
+|:--:|------|------|
+| Q1-Q10 | 原问题（是什么/做什么/能做什么/为什么/联合使用/内部行为/交互/外部/边界/兜底） | 需求+架构+行为+TLA++Lean |
+| Q11 | 各模块的性能边界是否一致？ | 需求+NFR+TLA+ |
+| Q12 | 安全约束是否在所有数据路径中一致应用？ | 需求+NFR+Lean |
+| Q13 | 可用性降级路径是否覆盖所有关键模块？ | 需求+NFR+架构+行为 |
+
+**收敛循环（规模自适应）**：
+
+```
+total_shards ≤ 50   → max_iterations = 3, parallelism = 1
+total_shards 51-100  → max_iterations = 5, parallelism = 2
+total_shards > 100   → max_iterations = 8, parallelism = 4, 强制 NFR 分维度并行
+
+收敛定义 = 全部 13 个 Q 可回答 + high-confidence ≥ 9/13
+         + NFR 覆盖率 ≥ 80% + verify-gate FINAL pass
+```
 
 ---
 
-## 4. SRS-IR Schema
+## 5. SRS-IR Schema（不变）
 
-SRS-IR 是编译器架构的单一事实来源。所有节点/边/元信息在此统一定义。
+SRS-IR 是核心数据结构。Agent 产出的 JSONL 经 `assemble-ir` 装配后必须符合此 schema。
 
-### 4.1 顶层结构
+### 5.1 顶层结构
 
 ```typescript
 interface SRSIR {
@@ -216,7 +328,7 @@ interface SRSIR {
 }
 ```
 
-### 4.2 节点
+### 5.2 节点
 
 ```typescript
 interface IRNode {
@@ -263,7 +375,7 @@ interface IRAnalysis {
 }
 ```
 
-### 4.3 边
+### 5.3 边
 
 ```typescript
 interface IREdge {
@@ -280,16 +392,12 @@ type IREdgeType =
 
 interface IREdgeProperties {
   crossFileWeight?: number;  confidence?: number;  reasoning?: string;
-  /**
-   * 标记此边为连通性检查器（check-connectivity）建议的桥接边，
-   * 用于连接被检测为孤岛的需求节点。仅在分析阶段由 Middle-end 写入，
-   * Emitter 在导出 Cypher 时据此添加 `proposed: true` 属性以便可视化区分。
-   */
+  /** check-connectivity 建议的桥接边，用于连接孤岛节点 */
   proposed?: boolean;
 }
 ```
 
-### 4.4 辅助类型
+### 5.4 辅助类型
 
 ```typescript
 interface IRMeta {
@@ -337,414 +445,18 @@ interface IRGlossaryEntry {
 }
 ```
 
-### 4.5 IR 不可变性契约
+### 5.5 IR 不可变性契约
 
-- 前端 `build-ir` 生成 IR 后，文件只读写入，不再修改
-- 中端 passes 读取 IR 并产生带 `analysis` 标注的副本
-- 所有 Backend Emitter 以纯函数形式读取 IR
+- Frontend `assemble-ir` 生成 IR 后，文件只读写入，不再修改
+- Middle-end M3/M5/M6 读取 IR 并产生带 `analysis`/`nfrProfile`/`meta.riskScore` 标注的更新版本
+- Backend Agent 以纯读方式读取 IR 生成产物
 - IR 版本号 `2.0.0` 区别于旧版 `graph.json`
 
 ---
 
-## 5. Frontend（前端）
+## 6. 数据契约
 
-**输入**: SRS 文档  
-**输出**: `srs-ir.json`（不可变）  
-**LLM 参与**: 仅 Pass 3（guided-extract）
-
-### 5.1 Pass 1: Parser（确定性）
-
-| 组件 | 功能 |
-|------|------|
-| `ChapterParser` | 章节层级树 + 12 个 NFR 关键词匹配（中英文） |
-| `CrossRefDetector` | 四种跨章引用模式：标题引用、术语引用、显式"参见§X"、隐式依赖 |
-| `NFRScanner` | 六类 NFR 关键词密度扫描，输出 `NFRProfile` |
-
-### 5.2 Pass 2: Sharder（确定性）
-
-递归分片：`MAX_SHARD_LINES = 200`。按章节标题分割，无标题时按段落回退。每个 shard 记录 `nfrWeight`（0-1）和邻接 shard 引用关系。
-
-### 5.3 Pass 3: Extractor（LLM 参与）
-
-| 提取类型 | 说明 |
-|------|------|
-| R1-explicit | 显式需求 |
-| R2-implicit | 隐式需求 |
-| R3-relational | `R3-` | 关系需求 |
-| **R3-cross** (★) | `R3C-` | 跨分片关系二次扫描 |
-| **R4-NFR** (★) | `R4N-` | NFR 专项提取 |
-| Arch-1/2/3 | — | 架构分解（基础/增量/修正） |
-| **Arch-4-NFR** (★) | — | NFR 架构节点 |
-
-**动态架构轮次**: 根据 `totalShards` 输出：<50 → 3 轮，50-99 → 4 轮，≥100 → 5 轮。`crossRefCount > 50` → +1 轮。
-
-### 5.4 Pass 4: IR Builder（确定性）
-
-1. 读取所有 JSONL → 去重 → 构建 `IRNode[]` + `IREdge[]`
-2. 合并 `crossRefs`、`nfrProfile`、`gaps`、`glossary`
-3. 完整性验证（`validateIR`）：版本号 `2.0.0`、无悬挂边（`source`/`target` 必须在 `nodes[]` 中存在）、`buildTimestamp` 非空。不通过则 `build-ir` 返回 error。
-4. 输出 `srs-ir.json`（存储在 workdir 根目录）
-
-**IR 不可变性**：`build-ir` 生成 IR 后不再修改。中端 passes 和 Backend Emitter 只读。
-
-### 5.5 CLI
-
-| 命令 | 说明 |
-|------|------|
-| `manifest --src <path> --lang zh/en --workdir <path>` | Pass 1+2 |
-| `guided-extract --type r1/r2/r3/r3-cross/r4-nfr/arch --workdir <path>` | Pass 3 |
-| `inject-prompt --template <path> --params '{}'` | 模板注入 |
-| `build-ir --workdir <path>` | Pass 4 |
-
----
-
-## 6. Middle-end（中端）
-
-全部确定性算法。无 LLM 依赖。输入和输出都是 `srs-ir.json`（annotated）。
-
-| Pass | 组件 | 功能 |
-|:--:|------|------|
-| M1 | Structure Analyzer | 孤立节点 · 悬挂边 · 概念孤岛 · **跨文件孤岛** |
-| M2 | Semantic Analyzer | Jaccard 重复检测 · 反义词冲突 · 同侧面聚类 |
-| M3 | NFR Tagger (★) | NFR 节点自动分类 · 阈值正则提取（"≤200ms" → `{metric, value, unit, operator}`）· 盲点检测 |
-| M4 | Connectivity Checker (★) | 跨 shard 连通性图 · 孤岛修复建议边 |
-| M5 | Merge Optimizer | 子代理 verdict → 合并/冲突边/同侧面边 |
-| M6 | Risk Scorer (★) | 风险因子：orphanRate(×0.2) + crossFileCoverage(×0.3) + nfrCoverage(×0.3) + gapWeight(×0.2) |
-
-### 6.1 NFR 阈值提取（正则 + 启发式）
-
-六类 NFR 各 5 个正则模式，含启发式回退。例如性能类：
-```
-/响应时间\s*[≤<=]\s*(\d+\.?\d*)\s*(ms|毫秒)/          → {metric:'response_time', ...}
-/latency\s*[≤<=]\s*(\d+\.?\d*)\s*(ms|seconds?)/i     → {metric:'latency', ...}
-/within\s+(\d+\.?\d*)\s*(ms|milliseconds?)/i          → 启发式回退
-```
-
-正则优先 → 未匹配则尝试启发式 → 仍未匹配则跳过（不报错，LLM 后续填充）。
-
-### 6.2 NFR 分类与术语统一
-
-全系统唯一的 NFR 分类为：`performance`、`security`、`availability`、`compatibility`、`maintainability`、`compliance`。SRS-IR 枚举、解析器关键词、BDD 模板、TLA+ 不变式、Lean 定理、fixture 分类、门禁与报告均只能使用这六项。
-
-`reliability`、`observability` 等术语可作为 SRS 文本中的别名或映射信号，但不得成为独立的 IR 类别、Emitter 分支或验证门禁维度；需要新增类别时，必须先完成 DESIGN、IR schema、所有派生产物与迁移策略的设计变更。
-
-| NFR 类别 | 中文关键词 | 英文关键词 |
-|------|------|------|
-| performance | 响应时间、延迟、吞吐、并发、性能 | latency, throughput, response time, concurrent |
-| security | 安全、加密、认证、授权、防攻击 | encrypt, authentication, authorize, prevent |
-| availability | 可用性、容错、冗余、恢复、高可用 | uptime, availability, fault, recovery, redundant |
-| compatibility | 兼容、适配、浏览器、操作系统 | compatible, browser, platform, OS |
-| maintainability | 可维护、扩展、模块化、可配置 | maintainable, extensible, modular, configurable |
-| compliance | 合规、GDPR、PCI、审计、监管 | compliance, GDPR, PCI, audit, regulatory |
-
-### 6.3 CLI
-
-| 命令 | Pass | 说明 |
-|------|:--:|------|
-| `analyze-structure` | M1 | 结构分析 |
-| `analyze-graph` | M2 | 语义分析 |
-| `tag-nfr` (★) | M3 | NFR 标注 |
-| `check-connectivity` (★) | M4 | 连通性检查 |
-| `merge-analysis` | M5 | 合并子代理判决 |
-| `score-risk` (★) | M6 | 风险评分 |
-
-### 6.4 Pass 依赖与并行化
-
-五个自动 Pass 的 I/O 与依赖关系如下。`pipeline.ts` 使用 `lib/pipeline/middle-end-runner.ts` 按三阶段并行执行：
-
-| Pass | 读 IR | 写 IR | 写分析文件 | 依赖 |
-|:----:|:----:|:----:|:----:|------|
-| M1 analyze-structure | ✓ | — | ✓ | — |
-| M2 analyze-graph | ✓ | — | ✓ | — |
-| M3 tag-nfr | ✓ | ✓ (mutates) | — | — |
-| M4 check-connectivity | ✓ | — | — | — |
-| M6 score-risk | ✓ | ✓ (mutates) | — | M3（需 `nfrProfile.overallCoverage`） |
-
-> M5 merge-analysis 为 LLM 子代理步骤，不在自动 pipeline 中执行。
-
-```mermaid
-flowchart LR
-    subgraph P1["Phase 1 (parallel)"]
-        M1["M1<br/>analyze-structure"]
-        M2["M2<br/>analyze-graph"]
-    end
-    M3["M3<br/>tag-nfr<br/>(mutates IR)"]
-    subgraph P3["Phase 3 (parallel)"]
-        M4["M4<br/>check-connectivity"]
-        M6["M6<br/>score-risk<br/>(mutates IR)"]
-    end
-    P1 --> M3 --> P3
-```
-
-**并行化策略**（`lib/pipeline/middle-end-runner.ts`）：
-
-1. **Phase 1**（并行）：`analyze-structure` + `analyze-graph` — 均只读原始 IR，写不同分析文件，无冲突
-2. **Phase 2**（串行）：`tag-nfr` — 修改 IR 添加 NFR 标签，必须独占执行
-3. **Phase 3**（并行）：`check-connectivity` + `score-risk` — 均读取 NFR 标签后的 IR；`score-risk` 虽修改 IR 但仅写 `meta.riskScore` 与 `meta.highRiskShards`，不影响 `check-connectivity` 只读的 `nodes[]`/`edges[]`
-
-**安全性**：`check-connectivity` 使用同步 `readFileSync` 读取完整 IR 到内存后操作其副本，`score-risk` 的 `writeFileSync` 不影响前者的内存副本。Node.js 单线程执行确保同步 I/O 操作不会真正并发。
-
-**性能基准**：运行 `npm run benchmark` 生成不同节点规模下各阶段耗时报告（输出 `bench-results.json`）。
-
----
-
-## 7. Backend（后端）
-
-### 7.1 Emitter 接口
-
-```typescript
-interface Emitter {
-  readonly name: string;
-  readonly description: string;
-  readonly outputDir: string;
-  emit(ir: SRSIR, workdir: string, options?: Record<string, unknown>): EmitResult;
-}
-
-interface EmitResult {
-  files: string[];  fileCount: number;
-  metadata: Record<string, unknown>;
-}
-```
-
-### 7.2 Emitter 清单（10 个）
-
-Emitter 仅负责从 SRS-IR 生成确定性产物；对于需领域推理或工具验证才能完成的 BDD/TLA+/Lean 文件，Emitter 只能生成**草稿**，不能声称生成可交付的验证成品。
-
-**图谱组 (4)**:
-
-| Emitter | 输出 | 条件 |
-|------|------|:--:|
-| `CypherEmitter` | `srs-graph.cypher` | 必选 |
-| `BehaviorGraphEmitter` | `behavior-graph.cypher` + `.json` | 有 BDD |
-| `TlaGraphEmitter` | `tla-interaction.cypher` + `.json` | 有 TLA+ |
-| `LeanGraphEmitter` | `lean-proof.cypher` + `.json` | 有 Lean 4 |
-
-**BDD 组 (1)**:
-
-| Emitter | 输出 | 说明 |
-|------|------|------|
-| `GherkinEmitter` | `outputs/bdd/draft/<module>.feature` | 必选草稿；只有补全 Given/When/Then、状态转换与验证方法，并通过 `validate-bdd --strict` 后，才可迁移至 `outputs/bdd/verified/` |
-
-**形式化组 (2)**:
-
-| Emitter | 输出 | 条件 |
-|------|------|:--:|
-| `TLAEmitter` | `outputs/tlaplus/draft/*.tla` | 所有模块生成层次化建模草稿；完成 L1→L2→L3、TypeOK、需求/NFR 不变式和 SANY/TLC 后迁移至 `outputs/tlaplus/verified/` |
-| `LeanEmitter` | `outputs/lean4/draft/*.lean` | security/compliance 模块生成证明拆分计划；只有零 `sorry`/`admit`/`axiom`、零 warning 且 `lake build` 通过后迁移至 `outputs/lean4/verified/` |
-
-**V-Model 组 (2)**:
-
-| Emitter | 输出 | 条件 |
-|------|------|:--:|
-| `FixtureEmitter` | `test_*.py` / `*Test.java` / `*.spec.ts` | 选框架 |
-| `CounterexampleEmitter` | `test_counterexample_*.py` | TLC trace |
-
-**验证组 (1)**:
-
-| Emitter | 输出 | 条件 |
-|------|------|:--:|
-| `TraceabilityMatrixEmitter` | `traceability.md` / `traceability.cypher` | 必选；产物可被 `verify-gate --stage FINAL` 直接消费 |
-
-#### 7.2.1 产物生命周期状态机
-
-形式化产物必须经过严格的 draft → verified → FINAL 状态转换，Emitter 只能生成 draft 状态产物：
-
-```mermaid
-stateDiagram-v2
-    [*] --> Draft: emit 命令生成
-    Draft --> Verified: validate-* --strict --promote
-    Verified --> FINAL: verify-gate --stage FINAL
-    Draft --> [*]: 删除/重新生成
-    Verified --> Draft: 源文件变更使hash失效
-
-    state Draft {
-        [*] --> D_Generated
-        D_Generated --> D_LLM_Review: 需要人工/LLM补全
-        D_LLM_Review --> D_Ready: 补全完成
-    }
-    state Verified {
-        [*] --> V_Validated: 工具链验证通过
-        V_Validated --> V_HashBound: sourceHash绑定
-    }
-    state FINAL {
-        [*] --> F_Gated
-        F_Gated --> F_Auditable: export-audit导出
-    }
-
-    note right of Draft
-        outputs/*/draft/
-        - BDD: .feature草稿
-        - TLA+: L1抽象层
-        - Lean: 证明计划
-    end note
-    note right of Verified
-        outputs/*/verified/
-        - BDD: gherkin-lint+Gherklin通过
-        - TLA+: SANY+TLC通过
-        - Lean: lake build零sorry
-    end note
-```
-
-### 7.3 CLI
-
-`emit` 是唯一发射入口。其命令契约由 emitter 注册表提供，并由一致性测试校验；不得另设未注册的 `emit-all` 命令。
-
-```
-# 所有已注册的 Emitter（只生成 draft 或确定性非形式化产物）
-emit --group all --workdir <path>
-
-# 按组
-emit --group graphs --workdir <path>
-emit --group bdd --workdir <path>
-emit --group formal --workdir <path>
-emit --group vmodel --workdir <path>
-emit --group verify --workdir <path>
-
-# 单个
-emit --name cypher --workdir <path>
-emit --name gherkin --workdir <path>
-emit --name fixture --workdir <path> --framework pytest --level nfr
-```
-
-`--group` 与 `--name` 互斥且必须二选一；未知名称、未注册组或重复参数必须返回 `{ status: "error" }` 并以非零退出。`all` 不等同于已验证交付：它只能包含确定性产物及 BDD/TLA+/Lean 草稿。
-
-### 7.4 编译器复杂度
-
-```
-未引入 IR:  m 个输入 × n 个输出 = O(m×n)
-引入 IR 后: m 个输入 → IR + n 个 Emitter = O(m+n)
-```
-
----
-
-## 8. CLI 命令清单
-
-### 8.1 前端 (6)
-
-| 命令 | 说明 |
-|------|------|
-| `init` | 初始化 `.srs_formalizer` 工作目录骨架（使用 `--output`，非 `--workdir`） |
-| `manifest` | SRS 扫描分片 + 章节识别 + NFR 扫描 + 跨章引用 |
-| `guided-extract` | 逐行提取 (R1/R2/R3/R3-cross/R4-NFR/Arch-1-4) |
-| `inject-prompt` | 模板参数注入 |
-| `build-ir` | 组装 SRS-IR |
-| `build-architecture` | 从 `2_extract/architecture/` 构建架构子图并合并入知识图谱 |
-
-### 8.2 中端 (7)
-
-| 命令 | 说明 |
-|------|------|
-| `analyze-structure` | M1: 结构分析 |
-| `merge-structure` | M1: 合并结构分析子代理判决（孤儿/悬挂边/孤岛） |
-| `analyze-graph` | M2: 语义分析 |
-| `merge-analysis` | M5: 合并子代理判决 |
-| `tag-nfr` | M3: NFR 标注 |
-| `check-connectivity` | M4: 连通性检查 |
-| `score-risk` | M6: 风险评分 |
-
-### 8.3 后端 (4)
-
-| 命令 | 说明 |
-|------|------|
-| `emit` | `--group` / `--name` 分目标发射；`--group all` 发射全部已注册 Emitter |
-| `generate-test-fixtures` | 独立 fixture 生成入口（`--level`/`--framework`，绕过 emit 注册表） |
-| `generate-counterexample-fixtures` | 从 TLC 反例 trace 生成复现脚本（`--trace`/`--framework`） |
-| `generate-vmodel-matrix` | 构建 V-Model 追溯矩阵（`--format markdown\|cypher`） |
-
-### 8.4 验证与维护
-
-| 命令 | 说明 |
-|------|------|
-| `validate-jsonl` | JSONL 格式校验 |
-| `validate-semantics` | SRS-IR 语义一致性校验（类型/引用/属性/阈值，4 类检查，`--strict` 门禁模式） |
-| `validate-architecture` | 架构 JSONL 校验 |
-| `validate-glossary` | 术语表校验 |
-| `validate-cypher` | Cypher 脚本校验 |
-| `validate-bdd` | .feature 校验 (+NFR 规则) |
-| `validate-tla` | SANY + TLC (+NFR 不变式) |
-| `validate-lean` | lake build (+NFR 定理) |
-| `validate-checklist` | CHECKLIST 校验 |
-| `verify-gate` | 门禁 (S1/R3/FINAL + NFR) |
-| `query-graph` | IR 查询（`--query node/neighbors/module/modules/path/context/brainstorm`） |
-| `compile` | SKILL.md → SkIR |
-| `pack-skill` | AES 加密备份 |
-| `verify-skill-integrity` | 完整性校验 |
-| `capability-probe` | 能力探测 (+NFR 触发) |
-| `stability-test` | 跨 LLM 稳定性测试 |
-| `fixture-coverage` | 覆盖报告 |
-
-### 8.5 Agent 集成与流水线
-
-| 命令 | 说明 |
-|------|------|
-| `pipeline` | 一键完整形式化流水线（含进度报告、会话持久化、自动验证） |
-| `tools-schema` | 输出 OpenAI/Anthropic 兼容的 Tool/Function Calling Schema |
-| `health-check` | 环境验证与能力自报告 |
-| `status` | 工作目录状态面板（阶段、产物、下一步操作） |
-| `export-audit` | 导出审计包（追溯矩阵、验证报告、hash 链） |
-
-**一键流水线流程图:**
-
-```mermaid
-flowchart TD
-    HC["health-check"] --> INIT["init --output"]
-    INIT --> MANIFEST["manifest --src --lang"]
-    MANIFEST --> GE["guided-extract<br/>(LLM 填充)"]
-    GE --> BIR["build-ir"]
-    BIR --> ME["middle-end 6 passes"]
-    ME --> EMIT["emit --group all"]
-    EMIT --> VAL["validate-* --strict --promote"]
-    VAL --> VG["verify-gate --stage FINAL"]
-    VG --> AUDIT["export-audit"]
-
-    GE -.->|"--skip-init 恢复"| BIR
-    EMIT -.->|"--auto-validate"| VAL
-```
-
-### 8.6 淘汰命令
-
-以下命令从 `index.ts` 注册表移除（文件保留）：
-
-| 淘汰 | 替代 |
-|------|------|
-| `build-graph` | `build-ir` |
-| `export-cypher` | `emit --name cypher` |
-| `generate-bdd` | `emit --name gherkin` |
-| `build-behavior-graph` | `emit --name behaviorGraph` |
-| `build-tla-graph` | `emit --name tlaGraph` |
-| `build-lean-graph` | `emit --name leanGraph` |
-| `build-system-architecture` | `build-architecture`（独立 CLI，非 emit） |
-
-### 8.7 CLI 参数约定
-
-| 参数 | 适用命令 | 说明 |
-|------|----------|------|
-| `--output` | init | 工作目录路径（仅 init） |
-| `--workdir` | 大部分命令（init 除外） | 工作目录路径，必须为 `.srs_formalizer` |
-| `--file <path>` | validate-* | 待校验文件路径 |
-| `--group` / `--name` | emit | 发射器组或名称 |
-| `--type` | guided-extract | r1/r2/r3/r3-cross/r4-nfr/arch |
-| `--query <type>` | query-graph | node/neighbors/module/modules/path/context/brainstorm |
-| `--stage S1\|R3\|FINAL` | verify-gate | 门禁阶段 |
-| `--repair` | validate-checklist | 自动修复 |
-
-### 8.8 CLI 输出格式
-
-所有命令输出 JSON 到 stdout：`{ "status": "ok" | "error", "message"?: string, "data"?: ... }`。成功 exit(0)，失败 exit(1)。
-
-### 8.9 refuseDirectInvocation 放置约定
-
-所有命令文件末尾：
-```typescript
-import { refuseDirectInvocation } from '../lib/cli.js';
-refuseDirectInvocation(import.meta.url);
-```
-
----
-
-## 9. 数据契约
-
-### 9.1 JSONL 记录格式（前端产出）
+### 6.1 JSONL 记录格式（Frontend 产出）
 
 ```typescript
 interface JsonlRecord {
@@ -757,9 +469,9 @@ interface JsonlRecord {
 }
 ```
 
-验证规则（`validate-jsonl`, 6 项）：id 正则、category/confidence 枚举、statement 非空、source_file 非空、metadata 关联 ID 合法。
+`validate-jsonl` 校验 6 项：id 正则、category/confidence 枚举、statement 非空、source_file 非空、metadata 关联 ID 合法。
 
-### 9.2 ShardIndex（前端 Pass 2 中间产物）
+### 6.2 ShardIndex（Frontend 中间产物，Agent 写）
 
 ```typescript
 interface ShardIndex {
@@ -767,8 +479,8 @@ interface ShardIndex {
   source_path: string;  source_hash: string;
   language: 'zh' | 'en';  total_chars: number;  total_shards: number;
   shards: ShardEntry[];  gaps: GapEntry[];  warnings: string[];
-  cross_references: CrossRef[];   // ★ v1.1 新增
-  nfr_profile: NFRProfile;        // ★ v1.1 新增
+  cross_references: CrossRef[];
+  nfr_profile: NFRProfile;
 }
 
 interface ShardEntry {
@@ -776,25 +488,18 @@ interface ShardEntry {
   source_path: string;  source_start_line: number;  source_end_line: number;
   module: string;  chapter_ref: string;
   char_count: number;  estimated_tokens: number;
-  nfr_weight?: number;  // ★ 新增
+  nfr_weight?: number;
 }
 ```
 
-### 9.3 分片算法
-
-- `MAX_SHARD_LINES = 200`（硬上限）
-- 递归策略：按章节标题分割 → 章节回退 → 段落回退
-- 超过阈值强制分割，无分割点时记录 warning
-- Token 估算：中文 `chars / 1.5`，英文 `chars / 4`
-
-### 9.4 阶段间文件契约
+### 6.3 阶段间文件契约
 
 ```
 Frontend → _ctx/shard_index.json,
            2_extract/{r1-explicit,r2-implicit,r3-relational,architecture}/**/*.jsonl,
-           srs-ir.json
+           srs-ir.json (assemble-ir 产出)
 Middle-end → 3_graph/{graph,analysis}/**/*.json,
-             srs-ir.json (只读分析副本)
+             srs-ir.json (Agent 写入 analysis/nfrProfile/meta.riskScore)
 Backend draft → outputs/bdd/draft/*.feature,
                 outputs/tlaplus/draft/*.tla + matching *.cfg,
                 outputs/lean4/draft/{lakefile.lean|lakefile.toml, **/*.lean, lean-toolchain?}
@@ -805,175 +510,266 @@ Backend deterministic → outputs/graphs/*.cypher + *.json,
                         outputs/fixtures/**, outputs/reports/**
 ```
 
-阶段号前缀 (`2_`, `3_`, `4_`, `5_`, `6_`) 由 `init` 命令创建，便于 `ls` 一眼看出每个阶段是否产出；Backend 仍使用 `outputs/` 子树承载 draft/verified/deterministic 生命周期（详见 `lib/artifacts/paths.ts` 的 `ARTIFACT_PATHS`）。
-
-草稿目录与 verified 目录必须物理隔离。只有对应严格验证成功、验证报告包含输入 `sourceHash`、工具版本、执行时间和通过结论时，产物才可由 draft 迁入 verified。BDD 对已排序 `.feature` 集合计算 hash；TLA+ 对每个模块的 matching `.tla`/`.cfg` 配对计算 hash；Lean 对全部 `.lean`、Lake 项目定义及可选 `lean-toolchain` 计算 hash。FINAL 重新计算当前 verified 输入 hash，且只接受 `artifactKind`、`lifecycle: "verified"`、`passed: true` 和 `sourceHash` 均匹配的报告；过期、跨类型、畸形报告或草稿均不得消费。
-
 ---
 
-## 10. SkIR 类型系统（技能编译用）
+## 7. 门禁规则
 
-技能自身的 SKILL.md 编译也使用类似的编译器模型。SkIR 是技能编译的 IR。
+### 7.1 通用规则
 
-### 10.1 核心枚举
+- 所有门禁只做格式/规范/检查表类的确定性校验，不做语义判断
+- 验证失败必须返回 `{ status: "error" }` 并以非零状态退出
+- 不得以 `status: "ok"` 携带 `valid: false` 伪装为成功
+- 草稿产物无法被 FINAL、交付清单、跨图验证或执行上下文消费
 
-```typescript
-type SecurityLevel = 'low' | 'medium' | 'high' | 'critical';
-type SkillMode = 'sequential' | 'alternative' | 'toolkit' | 'guideline';
-type PermissionKind = 'network' | 'filesystem' | 'database' | 'execute' | 'mcp' | 'environment';
-type ConstraintLevel = 'warning' | 'error' | 'critical';
-```
+### 7.2 validate-jsonl（6 项）
 
-### 10.2 SkillIR 关键字段
+id 正则、category/confidence 枚举、statement 非空、source_file 非空、metadata 关联 ID 合法。
 
-```typescript
-interface SkillIR {
-  name: string; version: string; description: string;
-  security_level: SecurityLevel; hitl_required: boolean;
-  pre_conditions: string[]; post_conditions: string[];
-  fallbacks: string[]; permissions: Permission[];
-  procedures: ProcedureStep[]; mode: SkillMode;
-  anti_skill_constraints: Constraint[];
-  // srs-formalizer 扩展
-  pipeline_stages: PipelineStage[];
-  capability_requirements: Record<string, Record<string, number>>;
-  capability_tiers: CapabilityTier[];
-  stage_gates: string[];
-  source_path: string; source_hash: string; compiled_at: string;
-}
-```
+### 7.3 validate-semantics（4 类，`--strict` 门禁）
 
----
+类型一致性、引用完整性（无悬挂边：`source`/`target` 必须在 `nodes[]` 中存在）、属性合法性、阈值合法性；NFR 类别必须为 §4.3 六类正式分类。
 
-## 11. 技能编译管线（SkCC 四阶段）
+### 7.4 validate-architecture（6 项）
 
-### 11.1 流水线
+架构记录格式检查。
 
-```
-Phase 1 (Parser) → Phase 2 (IR Builder) → Phase 3 (Security Optimizer) → Phase 4 (Emitter)
-```
+### 7.5 validate-cypher（4 项）
 
-| 阶段 | 输入 | 输出 | 失败行为 |
-|------|------|------|----------|
-| Phase 1 | SKILL.md | RawAST | Fail-Fast |
-| Phase 2 | RawAST | SkillIR | Fail-Fast |
-| Phase 3 | SkillIR | SkillIR(带约束) | Critical 阻断 |
-| Phase 4 | SkillIR(带约束) | Claude XML / Generic MD | Fail-Fast |
+Cypher 语法检查、注入防护。
 
-### 11.2 Emitter 多平台发射
+### 7.6 validate-bdd（Phase 1-4，`--strict --promote`）
 
-| 框架 | 发射器 | 输出格式 |
-|------|------|------|
-| Claude Code | `ClaudeXmlEmitter` | XML 语义分层 |
-| Generic (7+ 平台) | `GenericMarkdownEmitter` | YAML + Markdown |
+| Phase | 检查 | 严重度 |
+|:----:|------|:------:|
+| 1 | Feature/Scenario/Given/When/Then 存在性、步骤完整性、逻辑顺序 | 硬阻塞 |
+| 2 | NFR 场景含具体数值阈值、安全场景含前置认证、无 LLM_FILL 残留 | 硬阻塞 |
+| 3 | gherkin-lint（20 条规则，配置 `templates/.gherkin-lintrc-strict`） | 硬阻塞 |
+| 4 | Gherklin 语义层校验 | 硬阻塞 |
 
----
+不允许 `error`/`failed`/`undefined`/`untested`/步骤缺失/占位实现/简化实现/错误实现/GAP/TODO/FIXME/TBD/待定/未定义/待实现。每个 SRS 需求至少一个可执行场景。无 Feature 文件仅在 IR 明确声明无 BDD 范围时允许，否则失败。验证通过后将 feature 与验证报告从 draft 迁入 verified。
 
-## 12. 门禁与验证
+### 7.7 validate-tla（`--strict --promote`）
 
-### 12.1 verify-gate 三级
+从 `outputs/tlaplus/draft` 验证同名 `.tla`/`.cfg`：静态审计后仅使用内置 `tools/tla2tools-1.7.4.jar` 执行 SANY 与 TLC；不联网、不下载 JAR、不创建 cfg。
+
+| # | 检查 | 严重度 |
+|:--:|------|:------:|
+| 1 | SANY 语法、语义与层级检查 | 硬阻塞 |
+| 2 | TLC 模型检查（启用死锁检测） | 硬阻塞 |
+| 3-7 | 无死锁/状态爆炸/违法不变式/活锁/奇迹 | 硬阻塞 |
+| 8 | 无 `LLM_FILL`/TODO/FIXME/TBD/GAP/待定/未定义/待实现/占位/简化/错误实现 | 硬阻塞 |
+| 9 | TypeOK、需求不变式与六类 NFR 不变式均已在模型配置中检查 | 硬阻塞 |
+
+SANY 语法/语义失败、TLC 不变量违规、死锁、超时或非零退出均必须失败；失败时不得创建成功报告或修改既有 verified 模块。成功报告记录静态审计、SANY、TLC 的独立结果，以及 Java/JAR 版本、退出码、受限输出摘要与耗时；全部成功后才原子提升 `.tla`/`.cfg`。
+
+TLC 使用的有限模型必须记录常量赋值、状态数、深度和对抽象边界的说明；状态爆炸不得通过降低模型语义或关闭关键不变式规避。
+
+### 7.8 validate-lean（`--strict --promote`）
+
+在 Lake 项目根（必须有 `lakefile.lean` 或 `lakefile.toml`）审计并运行 `lake build`。项目定义、可选 `lean-toolchain`、所有参与构建的 `.lean` 文件均为验证输入并纳入 `sourceHash`；验证器不得写入或补全这些文件。
+
+| # | 检查 | 严重度 |
+|:--:|------|:------:|
+| 1 | 0 `sorry` / `admit` / `axiom` | 硬阻塞 |
+| 2 | `lake build` 通过且输出为 0 warning | 硬阻塞 |
+| 3 | 每个声明为与 SRS 对应的 `theorem` + 完整 `proof`；禁止 `: True` 弱化 | 硬阻塞 |
+| 4 | 每个 lemma 独立文件（≤100 行）；proof >50 行 或 have 块 >30 行必须拆分 | 硬阻塞 |
+| 5 | 仅使用最小导入集合；禁止 `import Mathlib` 全量导入 | 硬阻塞 |
+| 6 | 对每个交付 theorem 运行 `#print axioms`，拒绝未批准的公理依赖 | 硬阻塞 |
+| 7 | 源码、编译输出与公理报告均写入验证报告，并通过 source hash 与 SRS-IR 关联 | 硬阻塞 |
+
+失败必须返回 `{ status: "error" }` 和非零退出，不得产生报告或修改 verified；只有审计、构建和报告均通过后才可原子提升完整项目。
+
+**平台限制**：Linux x86_64 ✅、macOS ARM64 ✅、Windows ❌ 禁止。
+
+### 7.9 validate-glossary（8 项 + 门禁）
+
+术语 JSON 格式与一致性校验。
+
+### 7.10 verify-gate（三级门禁）
 
 | 阶段 | 主要检查项 |
 |:----:|------|
-| S1 | STATE.md, shard_index.json, JSONL 文件存在, 分片完整性, 术语表, Checklist |
-| R3 | S1 检查 + 全部 JSONL 目录, ID 唯一性, 图谱可加载, 节点数 ≥ R1 数 |
+| S1 | STATE.md 存在、`shard_index.json` 格式校验（不再仅存在性）、JSONL 文件存在、分片完整性、术语表、Checklist |
+| R3 | S1 检查 + 全部 JSONL 目录、ID 唯一性、图谱可加载、节点数 ≥ R1 数 |
 | FINAL | R3 检查 + 当前 verified BDD/TLA+ 报告的 `sourceHash` 绑定；security/compliance NFR 时还要求当前 verified Lean Lake 项目及匹配报告 |
 
-FINAL 只能读取 `outputs/**/verified/` 与确定性产物。若 IR 要求 BDD/TLA+/Lean，而对应 verified 产物不存在、验证报告不存在、报告种类/生命周期不符，或报告 `sourceHash` 与当前 verified 内容不匹配，则 FINAL 必须失败；不得以“未触发”、空目录、草稿文件、历史报告或弱化文本检查视为通过。
-
-### 12.2 规格一致性测试
-
-每次修改 CLI、Emitter、路径、模板、提示词或门禁时，必须执行自动化规格一致性测试。测试至少验证：
-
-1. `index.ts` 注册表、CLI 帮助文本与 §8 命令清单完全一致；
-2. emitter 注册表、分组定义与 §7.2/§7.3 完全一致；
-3. `init` 创建的目录、Emitter 输出目录、验证器输入目录与 §9.4 完全一致；
-4. SRS-IR 枚举和所有 NFR 消费方只使用 §6.2 的六类正式分类；
-5. 硬门禁失败一律返回 `{ status: "error" }` 与非零退出；
-6. 草稿产物无法被 FINAL、交付清单、跨图验证或执行上下文消费。
-
-未具备上述测试的设计变更不得进入实现阶段。
-
-### 12.3 跨图一致性验证（13 个根本问题）
-
-原 10 个 + 3 个 NFR 问题：
-
-| # | 问题 | 联合图谱 |
-|:--:|------|------|
-| Q1-Q10 | 原问题（是什么/做什么/能做什么/为什么/联合使用/内部行为/交互/外部/边界/兜底） | 需求+架构+行为+TLA++Lean |
-| **Q11** (★) | 各模块的性能边界是否一致？ | 需求+NFR+TLA+ |
-| **Q12** (★) | 安全约束是否在所有数据路径中一致应用？ | 需求+NFR+Lean |
-| **Q13** (★) | 可用性降级路径是否覆盖所有关键模块？ | 需求+NFR+架构+行为 |
-
-### 12.4 收敛循环（规模自适应）
-
-```
-total_shards ≤ 50   → max_iterations = 3, parallelism = 1
-total_shards 51-100  → max_iterations = 5, parallelism = 2
-total_shards > 100   → max_iterations = 8, parallelism = 4, 强制 NFR 分维度并行
-
-收敛定义 = 全部 13 个 Q 可回答 + high-confidence ≥ 9/13
-         + NFR 覆盖率 ≥ 80% + verify-gate FINAL pass
-```
+FINAL 只能读取 `outputs/**/verified/` 与确定性产物。若 IR 要求 BDD/TLA+/Lean，而对应 verified 产物不存在、验证报告不存在、报告种类/生命周期不符，或报告 `sourceHash` 与当前 verified 内容不匹配，则 FINAL 必须失败；不得以"未触发"、空目录、草稿文件、历史报告或弱化文本检查视为通过。
 
 ---
 
-## 13. 安全设计
+## 8. 独立工具契约
 
-### 13.1 防御层次
+### 8.1 assemble-ir
 
-| 层级 | 机制 |
-|:----:|------|
-| 编译期 | Anti-Skill Injector (7 规则, 94.8% 触发率) + Fail-Fast 10 条 |
-| 入口 | `refuseDirectInvocation` + `validateNoPoisonArgs` + `safeParseArg` |
-| 文件系统 | `validateWorkDir` + `isPathSafe` + `assertSafePath` |
-| 流程 | 9 stage_gates + HITL + `verify-skill-integrity` |
-| 备份 | SHA-256 + AES-256-GCM `.enc` |
+**职责**：读取所有 JSONL → 去重 → 装配 `srs-ir.json` + 引用完整性校验。
 
-### 13.2 Anti-Skill 注入规则
+**输入**：`--workdir <path>`（必须为 `.srs_formalizer`）
 
-**SkCC 默认 (4)**：http-safety, loop-safety, db-destructive, parse-safety
+**处理**：
+1. 读取 `2_extract/{r1-explicit,r2-implicit,r3-relational,architecture}/**/*.jsonl`
+2. 按 `id` 去重
+3. 构建 `IRNode[]` + `IREdge[]`
+4. 合并 `crossRefs`、`nfrProfile`、`gaps`、`glossary`（来自 shard_index.json）
+5. 完整性验证：版本号 `2.0.0`、无悬挂边（`source`/`target` 必须在 `nodes[]` 中存在）、`buildTimestamp` 非空
+6. 输出 `srs-ir.json`（存储在 workdir 根目录）
 
-**SRS 特化 (3)**：
-- `srs-writeback`: 禁止无确认修改原始 SRS
-- `verifier-isolation`: 验证者必须新会话
-- `integrity-gate`: 阶段转换前运行 verify-skill-integrity
+**禁止**：分析、发射、修改 JSONL、调用 LLM。
+
+**失败语义**：完整性验证不通过则返回 `{ status: "error" }`，不写出 IR。
+
+### 8.2 check-connectivity
+
+**职责**：跨 shard 连通性、强连通分量（SCC）、孤岛检测、桥接边建议。
+
+**输入**：`--workdir <path>`
+
+**输出**：`3_graph/analysis/connectivity.json`，含孤岛列表、SCC、建议桥接边（`proposed: true`）。
+
+**为何独立**：LLM 在大图上无法可靠执行图算法。
+
+### 8.3 query-graph
+
+**职责**：IR 查询接口，避免 LLM 直读大 JSON。
+
+**查询类型**：`node`/`neighbors`/`module`/`modules`/`path`/`context`/`brainstorm`。
+
+**输入**：`--query <type> --params '<json>' --workdir <path>`
+
+**输出**：JSON 查询结果。
+
+### 8.4 hash-compute
+
+**职责**：计算/比对 sourceHash，绑定验证报告。
+
+**输入**：`--file <path> [--compare <expected>] [--workdir <path>]`
+
+**处理**：
+- 无 `--compare`：计算并返回 SHA-256 hash
+- 有 `--compare`：计算并与预期比对，返回 match/mismatch
+
+**用途**：validate-* 报告生成、verify-gate FINAL 比对、Agent 组装审计包。
+
+### 8.5 tlc-trace-parse
+
+**职责**：解析 TLC 反例 trace 为状态序列。
+
+**输入**：`--trace <path> [--workdir <path>]`
+
+**输出**：结构化状态序列 JSON，供 Agent 生成反例 fixture。
+
+**为何独立**：TLC trace 是特定数据结构，需要专用解析器。
+
+### 8.6 verify-skill-integrity
+
+**职责**：SHA-256 比对 MANIFEST.json，`--repair` 从加密备份恢复。
+
+**输入**：`--skill-dir <path> [--repair]`
+
+**调用时机**：编排者在每个阶段转换时调用。检测到篡改 → 自动恢复 → 输出严重警告 → 暂停流水线 → 等待人类确认。
+
+### 8.7 pack-skill
+
+**职责**：**仅人类显式操作** → SHA-256 → MANIFEST.json → AES-256-GCM `.enc`。
+
+**输入**：`--skill-dir <path> --force`
+
+**约束**：自动化流程、Agent、编排者均无权调用。仅在技能处于开发模式且人类主动修改技能文件后由人类执行。
 
 ---
 
-## 14. BDD 建模约束
+## 9. Agent 载体
 
-### 14.1 格式要求
+### 9.1 SKILL.md（L2，技能激活时加载）
+
+**重写要点**：
+- 移除"编译器三阶段"中由脚本承担的部分，改为"Agent 工作流 + 门禁拦截 + 工具调用"
+- 新增 Bootstrap 段：Agent 创建工作目录结构、复制模板/检查表的精确指令（替代 init）
+- 每阶段明确：Agent 做什么 → 调用哪个门禁/工具 → 通过后下一步
+- 核心原则更新为："脚本只做门禁校验与专用算法，语义工作全部由 Agent 经提示词完成"
+
+### 9.2 prompts/（L3，编排者按阶段注入子代理）
+
+**保留**：
+- `orchestrator_frontend.md`、`orchestrator_middle-end.md`、`orchestrator_backend.md`（编排者）
+- `verifier-frontend-ir.md`、`verifier-middle-end.md`、`verifier-arch.md`、`verifier-bdd.md`（验证者）
+- `debug-tlc.md`、`debug-lean.md`（调试）
+- `executor-bdd.md`、`executor-tlaplus.md`、`executor-lean4.md`（执行者-领域，增强：从零生成，不依赖 emitter 草稿）
+
+**新增执行者提示词**：
+- `executor-frontend-parse.md`（章节识别 + 分片 + NFR 扫描 + 跨章引用，产出 shard_index.json）
+- `executor-middle-end-structure.md`（孤儿/悬挂边/孤岛判断）
+- `executor-middle-end-semantic.md`（重复/冲突/聚类）
+- `executor-middle-end-nfr.md`（NFR 分类 + 阈值提取，产出 nfrProfile）
+- `executor-middle-end-risk.md`（风险评分公式计算）
+- `executor-backend-cypher.md`（知识图谱生成）
+- `executor-backend-fixture.md`（测试夹具生成）
+- `executor-backend-traceability.md`（追溯矩阵生成）
+
+**移除**：
+- `executor-frontend-extract.md`、`executor-frontend-clarify.md`、`executor-frontend-arch.md`、`executor-glossary.md`、`executor-middle-end-contradiction.md`（职责并入新增提示词或由编排者直接处理）
+
+### 9.3 references/（L3，子代理按需加载）
+
+**保留**：
+- `srs-chapter-guide.md`、`capability-adaptation.md`、`tlaplus-coding-guide.md`、`lean4-coding-guide.md`、`gherkin-lint-guide.md`、`bdd-coding-guide.md`
+- `expert-persona-bdd.md`、`expert-persona-tlaplus.md`、`expert-persona-lean4.md`、`collaboration-contract.md`
+- `auto-setup.md`、`agent-integration-guide.md`、`a2a-integration.md`、`hooks-integration.md`
+- `strict-modes.md`、`stability-baseline.md`、`quick-reference.md`
+
+**新增**：
+- `ir-schema-reference.md`（SRS-IR 完整 schema，Agent 构建 IR 的依据）
+- `cypher-generation-guide.md`（Cypher 生成指南）
+- `shard-index-format.md`（ShardIndex 格式规范）
+- `nfr-threshold-extraction-guide.md`（NFR 阈值正则与启发式）
+- `risk-scoring-formula.md`（风险评分公式详解）
+
+### 9.4 templates/（产出模板，Agent 按需引用）
+
+**保留**：
+- `checklists/*.md`（S0-S6 检查表）
+- `.gherkin-lintrc`、`.gherkin-lintrc-strict`
+- `*.md.template`（STATE、SPECS、BEHAVIORS、CONTEXT、GAPS、MINDMAP、PROOFS、RESEARCH_LOG、S5_SKIP_REPORT）
+
+**移除**：
+- `test-fixtures/*.template`（fixture 生成模板，Agent 直接生成无需模板）
+
+### 9.5 专家人设体系
+
+三位形式化验证专家内置为 L3 参考资料。编排者在对应阶段加载。
+
+| 专家 | 核心使命 |
+|------|----------|
+| BDD 行为建模专家 | 将 SRS 业务规则转化为机器可执行、业务可读的 Gherkin 模型。信奉 Discovery → Formulation → Automation 三大支柱。严禁 Markdown 描述替代 `.feature` 文件。 |
+| TLA+ 并发系统建模专家 | 通过 TLC 状态空间搜索提前发现死锁、活锁、不变式违例。严格执行层次化拆解 L1→L2→L3+，变量组合 >1w 强制拆。 |
+| Lean 4 定理证明专家 | 通过构造性证明确保算法在数学上绝对成立。严格执行 Sorry 驱动开发四步循环，递归至 0 sorry。 |
+
+### 9.6 专家协作契约
+
+**仲裁优先级**：Lean 4（数学绝对性） > TLA+（状态空间穷尽探索） > BDD（业务语义正确性）。
+
+**需求细化联动**：
+- BDD → TLA+：边界条件 → 状态不变量
+- BDD → Lean 4：边界场景 → 证明前件
+- TLA+ ↔ Lean 4：相互验证（状态异常 ↔ 隐含假设缺失）
+
+---
+
+## 10. 形式化建模约束
+
+### 10.1 BDD 建模约束
 
 - 必须采用独立 `.feature` 文件格式，不接受 Markdown 描述
 - 完整 Given → When → Then → And 步骤，Then 含 `# verification_method:`
 - NFR 场景含具体阈值（"≤ 200ms"、"99.99%"）
-- NFR Feature 文件独立：`NFRPerformance.feature`, `NFRSecurity.feature`, ...
+- NFR Feature 文件独立：`NFRPerformance.feature`、`NFRSecurity.feature`、...
+- 通过 `validate-bdd --strict --promote` 提升至 `outputs/bdd/verified`
 
-### 14.2 质量门禁
+### 10.2 TLA+ 建模约束
 
-| # | 检查 | 严重度 |
-|:--:|------|:------:|
-| 1-6 | 无占位符/error/failed/undefined/untested/步骤缺失/逻辑顺序 | 硬阻塞 |
-| 7 | 不允许占位实现、简化实现、错误实现 | 硬阻塞 |
-| 8 | **NFR 场景必须含具体数值阈值** (★) | 硬阻塞 |
-| 9 | **安全场景必须含前置认证步骤** (★) | 硬阻塞 |
-| 10 | 每个 SRS 需求至少一个可执行场景，且 Given/When/Then 映射初始状态、事件、预期状态 | 硬阻塞 |
-| 11 | 运行 `validate-bdd --strict`；无 Feature 文件仅在 IR 明确声明无 BDD 范围时允许，否则失败 | 硬阻塞 |
+**层次化拆解**：L1(系统级) → L2(子系统级) → L3(原子级) → 可推广至 N 级。拆解判定：变量组合 >1k 考虑拆，>1w 强制拆。
 
-验证失败时命令必须返回 `{ status: "error" }` 并以非零状态退出；不得以 `status: "ok"` 携带 `valid: false` 伪装为成功。验证通过后将 feature 与验证报告从 draft 迁入 verified。
-
----
-
-## 15. TLA+ 建模约束
-
-### 15.1 层次化拆解
-
-L1(系统级) → L2(子系统级) → L3(原子级) → 可推广至 N 级。拆解判定：变量组合 >1k 考虑拆，>1w 强制拆。
-
-### 15.2 NFR 不变式 (★)
-
-每个模块必须覆盖正式 NFR 分类中的六类约束：`performance`、`security`、`availability`、`compatibility`、`maintainability`、`compliance`。有 SRS 阈值时使用该阈值；没有阈值时，草稿必须显式阻断为“阈值待决”，不得写入 `LLM_FILL` 后进入验证或交付目录。
+**NFR 不变式**：每个模块必须覆盖六类 NFR 约束。有 SRS 阈值时使用该阈值；没有阈值时，草稿必须显式阻断为"阈值待决"，不得写入 `LLM_FILL` 后进入验证或交付目录。
 
 ```
 PerfLatencyInv == latency ≤ MaxLatency     \* 性能上界
@@ -981,51 +777,25 @@ SecurityInv    == \A u ∈ Users : auth[u] => access_ok[u]  \* 安全
 AvailInv       == Cardinality(dead_nodes) ≤ MaxDeadNodes  \* 可用性
 ```
 
-### 15.3 可交付 TLA+ 的最低结构
+**可交付 TLA+ 的最低结构**（每个 verified 模块必须）：
+- 使用单一、匹配文件名的模块头和 `====` 模块尾
+- 声明全部 `CONSTANTS` 与 `VARIABLES`，为常量提供 `ASSUME`
+- 定义 `TypeOK` 并覆盖所有状态变量
+- 定义非空 `Init`、带明确 guard 的 `Next`，以及引用已声明变量元组的 `Spec`
+- 将每个 SRS 状态转换与至少一个 Action 追溯关联
+- 生成层次关系 L1→L2→L3；状态组合超过 1k 时记录拆分评估，超过 1w 时必须继续拆分
 
-每个 verified 模块必须：
+### 10.3 Lean 4 建模约束
 
-- 使用单一、匹配文件名的模块头和 `====` 模块尾；
-- 声明全部 `CONSTANTS` 与 `VARIABLES`，为常量提供 `ASSUME`；
-- 定义 `TypeOK` 并覆盖所有状态变量；
-- 定义非空 `Init`、带明确 guard 的 `Next`，以及引用已声明变量元组的 `Spec`；
-- 将每个 SRS 状态转换与至少一个 Action 追溯关联；
-- 生成层次关系 L1→L2→L3；状态组合超过 1k 时记录拆分评估，超过 1w 时必须继续拆分；
-- 清理候选目录中的旧调试追踪仅能由操作者在验证前显式完成；验证器本身不创建或补写 `.cfg`、JAR、源模块或其他候选输入；
-- `validate-tla --name <module> --strict --promote` 只读取 `outputs/tlaplus/draft/<module>.tla` 与 matching `<module>.cfg`，先运行静态占位符/结构审计，再使用内置 `tools/tla2tools-1.7.4.jar` 依次执行 SANY 和 TLC；
-- SANY 语法/语义失败、TLC 不变量违规、死锁、超时或非零退出均必须失败；失败时不得创建成功报告或修改既有 verified 模块；
-- 成功报告记录静态审计、SANY、TLC 的独立结果，以及 Java/JAR 版本、退出码、受限输出摘要与耗时；全部成功后才原子提升 `.tla`/`.cfg`。
+**Lake 项目契约**：`outputs/lean4/draft` 与 `outputs/lean4/verified` 都是完整 Lake 项目根目录，必须含 `lakefile.lean` 或 `lakefile.toml`。可选 `lean-toolchain`、项目定义和所有参与构建的 `.lean` 文件均为验证输入并纳入 `sourceHash`；验证器不得写入或补全这些文件。
 
-### 15.4 质量门禁
+**拆分证明方法**：
+1. 在 draft 项目中编写可追溯的证明骨架（允许 `sorry`，且只能存在于草稿）
+2. 每个 `sorry` 拆为独立 lemma 文件与可验证子目标
+3. 若单一 theorem/lemma 不能完成，继续拆为多个 theorem/lemma 并通过最小化 `import` 组合
+4. `validate-lean --strict --promote` 通过后才提升整个项目，直到 verified 中为 0 `sorry`/`admit`/`axiom`
 
-| # | 检查 | 严重度 |
-|:--:|------|:------:|
-| 1 | 使用内置 `tools/tla2tools-1.7.4.jar` 的 SANY 语法、语义与层级检查 | 硬阻塞 |
-| 2 | 使用同一 JAR 的 TLC 模型检查（启用死锁检测） | 硬阻塞 |
-| 3-7 | 无死锁/状态爆炸/违法不变式/活锁/奇迹 | 硬阻塞 |
-| 8 | 无 `LLM_FILL`、TODO/FIXME/TBD/GAP、待定、未定义、待实现或任何占位/简化/错误实现 | 硬阻塞 |
-| 9 | TypeOK、需求不变式与六类 NFR 不变式均已在模型配置中检查 | 硬阻塞 |
-
-TLC 使用的有限模型必须记录常量赋值、状态数、深度和对抽象边界的说明；状态爆炸不得通过降低模型语义或关闭关键不变式规避。
-
----
-
-## 16. Lean 4 建模约束
-
-### 16.1 Lake 项目契约与拆分证明
-
-`outputs/lean4/draft` 与 `outputs/lean4/verified` 都是完整 Lake 项目根目录，必须含 `lakefile.lean` 或 `lakefile.toml`。可选 `lean-toolchain`、项目定义和所有参与构建的 `.lean` 文件均为验证输入并纳入 `sourceHash`；验证器不得写入或补全这些文件。
-
-1. 在 draft 项目中编写可追溯的证明骨架（允许 `sorry`，且只能存在于草稿）；
-2. 每个 `sorry` 拆为独立 lemma 文件与可验证子目标；
-3. 若单一 theorem/lemma 不能完成，继续拆为多个 theorem/lemma 并通过最小化 `import` 组合；
-4. `validate-lean --strict --promote` 在 Lake 项目根审计并运行 `lake build`；验证及报告成功后原子提升整个项目，直到 verified 中为 0 `sorry`、0 `admit`、0 `axiom`。
-
-草稿不能被 FINAL、跨图收敛评分或下游执行代理作为已证明性质使用。
-
-### 16.2 NFR 定理 (★)
-
-Lean 4 建模从 security/compliance NFR 派生可追溯的 theorem 与 lemma 计划。草稿可用于拆分证明，但不得以 `True`、具体常量或其他弱化命题替代 SRS 性质；每个最终 theorem 必须表达原始安全/合规约束并关联 requirement ID。
+**NFR 定理**：从 security/compliance NFR 派生可追溯的 theorem 与 lemma 计划。草稿可用于拆分证明，但不得以 `True`、具体常量或其他弱化命题替代 SRS 性质；每个最终 theorem 必须表达原始安全/合规约束并关联 requirement ID。
 
 ```lean4
 theorem response_time_bound : ∀ (op : Operation), time(op) ≤ max_latency := by
@@ -1033,31 +803,7 @@ theorem response_time_bound : ∀ (op : Operation), time(op) ≤ max_latency := 
   exact proof_from_verified_lemmas
 ```
 
-### 16.3 质量门禁
-
-| # | 检查 | 严重度 |
-|:--:|------|:------:|
-| 1 | 0 `sorry` / `admit` / `axiom` | 硬阻塞 |
-| 2 | `lake build` 通过且输出为 0 warning | 硬阻塞 |
-| 3 | 每个声明为与 SRS 对应的 `theorem` + 完整 proof；禁止 `: True` 弱化 | 硬阻塞 |
-| 4 | 每个 lemma 独立文件（≤100 行）；proof >50 行 或 have 块 >30 行必须拆分 | 硬阻塞 |
-| 5 | 仅使用最小导入集合；禁止 `import Mathlib` 全量导入 | 硬阻塞 |
-| 6 | 对每个交付 theorem 运行 `#print axioms`，拒绝未批准的公理依赖 | 硬阻塞 |
-| 7 | 源码、编译输出与公理报告均写入验证报告，并通过 source hash 与 SRS-IR 关联 | 硬阻塞 |
-
-`validate-lean --strict` 必须递归检查完整 Lake proof project（要求 `lakefile.lean` 或 `lakefile.toml`），而不是只检查传入的单个文件；在项目根调用 `lake build`，并将项目定义、可选 toolchain 和 Lean 输入 hash-bound 到成功报告。失败必须返回 `{ status: "error" }` 和非零退出，不得产生报告或修改 verified；只有审计、构建和报告均通过后才可原子提升完整项目。
-
-### 16.4 平台限制
-
-| 平台 | 支持 |
-|------|:----:|
-| Linux x86_64 | ✅ |
-| macOS ARM64 | ✅ |
-| Windows | ❌ 禁止 |
-
----
-
-## 17. SRS 一致性升级流程
+### 10.4 SRS 一致性升级流程
 
 当形式化符合 SRS 设计但仍有问题时：
 
@@ -1068,221 +814,102 @@ theorem response_time_bound : ∀ (op : Operation), time(op) ≤ max_latency := 
 
 ---
 
-## 18. 能力探测系统
+## 11. 安全设计
 
-### 18.1 8 维度 50 探针
+### 11.1 防御层次
 
-| 维度 | 题数 |
-|------|:--:|
-| instruction_following | 8 |
-| structured_output | 7 |
-| precision | 6 |
-| creative_reasoning | 5 |
-| hierarchical_reasoning | 5 |
-| logical_reasoning | 5 |
-| formal_tlaplus | 7（工具链条件生成） |
-| formal_lean4 | 7（工具链条件生成） |
+| 层级 | 机制 |
+|:----:|------|
+| 入口 | `refuseDirectInvocation` + `validateNoPoisonArgs` + `safeParseArg` |
+| 文件系统 | `validateWorkDir` + `isPathSafe` + `assertSafePath`（所有保留脚本继承） |
+| 流程 | verify-gate 三级门禁 + HITL + `verify-skill-integrity` |
+| 备份 | SHA-256 + AES-256-GCM `.enc` |
 
-### 18.2 Tier 判定
+### 11.2 毒值拒绝
 
-```
-score = per-dimension pass rate (0-100)
-tier  = min(all 8 dimension scores)
-      ≥ 80 → high (full_auto)
-      ≥ 50 → medium (guided)
-      < 50 → low (human_in_loop)
-```
+`undefined/null/NaN/[object Object]` 在 CLI 入口由 `validateNoPoisonArgs` 拦截。
 
-### 18.3 工具链条件与 NFR 触发 (★)
+### 11.3 路径安全
 
-TLA+/Lean 4 探针仅在有工具链时生成。NFR 检测增强：即使工具链未安装，若 IR 的 `nfrProfile` 标记了 performance/security 热点，输出"建议安装 TLA+/Lean 4"提示并标记维度为 `required_not_optional`。
+- **所有文件操作限定工作目录**：`.srs_formalizer/` 内
+- `validateWorkDir` 强制 `.srs_formalizer` 命名
+- `isPathSafe` + `assertSafePath` 双校验
+- **`path.join()` 强制**：禁止字符串拼接路径
 
----
+### 11.4 技能完整性
 
-## 19. 引导提取协议
+`verify-skill-integrity`：阶段转换前 SHA-256 对比 MANIFEST.json → 篡改检测 → `--repair` 恢复 → 暂停流水线 → 人类确认。
 
-### 19.1 两步模式
-
-```
-Step 1: --template → 生成 guided prompt
-Step 2: --line '<json>' → 单行校验 → OK / ERR: <detail> / DONE
-```
-
-### 19.2 提取类型
-
-```
-r1/r2/r3/r3-cross/r4-nfr/arch
-```
-
-验证规则：id 正则 + category/confidence 枚举 + 字段完整性。
+`pack-skill --force`：仅人类显式操作。自动化流程、Agent、编排者均无权重建备份。
 
 ---
 
-## 20. 技能完整性系统
+## 12. CLI 参数与输出约定
 
-### 20.1 备份不可变原则
+### 12.1 参数约定
 
-`pack-skill --force`: 仅人类显式操作 → SHA-256 → MANIFEST.json → AES-256-GCM → `.enc`
+| 参数 | 适用命令 | 说明 |
+|------|----------|------|
+| `--workdir <path>` | 大部分命令 | 工作目录路径，必须为 `.srs_formalizer` |
+| `--file <path>` | validate-* | 待校验文件路径 |
+| `--strict` | validate-* | 门禁模式 |
+| `--promote` | validate-bdd/tla/lean | 验证通过后提升 draft → verified |
+| `--name <module>` | validate-tla | 模块名 |
+| `--stage S1\|R3\|FINAL` | verify-gate | 门禁阶段 |
+| `--query <type>` | query-graph | node/neighbors/module/modules/path/context/brainstorm |
+| `--params '<json>'` | query-graph | 查询参数 |
+| `--compare <expected>` | hash-compute | 比对预期 hash |
+| `--trace <path>` | tlc-trace-parse | TLC trace 文件 |
+| `--skill-dir <path>` | verify-skill-integrity/pack-skill | 技能目录 |
+| `--repair` | verify-skill-integrity | 自动恢复 |
+| `--force` | pack-skill | 强制备份（仅人类） |
 
-### 20.2 校验流程
+### 12.2 输出格式
 
-阶段转换前：`verify-skill-integrity` → SHA-256 对比 MANIFEST.json → 篡改检测 → `--repair` 恢复 → 暂停流水线 → 人类确认。
+所有命令输出 JSON 到 stdout：`{ "status": "ok" | "error", "message"?: string, "data"?: ... }`。成功 exit(0)，失败 exit(1)。
+
+### 12.3 refuseDirectInvocation 放置约定
+
+所有命令文件末尾：
+```typescript
+import { refuseDirectInvocation } from '../lib/cli.js';
+refuseDirectInvocation(import.meta.url);
+```
+
+### 12.4 所有命令经 index.ts
+
+`refuseDirectInvocation` 阻止绕过。`index.ts` 注册表为命令清单的唯一来源。
 
 ---
 
-## 21. 稳定性测试
+## 13. 核心约束（不变）
 
-### 21.1 两阶段
-
-```
-Phase 1: stability-test --config llm-config.json --passes 3 → prompt manifests
-Phase 2: stability-test --config llm-config.json --score <results-dir> → 评分报告
-```
-
-### 21.2 指标
-
-```
-Intra-model σ: < 1.0 = stable
-Inter-model Δ: < 1.5 = consistent
-Overall: max(0, 10 - avg(σ) - avg(Δ)) → 0-10 scale
-```
-
----
-
-## 22. 专家人设体系
-
-三位形式化验证专家内置为 L3 参考资料。编排者在对应阶段加载。
-
-### 22.1 BDD 行为建模专家
-
-核心使命：将 SRS 业务规则转化为机器可执行、业务可读的 Gherkin 模型。信奉 Discovery → Formulation → Automation 三大支柱。严禁 Markdown 描述替代 `.feature` 文件。
-
-### 22.2 TLA+ 并发系统建模专家
-
-核心使命：通过 TLC 状态空间搜索提前发现死锁、活锁、不变式违例。严格执行层次化拆解 L1→L2→L3+，变量组合 >1w 强制拆。
-
-### 22.3 Lean 4 定理证明专家
-
-核心使命：通过构造性证明确保算法在数学上绝对成立。严格执行 Sorry 驱动开发四步循环，递归至 0 sorry。
-
----
-
-## 23. 专家协作契约
-
-### 23.1 仲裁优先级
-
-| 优先级 | 专家 | 理由 |
+| # | 决策 | 原因 |
 |:--:|------|------|
-| **最高** | Lean 4 | 数学绝对性 |
-| **次高** | TLA+ | 状态空间穷尽探索 |
-| **参考** | BDD | 业务语义正确性 |
-
-### 23.2 需求细化联动
-
-- BDD → TLA+：边界条件 → 状态不变量
-- BDD → Lean 4：边界场景 → 证明前件
-- TLA+ ↔ Lean 4：相互验证（状态异常 ↔ 隐含假设缺失）
-
----
-
-## 24. Agent 自动安装设计
-
-### 24.1 三层架构
-
-- Layer 1: SKILL.md frontmatter（元数据）
-- Layer 2: agent-card.json（A2A Protocol v1.0）
-- Layer 3: references/auto-setup.md（可执行安装指南, 15 平台）
-
-### 24.2 AI 安装协议
-
-1. 平台检测 → 2. 目录复制 → 3. npm install + typecheck + test → 4. 可选激活配置 → 5. 验证
+| 1 | **零运行时 npm 依赖** | 技能自包含，不引入供应链风险 |
+| 2 | **TypeScript strict** | `strict`, `noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noFallthroughCasesInSwitch` |
+| 3 | **脚本只做门禁校验与专用算法** | 语义工作全部由 Agent 经提示词完成（v2.0.0 核心变更） |
+| 4 | **所有文件操作限定工作目录** | `.srs_formalizer/` 内，路径安全双校验 |
+| 5 | **所有 CLI 经 index.ts** | `refuseDirectInvocation` 阻止绕过 |
+| 6 | **统一错误处理** | `try/catch → { status, message }`，不抛异常 |
+| 7 | **毒值拒绝** | `undefined/null/NaN/[object Object]` 入口拦截 |
+| 8 | **文件大小** | ≤300 行 |
+| 9 | **禁止 `any`** | 所有错误类型用 `unknown` + `instanceof Error` |
+| 10 | **`path.join()` 强制** | 禁止字符串拼接路径 |
 
 ---
 
-## 25. V-Model Test Fixture 生成
+## 14. 测试策略
 
-### 25.1 架构
+### 14.1 测试层级
 
-TS 层做确定性骨架 + LLM 层做语义填充。一个入口 `emit --name fixture` dispatch 到 `lib/fixture-gen/`。
+| 层级 | 内容 | 通过标准 |
+|------|------|----------|
+| 单元测试 | 保留命令的门禁逻辑与工具算法 | 0 failures |
+| 一致性测试 | index.ts 注册表、CLI 帮助文本、路径契约与本文档一致 | 0 failures |
+| Golden 测试 | 门禁输出与基准一致 | 0 failures |
 
-### 25.2 框架支持
-
-| 框架 | 适用 level |
-|------|------|
-| Cucumber | acceptance |
-| Playwright | acceptance, e2e |
-| Pytest | unit, integration, nfr |
-| JUnit | unit, integration, nfr |
-| fast-check | property, nfr |
-
-### 25.3 NFR 框架兼容矩阵 (★)
-
-| NFR 类型 | cucumber | playwright | pytest | junit | fast-check |
-|------|:--:|:--:|:--:|:--:|:--:|
-| performance | — | — | ✅ | ✅ | ✅ |
-| security | — | — | ✅ | ✅ | ✅ |
-| availability | — | — | ✅ | ✅ | ✅ |
-| compatibility | ✅ | ✅ | — | — | — |
-| maintainability | — | — | ✅ | ✅ | — |
-| compliance | — | — | ✅ | ✅ | — |
-
----
-
-## 26. 评估结果
-
-### 26.1 SKILL-RUBRIC v0.1.5
-
-| 维度 | 得分 | 关键证据 |
-|------|:----:|----------|
-| D1 Problem-fit | 8/10 | 明确用户画像 + 反事实价值 |
-| D2 Architecture | 9/10 | 编译器模型 + IR 不可变 + O(m+n) |
-| D3 Reliability | 5/10 | 缺跨 LLM 数据（待 collection） |
-| D4 Output-fit | 8/10 | 溯源 + 零往返 + 失败清晰 |
-| D5 Lifecycle-fit | 7/10 | 版本管理 + IR 契约 + 生态集成 |
-
-**加权平均**: 8.1/10 → **B+**（基于静态实现与自动化证据；跨 LLM 数据仍待收集）
-
-### 26.2 OWASP AST10
-
-通过率 **9/10**：SHA-256 防篡改 ✅, verify-skill-integrity ✅, 最小权限 ✅, Anti-Skill ✅, HITL ✅, A2A Agent Card ✅。
-
-### 26.3 SkillAudit
-
-安全风险等级: **Low**（0 高危发现）
-
----
-
-## 27. 技术栈
-
-| 组件 | 选型 | 版本 |
-|------|------|------|
-| 语言 | TypeScript (strict) | ≥5.5 |
-| 运行时 | Node.js (ESM) | ≥20 |
-| 执行器 | tsx | latest |
-| 测试 | Node.js native `node:test` | built-in |
-| 形式化 | tla2tools (内置) | 1.7.4 |
-| 形式化 | Lean 4 + mathlib4 | latest |
-| BDD 校验 | gherkin-lint | latest |
-| IR 编译 | SRS-IR + SkIR | 2.0.0 |
-
-```
-运行时依赖: 0
-开发依赖: typescript, @types/node
-```
-
----
-
-## 28. 测试策略
-
-### 28.1 测试层级
-
-| 层级 | 数量（目标） | 通过标准 |
-|------|:----:|----------|
-| 单元测试 | 487 | 0 failures |
-| 集成测试 | `tests/assertions/` | 端到端正确 |
-| Golden 测试 | `tests/golden/` | 输出与基准一致 |
-
-### 28.2 运行命令
+### 14.2 运行命令
 
 ```bash
 cd .claude/skills/srs-formalizer/scripts
@@ -1292,37 +919,81 @@ npm test
 npm run evals
 ```
 
-`npm run evals` 是确定性回归套件：覆盖验证报告与当前 verified 内容的 hash 绑定、内置 TLA+ JAR 的 SANY/TLC 正反例，以及 artifact registry/文档契约。它写出 `eval-results.json`，记录每个套件的耗时、通过状态和可用的 Git commit。提交前必须使 typecheck、全量测试和 evals 全部通过。
+**提交前必须**：`npm run typecheck`、`npm test`、`npm run evals` 全部通过。
+
+### 14.3 测试变化
+
+- **保留**：所有保留命令的单元测试（约 15 个测试文件）
+- **归档**：移除命令的测试文件随命令归档至 `.worktrees/archive/2026-07-16/`
+- **新增**：`hash-compute.test.ts`、`tlc-trace-parse.test.ts`、`assemble-ir.test.ts`（瘦身后）
+
+### 14.4 规格一致性测试
+
+每次修改 CLI、门禁、路径、模板或提示词时，必须执行自动化规格一致性测试。测试至少验证：
+
+1. `index.ts` 注册表、CLI 帮助文本与 §3 命令清单完全一致；
+2. 工作目录结构、门禁输入目录、产物输出目录与 §4.1/§6.3 完全一致；
+3. SRS-IR 枚举和所有 NFR 消费方只使用 §4.3 的六类正式分类；
+4. 硬门禁失败一律返回 `{ status: "error" }` 与非零退出；
+5. 草稿产物无法被 FINAL、交付清单、跨图验证或执行上下文消费。
+
+未具备上述测试的设计变更不得进入实现阶段。
+
+### 14.5 evals
+
+`npm run evals` 是确定性回归套件：覆盖验证报告与当前 verified 内容的 hash 绑定、内置 TLA+ JAR 的 SANY/TLC 正反例，以及 artifact registry/文档契约。它写出 `eval-results.json`，记录每个套件的耗时、通过状态和可用的 Git commit。
 
 ---
 
-## 29. 演化历史
+## 15. 技术栈
+
+| 组件 | 选型 | 版本 |
+|------|------|------|
+| 语言 | TypeScript (strict) | ≥5.5 |
+| 运行时 | Node.js (ESM) | ≥20 |
+| 执行器 | tsx | latest |
+| 测试 | Node.js native `node:test` | built-in |
+| 形式化 | tla2tools (内置) | 1.7.4 |
+| 形式化 | Lean 4 + mathlib4 | latest |
+| BDD 校验 | gherkin-lint + gherklin | latest |
+| IR | SRS-IR | 2.0.0 |
+
+```
+运行时依赖: 0
+开发依赖: typescript, @types/node, gherkin-lint, gherklin
+```
+
+---
+
+## 16. 演化历史
 
 | 版本 | 日期 | 关键变更 |
 |------|------|----------|
-| 1.0.1 | 2026-07-13 | **可验证产物生命周期加固**：Emitter registry 固化为 10 个；TLA+ 验证仅使用内置 `tla2tools-1.7.4.jar` 执行 SANY/TLC，不联网、不下载或补写 cfg；Lean 以完整 Lake 项目为验证和原子提升单位；FINAL 对 BDD/TLA+/Lean 重新计算 verified 内容 hash 并仅接受匹配 `sourceHash` 的成功报告；新增 `npm run evals` 确定性对抗评估。 |
-| 1.0.0 | 2026-07-13 | **编译器架构重构**：S0-S6 流水线 → Frontend/Middle-end/Backend；SRS-IR 强类型 IR（§4）；10 个 Emitter 统一注册表（§7）；NFR 贯穿全阶段；跨文件引用 + 连通性 + 风险评分；7 条旧命令 + 旧 lib 模块 zip 归档至 `.worktrees/archive/`；CLI emit --group/--name 统一入口。详见 `docs/superpowers/specs/2026-07-13-compiler-refactor-design.md` |
-| 0.8.0 | 2026-07-13 | V-Model Zero-Gap Wiring：bdd/tla/lean/playwright-page 迁移至 template-engine，generate-counterexample-fixtures，generate-vmodel-matrix，--level nfr，fixture-coverage 增强，测试 407→342 |
-| 0.7.0 | 2026-07-13 | 模板引擎（16×6 框架），TLC 反例解析器，Hypothesis 模式识别，Playwright Page Object，追溯矩阵，NFR fixture，helpers 边界测试 |
-| 0.6.0 | 2026-07-12 | V-Model 测试 fixture 生成（5 框架），fixture-coverage，Cypher 注入防护 |
-| 0.5.7 | 2026-07-09 | 文件拆分 + 去重重构：16 个超限文件拆分，全部 ≤283 行 |
-| 0.5.6 | 2026-07-09 | verify-gate 源重扫安全修复：Lean sorry/axiom + TLA+ 占位标记重扫 |
-| 0.5.5 | 2026-07-07 | 专家人设体系 + 协作契约，三位领域专家内置为 L3 参考资料 |
-| 0.5.3 | 2026-07-03 | 能力探测工具链条件生成 + 语法降级评分，路径 Bug 修复 |
-| 0.5.0 | 2026-07-01 | 分片索引化重构，移除物理分片目录 |
-| 0.4.0 | 2026-07-01 | SkCC 集成：compile, SkIR, Anti-Skill, 双发射器 |
-| 0.1.0 | 2026-06-30 | S1 基础设施：init, manifest, 类型定义, 安全库, 25 测试 |
+| 2.0.0 | 2026-07-16 | **架构反转重构**：脚本只做门禁校验（10 个 validate-*/verify-gate）与专用算法（7 个工具：assemble-ir/check-connectivity/query-graph/hash-compute/tlc-trace-parse/verify-skill-integrity/pack-skill）。移除 24 个语义/生成/编排命令及全部 10 个 Emitter。语义工作（解析/提取/分析/生成/编排）全部交由 Agent 经 SKILL.md + prompts + references 完成。命令数 39→17（含 2 个新增工具），lib 模块约 50→20。详见 `docs/superpowers/specs/2026-07-16-architecture-inversion-design.md` |
+| 1.0.1 | 2026-07-13 | 可验证产物生命周期加固：Emitter registry 固化为 10 个；TLA+ 验证仅使用内置 JAR；Lean 以完整 Lake 项目为验证单位；FINAL hash 绑定；新增 `npm run evals` |
+| 1.0.0 | 2026-07-13 | 编译器架构重构：S0-S6 流水线 → Frontend/Middle-end/Backend；SRS-IR 强类型 IR；10 个 Emitter 统一注册表；NFR 贯穿全阶段 |
+| 0.8.0 | 2026-07-13 | V-Model Zero-Gap Wiring |
+| 0.7.0 | 2026-07-13 | 模板引擎（16×6 框架），TLC 反例解析器 |
+| 0.6.0 | 2026-07-12 | V-Model 测试 fixture 生成（5 框架） |
+| 0.5.7 | 2026-07-09 | 文件拆分 + 去重重构 |
+| 0.5.6 | 2026-07-09 | verify-gate 源重扫安全修复 |
+| 0.5.5 | 2026-07-07 | 专家人设体系 + 协作契约 |
+| 0.5.3 | 2026-07-03 | 能力探测工具链条件生成 |
+| 0.5.0 | 2026-07-01 | 分片索引化重构 |
+| 0.4.0 | 2026-07-01 | SkCC 集成 |
+| 0.1.0 | 2026-06-30 | S1 基础设施 |
 
 ---
 
-## 30. 参考
+## 17. 参考
 
 | 来源 | 链接 |
 |------|------|
+| 上一版设计文档（v1.0.1） | `docs/DESIGN-v1.0.1.md` |
+| 架构反转重构详细设计 | `docs/superpowers/specs/2026-07-16-architecture-inversion-design.md` |
+| 编译器重构详细设计（v1.0.0） | `docs/superpowers/specs/2026-07-13-compiler-refactor-design.md` |
 | SkCC 论文 | [arXiv:2605.03353](https://arxiv.org/abs/2605.03353) |
-| SkillsBench | [arXiv:2602.12670](https://arxiv.org/abs/2602.12670) |
 | SKILL-RUBRIC | [GitHub](https://github.com/acnlabs/OpenPersona/blob/main/docs/SKILL-RUBRIC.md) |
 | OWASP AST10 | [owasp.org](https://owasp.org/www-project-agentic-skills-top-10/) |
 | A2A Protocol v1.0 | [Linux Foundation](https://github.com/google/A2A) |
 | 本项目仓库 | [GitHub](https://github.com/WangHHY19931001/SRS-Formalizer) |
-| 编译器重构详细设计 | `docs/superpowers/specs/2026-07-13-compiler-refactor-design.md` |
