@@ -15,6 +15,7 @@ import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 import { ProgressReporter } from '../lib/progress.js';
+import { runMiddleEndPasses } from '../lib/pipeline/middle-end-runner.js';
 
 type StepStatus = 'pending' | 'running' | 'ok' | 'warn' | 'error' | 'skipped' | 'manual_required';
 
@@ -209,19 +210,18 @@ export async function main(args: string[]): Promise<CliResult> {
     if (irData) artifactsGenerated.push(`srs-ir.json (${irData.nodes ?? 0} nodes, ${irData.edges ?? 0} edges)`);
     persistSession('build-ir');
 
-    progress.info('Running Middle-end analysis passes...');
+    progress.info('Running Middle-end analysis passes (parallelized)...');
 
-    for (const [cmd, name, id] of [
-      ['./analyze-structure.js', 'Analyze structure', 'analyze-structure'],
-      ['./analyze-graph.js', 'Analyze graph semantics', 'analyze-graph'],
-      ['./tag-nfr.js', 'Tag NFRs', 'tag-nfr'],
-      ['./check-connectivity.js', 'Check connectivity', 'check-connectivity'],
-      ['./score-risk.js', 'Score risk', 'score-risk'],
-    ] as const) {
-      const s: PipelineStep = { id, name, status: 'pending' };
-      steps.push(s);
-      const r = await runStep(s, () => runCmd(cmd, ['--workdir', workDir]), progress);
-      if (!r.ok && id !== 'analyze-structure' && id !== 'analyze-graph') return failStep(s);
+    const middleEndResults = await runMiddleEndPasses({ workDir, progress });
+    for (const r of middleEndResults) {
+      const step: PipelineStep = {
+        id: r.id, name: r.name, status: r.status,
+        message: r.message, duration_ms: r.duration_ms, data: r.data,
+      };
+      steps.push(step);
+      if (r.status === 'error' && r.id !== 'analyze-structure' && r.id !== 'analyze-graph') {
+        return failStep(step);
+      }
     }
 
     const emitStep: PipelineStep = { id: 'emit', name: 'Emit all artifacts', status: 'pending' };

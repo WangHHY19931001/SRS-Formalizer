@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { generateNfrFixtures, supportsFramework, supportedFrameworks } from '../../lib/fixture-gen/nfr.js';
+import { generateNfrFixtures, supportsFramework, supportedFrameworks } from '../../lib/fixture-gen/nfr/index.js';
 
 describe('generateNfrFixtures', () => {
   it('generates performance pytest fixtures', () => {
