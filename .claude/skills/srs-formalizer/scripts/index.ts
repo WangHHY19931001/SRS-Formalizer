@@ -24,6 +24,13 @@ const COMMAND_GROUPS: CommandGroup[] = [
     ],
   },
   {
+    title: "Agent Integration (Issue #14)",
+    commands: [
+      { name: "tools-schema", desc: "Output OpenAI/Anthropic Tool Calling schemas for agent integration", usage: "tools-schema [--format openai|anthropic] [--output <file>]" },
+      { name: "status", desc: "Show workdir status dashboard (stage, artifacts, next actions)", usage: "status --workdir .srs_formalizer [--format json|text]" },
+    ],
+  },
+  {
     title: "Frontend (SRS → IR)",
     commands: [
       { name: "manifest", desc: "Shard SRS and recognize chapters", usage: "manifest --src <srs-file> --lang zh|en --workdir .srs_formalizer" },
@@ -67,7 +74,13 @@ const COMMAND_GROUPS: CommandGroup[] = [
   {
     title: "One-Shot Pipeline",
     commands: [
-      { name: "pipeline", desc: "Run complete SRS formalization pipeline in one command", usage: "pipeline --src <srs-file> --lang zh|en --workdir .srs_formalizer [--strict]" },
+      { name: "pipeline", desc: "Complete SRS formalization pipeline with session persistence", usage: "pipeline --src <srs-file> --lang zh|en --workdir .srs_formalizer [--strict] [--full] [--skip-init]" },
+    ],
+  },
+  {
+    title: "Audit & Reporting (Issue #15)",
+    commands: [
+      { name: "export-audit", desc: "Export audit package with traceability, validation reports, hash chains", usage: "export-audit --workdir .srs_formalizer --output <audit-dir>" },
     ],
   },
   {
@@ -118,13 +131,19 @@ ${cmd.desc}
 Usage:
   npx tsx index.ts ${cmd.usage ?? cmd.name}
 
-Options vary by command. Common flags:
+Common Options:
   --workdir <path>   Working directory (must be .srs_formalizer)
   --src <path>       Source SRS file
+  --lang zh|en       SRS language
   --strict           Enable strict validation mode
   --promote          Promote draft artifacts to verified after successful validation
+  --full             Full pipeline mode (auto-enables --strict, adds recovery hints)
+  --format fmt       Output format (json|text|openai|anthropic)
+  --output <path>    Output file/directory path
+  --skip-init        Skip initialization (resume existing workdir)
 
 Run "npx tsx index.ts --help" for a list of all commands.
+Run "npx tsx index.ts tools-schema" for agent tool-calling integration.
 `);
       return;
     }
@@ -132,9 +151,9 @@ Run "npx tsx index.ts --help" for a list of all commands.
   }
 
   console.log(`
-SRS-Formalizer v0.1.0 — AI Agent Skill for SRS Formalization
+SRS-Formalizer v1.1.0 — AI Agent Skill for SRS Formalization
 ${"═".repeat(60)}
-Compiler architecture: SRS → Frontend → Middle-end → Backend → Artifacts
+Compiler architecture: SRS → Frontend → Middle-end → Backend → Verified Artifacts
 
 Usage: npx tsx index.ts <command> [options]
        npx tsx index.ts --help              Show this help message
@@ -148,7 +167,7 @@ Global Options:
     console.log(`\n${group.title}:`);
     console.log("─".repeat(50));
     for (const cmd of group.commands) {
-      const padding = " ".repeat(Math.max(0, 24 - cmd.name.length));
+      const padding = " ".repeat(Math.max(0, 28 - cmd.name.length));
       console.log(`  ${cmd.name}${padding}${cmd.desc}`);
     }
   }
@@ -156,25 +175,34 @@ Global Options:
   console.log(`
 Quick Start (Complete Pipeline):
 ${"─".repeat(50)}
-  # Initialize working directory
-  npx tsx index.ts init --output .srs_formalizer
+  # 1. Check environment first
+  npx tsx index.ts health-check
 
-  # Run full pipeline (SRS → IR → analysis → emit → validate)
-  npx tsx index.ts pipeline --src ./examples/online-store-srs.md --lang zh --workdir .srs_formalizer
+  # 2. Run full pipeline (pauses at guided-extract for AI agent)
+  npx tsx index.ts pipeline --src ../examples/online-store-srs.md --lang zh --workdir .srs_formalizer --full
 
-  # Or step by step:
-  npx tsx index.ts manifest --src <srs-file> --lang zh --workdir .srs_formalizer
-  npx tsx index.ts build-ir --workdir .srs_formalizer
-  npx tsx index.ts tag-nfr --workdir .srs_formalizer
-  npx tsx index.ts score-risk --workdir .srs_formalizer
-  npx tsx index.ts emit --group all --workdir .srs_formalizer
-  npx tsx index.ts validate-bdd --strict --promote --workdir .srs_formalizer
-  npx tsx index.ts verify-gate --stage FINAL --workdir .srs_formalizer
+  # 3. After guided-extract completes, resume with validation
+  npx tsx index.ts pipeline --skip-init --workdir .srs_formalizer --strict
+
+  # 4. Check status and next actions at any time
+  npx tsx index.ts status --workdir .srs_formalizer --format text
+
+  # 5. Export audit package when done
+  npx tsx index.ts export-audit --workdir .srs_formalizer --output ./audit-report
+
+Agent Integration (Tool Calling):
+${"─".repeat(50)}
+  # Generate OpenAI-compatible tool schemas
+  npx tsx index.ts tools-schema --format openai --output ./tools.json
+
+  # Generate Anthropic-compatible tool schemas
+  npx tsx index.ts tools-schema --format anthropic
 
 For more information, see:
   docs/DESIGN.md     - Complete design specification (SSOT)
   README.md          - Project overview and quick start
   SKILL.md           - Skill usage guide for AI agents
+  AGENTS.md          - Repository guide for contributors
 `);
 }
 
@@ -218,48 +246,40 @@ const COMMANDS: Record<
   "check-connectivity": () => import("./commands/check-connectivity.js"),
   "score-risk": () => import("./commands/score-risk.js"),
   emit: () => import("./commands/emit.js"),
+  "tools-schema": () => import("./commands/tools-schema.js"),
+  status: () => import("./commands/status.js"),
+  "export-audit": () => import("./commands/export-audit.js"),
 };
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-
-  // Block poison values (undefined, null, NaN, etc.) in any position
   const { validateNoPoisonArgs } = await import("./lib/cli.js");
-  try {
-    validateNoPoisonArgs(args);
-  } catch (err) {
-    console.error(
-      JSON.stringify({ status: "error", message: (err as Error).message }),
-    );
+  try { validateNoPoisonArgs(args); } catch (err) {
+    console.error(JSON.stringify({ status: "error", message: (err as Error).message }));
     process.exit(1);
   }
 
   if (args.length === 0 || args[0] === "--help") {
-    const helpTarget = args.length >= 2 ? args[1] : undefined;
-    printUsage(helpTarget);
+    printUsage(args.length >= 2 ? args[1] : undefined);
     process.exit(0);
   }
 
   const command = args[0] as string;
   const loader = COMMANDS[command];
-
   if (!loader) {
-    console.error(JSON.stringify({ status: "error", message: `Unknown command: ${command}. Run "npx tsx index.ts --help" for usage.` }));
+    const hint = command.includes('-') ? '' : ` Did you mean "${command}-xxx"?`;
+    console.error(JSON.stringify({ status: "error", message: `Unknown command: ${command}. Run --help for usage.${hint}` }));
     process.exit(1);
   }
 
   let mod;
-  try {
-    mod = await loader();
-  } catch (err) {
-    console.error(
-      JSON.stringify({ status: "error", message: `Failed to load command "${command}": ${(err as Error).message}` })
-    );
+  try { mod = await loader(); } catch (err) {
+    console.error(JSON.stringify({ status: "error", message: `Failed to load "${command}": ${(err as Error).message}` }));
     process.exit(1);
   }
   const result = await mod.main(args.slice(1));
   console.log(JSON.stringify(result));
-  process.exit(result.status === "ok" ? 0 : 1);
+  process.exit(result.status === "ok" || result.status === "warn" ? 0 : 1);
 }
 
 main().catch((err) => {
