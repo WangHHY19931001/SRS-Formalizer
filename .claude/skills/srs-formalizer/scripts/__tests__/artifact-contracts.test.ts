@@ -4,7 +4,6 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '..', '..', '..', '..', '..');
 import {
   ARTIFACT_DIRECTORIES,
   ARTIFACT_PATHS,
@@ -20,11 +19,41 @@ describe('artifact contracts', () => {
     assert.equal(ARTIFACT_PATHS.leanValidation, path.join('outputs', 'lean4', 'validation'));
   });
 
-  it('keeps canonical documentation and registry emitter counts aligned', () => {
-    for (const document of ['README.md', 'AGENTS.md', 'CLAUDE.md', '.claude/skills/srs-formalizer/SKILL.md']) {
-      const content = fs.readFileSync(path.join(REPOSITORY_ROOT, document), 'utf8');
-      assert.equal(/12\s+Emitter/i.test(content), false, `${document} must not claim 12 emitters`);
-      assert.match(content, /10\s+Emitter/i, `${document} must state the registered emitter count`);
+  it('covers all DESIGN.md §4.1/§6.3 artifact paths (draft/verified/validation triples + graphs/fixtures/reports)', () => {
+    // 三类形式化产物各有 draft/verified/validation 三态（DESIGN.md §4.1）
+    const expectedLifecycleTriples = [
+      ['outputs', 'bdd', 'draft'],
+      ['outputs', 'bdd', 'verified'],
+      ['outputs', 'bdd', 'validation'],
+      ['outputs', 'tlaplus', 'draft'],
+      ['outputs', 'tlaplus', 'verified'],
+      ['outputs', 'tlaplus', 'validation'],
+      ['outputs', 'lean4', 'draft'],
+      ['outputs', 'lean4', 'verified'],
+      ['outputs', 'lean4', 'validation'],
+    ];
+    for (const segments of expectedLifecycleTriples) {
+      const expected = path.join(...segments);
+      assert.ok(
+        ARTIFACT_DIRECTORIES.includes(expected),
+        `缺少路径契约: ${expected}`,
+      );
+    }
+    // 非形式化产物目录（DESIGN.md §4.1）
+    assert.equal(ARTIFACT_PATHS.graphs, path.join('outputs', 'graphs'));
+    assert.equal(ARTIFACT_PATHS.fixtures, path.join('outputs', 'fixtures'));
+    assert.equal(ARTIFACT_PATHS.reports, path.join('outputs', 'reports'));
+  });
+
+  it('enforces draft artifacts are not consumable as verified (lifecycle separation)', () => {
+    // draft/verified/validation 三态路径必须互不相同（DESIGN.md §6.3 草稿不可消费）
+    const bddPaths = [ARTIFACT_PATHS.bddDraft, ARTIFACT_PATHS.bddVerified, ARTIFACT_PATHS.bddValidation];
+    const tlaPaths = [ARTIFACT_PATHS.tlaDraft, ARTIFACT_PATHS.tlaVerified, ARTIFACT_PATHS.tlaValidation];
+    const leanPaths = [ARTIFACT_PATHS.leanDraft, ARTIFACT_PATHS.leanVerified, ARTIFACT_PATHS.leanValidation];
+    for (const triple of [bddPaths, tlaPaths, leanPaths]) {
+      assert.equal(new Set(triple).size, 3, 'draft/verified/validation 路径必须互不相同');
+      // draft 路径不得等于 verified 路径（草稿不可消费）
+      assert.notEqual(triple[0], triple[1]);
     }
   });
 

@@ -22,19 +22,53 @@ function runCli(args: string): { stdout: string; stderr: string; exitCode: numbe
   }
 }
 
+// DESIGN.md §3 — 17 命令清单（10 门禁 + 7 工具），与 index.ts COMMANDS 注册表一致
+const EXPECTED_COMMANDS = [
+  'validate-jsonl', 'validate-semantics', 'validate-architecture', 'validate-cypher',
+  'validate-bdd', 'validate-tla', 'validate-lean', 'validate-glossary',
+  'validate-checklist', 'verify-gate',
+  'assemble-ir', 'check-connectivity', 'query-graph', 'hash-compute',
+  'tlc-trace-parse', 'verify-skill-integrity', 'pack-skill',
+];
+
 describe('CLI entry (index.ts)', () => {
   it('prints usage on --help', () => {
     const { stdout } = runCli('--help');
-    assert.ok(stdout.includes('Usage') || stdout.includes('init'));
+    assert.ok(stdout.includes('Usage'));
+    assert.ok(stdout.includes('SRS-Formalizer v2.0.0'));
   });
 
   it('prints usage on no args', () => {
     const { stdout } = runCli('');
-    assert.ok(stdout.includes('Usage') || stdout.includes('init'));
+    assert.ok(stdout.includes('Usage'));
   });
 
   it('errors on unknown command', () => {
     const { exitCode } = runCli('unknown_command');
     assert.ok(exitCode !== 0);
+  });
+
+  it('registers exactly 17 commands in two groups (DESIGN.md §3)', () => {
+    const { stdout } = runCli('--help');
+    // 每个命令名都应出现在帮助文本中
+    for (const cmd of EXPECTED_COMMANDS) {
+      assert.ok(stdout.includes(cmd), `帮助文本缺少命令: ${cmd}`);
+    }
+    // 分组标题存在
+    assert.ok(stdout.includes('Gate Validators'));
+    assert.ok(stdout.includes('Independent Tools'));
+  });
+
+  it('does not register archived commands', () => {
+    const { stdout } = runCli('--help');
+    const archived = ['init', 'manifest', 'guided-extract', 'inject-prompt', 'build-ir',
+      'analyze-structure', 'analyze-graph', 'tag-nfr', 'score-risk', 'emit',
+      'pipeline', 'compile', 'build-architecture', 'merge-analysis'];
+    for (const cmd of archived) {
+      // 已归档命令不应作为独立条目出现在帮助文本的命令列表中
+      // 用行首两空格+命令名+空格的精确匹配避免误判子串
+      const asListEntry = `\n  ${cmd} `;
+      assert.ok(!stdout.includes(asListEntry), `已归档命令仍出现在帮助文本: ${cmd}`);
+    }
   });
 });
