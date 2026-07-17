@@ -268,7 +268,7 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 
 **风险评分公式**：`riskScore = orphanRate×0.2 + crossFileCoverage×0.3 + nfrCoverage×0.3 + gapWeight×0.2`（详见 `references/risk-scoring-formula.md`）。
 
-**NFR 条件触发 TLA+/Lean 4**（Agent 判断）：performance 关键词 ≥5 且 total_shards ≥100 → 强制 TLA+；security/compliance 关键词 ≥1 → 强制 Lean 4；availability 关键词 ≥3 → 建议 TLA+。
+**NFR 条件触发 TLA+/Lean 4**（Agent 判断）：performance 关键词 ≥5 且 total_shards ≥100 → 强制 TLA+；security/compliance 关键词 ≥1 → 强制 Lean 4；availability 关键词 ≥3 → 生成 TLA+ 草稿（Agent 决定是否 `--promote`，须在 STATE.md 记录决策依据）。
 
 > 🔴 **CHECKPOINT · R3 门禁收口**：M6 完成 `verify-gate --stage R3` 必须通过才可进入 Backend。R3 失败 → 修复 Middle-end 分析（结构/语义/NFR/连通性/冲突/风险）后重跑，禁止跳过。
 
