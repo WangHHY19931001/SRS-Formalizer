@@ -1,7 +1,7 @@
 ---
 name: srs-formalizer
 description: 将 SRS 文档转化为需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约和 Lean 4 证明。当用户提供或引用 SRS 文档（HTML/Markdown/多目录包），要求"形式化"、"生成知识图谱"、"生成 BDD"、"TLA+ 建模"、"Lean 证明"时使用。架构为 Agent 驱动 + 脚本门禁：TS 脚本只做门禁校验与专用算法，语义工作（解析/分析/生成/推导）全部由 LLM Agent 经 SKILL.md + prompts + references 完成。不应在以下场景触发：无 SRS 文档时、纯代码审查/调试、非技术文档（营销/法律）、用户仅需代码生成时。
-compatibility: requires Node.js>=20, typescript>=5.5, Claude Code>=1.0
+compatibility: requires Node.js>=20, typescript>=5.5, Agent Skills-compatible runtime
 tags:
   [
     srs,
@@ -17,7 +17,6 @@ tags:
   ]
 metadata:
   version: "2.0.0"
-  compatibility: requires Node.js>=20, typescript>=5.5, Claude Code>=1.0
   pattern: agent-driven
   domain: formal-methods
   toxic_flow_analysis:
