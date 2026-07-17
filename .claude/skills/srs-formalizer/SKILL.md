@@ -286,6 +286,8 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 
 **产物生命周期状态机**：Agent 写 draft → `validate-* --strict --promote` 提升 → `verify-gate --stage FINAL` 收口。草稿目录与 verified 目录物理隔离；只有严格验证成功、报告含 `sourceHash`、工具版本、执行时间、通过结论时才可由 draft 迁入 verified。FINAL 重新计算当前 verified 输入 hash，只接受 `artifactKind`、`lifecycle: "verified"`、`passed: true` 与 `sourceHash` 均匹配的报告；过期、跨类型、畸形报告或草稿均不得消费。
 
+**B5 TLC 反例 trace 格式**（`tlc-trace-parse --trace <path>` 输入示例）：TLC 输出以 `@!@!@STARTMSG 2110:N` / `@!@!@ENDMSG 2110` 包裹状态块，每块含 `N: <Action line...>` 行 + `/\ var = val` 变量绑定。工具解析为 `{ states: [{ index, action, variables }] }` 供 Agent 生成反例 fixture。
+
 ### 形式化建模约束
 
 **BDD 四级门禁**（`validate-bdd --strict --promote`）：Phase1 TS 基础结构（Feature/Scenario/Given/When/Then 存在性与顺序）→ Phase2 NFR 专项（阈值数值/认证前置/LLM_FILL 残留）→ Phase3 gherkin-lint（20 条规则，配置 `templates/.gherkin-lintrc-strict`）→ Phase4 Gherklin 语义层。不允许 `error/failed/undefined/untested/占位/简化/错误实现/GAP/TODO/FIXME/TBD/待定/未定义/待实现`；每个 SRS 需求至少一个可执行场景；NFR 场景含具体阈值。独立 `.feature` 文件，不接受 Markdown 描述。
@@ -299,6 +301,8 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 **跨图收敛循环**（B7，规模自适应）：`total_shards ≤50` → max_iterations=3, parallelism=1；`51-100` → max=5, parallelism=2；`>100` → max=8, parallelism=4，强制 NFR 分维度并行。收敛定义 = 全部 13 个 Q 可回答 + high-confidence ≥9/13 + NFR 覆盖率 ≥80% + `verify-gate FINAL` pass。
 
 > 🔴 **CHECKPOINT · FINAL 门禁收口**：B7 完成 `verify-gate --stage FINAL` 收口，仅接受 verified 产物且 `sourceHash` 匹配当前内容。FINAL 失败 → 回退至对应 Backend 步骤修复，禁止提交草稿或过期报告。超限未收敛 → 🛑 **STOP · 强制人类确认**是否加轮或收工。
+
+**跨图验证 13 个根本问题（Q1-Q13）**（完整定义见 `prompts/orchestrator_backend.md`）：Q1 本质定义｜Q2 核心功能｜Q3 具体能力｜Q4 技术原理(Lean)｜Q5 集成联动｜Q6 内部行为(TLA+)｜Q7 系统间交互｜Q8 外部交互｜Q9 工作边界｜Q10 兜底方案｜Q11 性能约束｜Q12 安全边界(Lean)｜Q13 容量扩展极限。收敛 = 全部 13 问可回答 + high-confidence ≥9/13。
 
 ## 门禁/工具速查表
 
