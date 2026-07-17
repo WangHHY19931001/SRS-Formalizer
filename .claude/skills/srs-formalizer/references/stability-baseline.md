@@ -1,5 +1,7 @@
 # Cross-LLM Stability Baseline
 
+> **已归档**：`capability-probe` 与 `stability-test` 命令已在 v2.0.0 架构重构中归档。LLM 能力探测与稳定性测试现由 Agent 自主判断能力维度 + 编排者观察完成，无替代命令。本文档保留为历史参考，下方命令调用不再有效。
+
 ## What Is Stability Testing?
 
 Stability testing measures how consistently an LLM performs across repeated
@@ -64,7 +66,8 @@ cd .claude/skills/srs-formalizer/scripts
 ### Phase 1: Generate Prompt Manifests
 
 ```bash
-npx tsx index.ts stability-test --config llm-config.json --passes 3 --output .srs_formalizer/stability/
+# 已归档：stability-test 命令已移除，新架构中由 Agent 自主判断能力维度
+# npx tsx index.ts stability-test --config llm-config.json --passes 3 --output .srs_formalizer/stability/
 ```
 
 This generates N provider × passes manifest files in `.srs_formalizer/stability/manifests/`.
@@ -85,7 +88,8 @@ For each manifest file:
 ### Phase 3: Score and Report
 
 ```bash
-npx tsx index.ts stability-test --config llm-config.json --score .srs_formalizer/stability/answers/ --output .srs_formalizer/stability/
+# 已归档：stability-test 命令已移除，新架构中由 Agent 自主判断能力维度
+# npx tsx index.ts stability-test --config llm-config.json --score .srs_formalizer/stability/answers/ --output .srs_formalizer/stability/
 ```
 
 This writes:
@@ -157,7 +161,7 @@ This writes:
 
 ## Known Baselines
 
-_No baselines recorded yet. Run the stability test and document results here._
+_No baselines recorded yet. `stability-test` 命令已归档（新架构中由 Agent 自主判断能力维度），历史基线仅作参考。_
 
 ---
 

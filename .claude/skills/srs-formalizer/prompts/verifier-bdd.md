@@ -47,7 +47,7 @@
 
 | 失败阶段 | 判定条件 | 打回动作 |
 |----------|----------|----------|
-| Phase 1 | ≥1 个 `<THEN_PLACEHOLDER>` 未替换 | → Frontend guided-extract Mode B 修正 |
+| Phase 1 | ≥1 个 `<THEN_PLACEHOLDER>` 未替换 | → Frontend 阶段重新提取（Agent 按 executor-frontend-parse.md 修正） |
 | Phase 1 | Given/When 被修改 | → Frontend 重建骨架 |
 | Phase 2 | NFR 场景覆盖率 < 100% | → Frontend 补充 NFR 提取 |
 | Phase 3 | gherkin-lint ERROR | → Backend 修正语法 |

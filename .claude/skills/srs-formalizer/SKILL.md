@@ -38,7 +38,7 @@ metadata:
   permissions:
     - kind: filesystem
       scope: ".srs_formalizer/*"
-      description: All pipeline outputs limited to working directory
+      description: All workflow outputs limited to working directory
       read_only: false
     - kind: network
       scope: "https://api.search.brave.com/*"

@@ -6,15 +6,15 @@
 
 ## 输入
 
-1. `analyze-structure` 产出（结构分析报告）
-2. `analyze-graph` 产出（疑似冲突清单）
-3. `tag-nfr` 产出（NFR 标注结果）
+1. executor-middle-end-structure 产出（结构分析报告）
+2. executor-middle-end-semantic 产出（疑似冲突清单）
+3. executor-middle-end-nfr 产出（NFR 标注结果）
 4. `check-connectivity` 产出（连通性报告）
 5. executor-middle-end-contradiction 输出的判定 JSONL
 6. executor-frontend-clarify 输出的澄清 JSONL
 7. 原始 IR-NODE + IR-EDGE（全量，用于交叉验证）
 
-## Part A: tag-nfr 标注正确性
+## Part A: NFR 标注正确性（Agent 经 executor-middle-end-nfr.md）
 
 - [ ] **nfr_category 有效**：____/____ 条标注的 nfr_category ∈ {performance, security, availability, compatibility, maintainability, compliance}？
 - [ ] **标注依据充分**：____/____ 条标注的 NFR 在 IR-NODE statement 中有明确关键词支撑？
@@ -58,7 +58,7 @@
 ```
 VERDICT: APPROVED | REJECTED
 Passed: <N>/<M> checks
-  Part A (tag-nfr): X/Y
+  Part A (NFR): X/Y
   Part B (connectivity): Z/W
   Part C (contradiction): P/Q
   Part D (clarification): R/S
