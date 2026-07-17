@@ -251,6 +251,8 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 
 **动态架构轮次**（Agent 据 `totalShards` 决定）：<50 → 3 轮，50-99 → 4 轮，≥100 → 5 轮；`crossRefCount > 50` → +1 轮。**shard ID**：`S001`~`S999`（纯 ASCII），locator 格式 `{file_abspath}-{start}-{end}-{chunk_id}`。**Token 估算**：中文 `chars/1.5`，英文 `chars/4`。
 
+> 🔴 **CHECKPOINT · S1 门禁收口**：F5 完成 `verify-gate --stage S1` 必须通过才可进入 Middle-end。S1 失败 → 修复 Frontend 产物后重跑，禁止跳过或降级。
+
 ## Middle-end 阶段（M1-M6）
 
 | 步骤 | Agent 动作 | 调用门禁/工具 | 产出 |
@@ -267,6 +269,8 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 **风险评分公式**：`riskScore = orphanRate×0.2 + crossFileCoverage×0.3 + nfrCoverage×0.3 + gapWeight×0.2`（详见 `references/risk-scoring-formula.md`）。
 
 **NFR 条件触发 TLA+/Lean 4**（Agent 判断）：performance 关键词 ≥5 且 total_shards ≥100 → 强制 TLA+；security/compliance 关键词 ≥1 → 强制 Lean 4；availability 关键词 ≥3 → 建议 TLA+。
+
+> 🔴 **CHECKPOINT · R3 门禁收口**：M6 完成 `verify-gate --stage R3` 必须通过才可进入 Backend。R3 失败 → 修复 Middle-end 分析（结构/语义/NFR/连通性/冲突/风险）后重跑，禁止跳过。
 
 ## Backend 阶段（B1-B7）
 
@@ -290,9 +294,11 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 
 **Lean 4 拆分证明**（`validate-lean --strict --promote`）：在 Lake 项目根（`lakefile.lean` 或 `lakefile.toml`）审计并运行 `lake build`。0 `sorry`/`admit`/`axiom`、0 warning。每个声明为与 SRS 对应的 `theorem` + 完整 `proof`，禁止 `: True` 弱化；每个 lemma 独立文件（≤100 行），proof >50 行或 have 块 >30 行必须拆分；仅最小导入集合，禁止 `import Mathlib` 全量。对每个交付 theorem 运行 `#print axioms` 拒绝未批准公理。平台：Linux x86_64 ✅、macOS ARM64 ✅、Windows ❌。
 
-**SRS 一致性升级流程**：形式化符合 SRS 但仍有问题时，不修改代码绕过，写入 `SRS_PATCHES.md`（矛盾描述 + SRS 引用 + 可选项 A/B/C + 事实依据，允许联网搜索），等待人类确认；涉及安全关键需求时 `security_level` 提升至 `critical`。
+**SRS 一致性升级流程**：形式化符合 SRS 但仍有问题时，不修改代码绕过，写入 `SRS_PATCHES.md`（矛盾描述 + SRS 引用 + 可选项 A/B/C + 事实依据，允许联网搜索），🛑 **STOP · 等待人类确认**后方可应用补丁；涉及安全关键需求时 `security_level` 提升至 `critical`。
 
 **跨图收敛循环**（B7，规模自适应）：`total_shards ≤50` → max_iterations=3, parallelism=1；`51-100` → max=5, parallelism=2；`>100` → max=8, parallelism=4，强制 NFR 分维度并行。收敛定义 = 全部 13 个 Q 可回答 + high-confidence ≥9/13 + NFR 覆盖率 ≥80% + `verify-gate FINAL` pass。
+
+> 🔴 **CHECKPOINT · FINAL 门禁收口**：B7 完成 `verify-gate --stage FINAL` 收口，仅接受 verified 产物且 `sourceHash` 匹配当前内容。FINAL 失败 → 回退至对应 Backend 步骤修复，禁止提交草稿或过期报告。超限未收敛 → 🛑 **STOP · 强制人类确认**是否加轮或收工。
 
 ## 门禁/工具速查表
 
@@ -329,8 +335,8 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 
 1. **路径安全**：所有写入 `isPathSafe` + `assertSafePath` 双检查，限定 `.srs_formalizer/` 内；`validateWorkDir` 强制 `.srs_formalizer` 命名；`path.join()` 强制，禁止字符串拼接路径
 2. **毒值拦截**：`undefined/null/NaN/[object Object]` 在 CLI 入口由 `validateNoPoisonArgs` 拒绝；`refuseDirectInvocation` 阻止绕过 index.ts；`safeParseArg` 错误处理 `try/catch → { status, message }` 不抛异常
-3. **技能完整性**：阶段转换时必须运行 `verify-skill-integrity`；检测篡改 → 自动 `--repair` 恢复 → 输出严重警告 → 暂停流水线 → 等待人类确认；加密备份（`.enc`）不可变，仅人类 `pack-skill --force` 可重建
-4. **HITL（强制）**：SRS 回写、`SRS_PATCHES.md`、收敛循环超限必须人类确认；草稿产物无法被 FINAL/交付清单/跨图验证/执行上下文消费
+3. **技能完整性**：阶段转换时必须运行 `verify-skill-integrity`；检测篡改 → 自动 `--repair` 恢复 → 输出严重警告 → 🛑 **STOP · 暂停流水线**等待人类确认；加密备份（`.enc`）不可变，仅人类 `pack-skill --force` 可重建
+4. **HITL（强制 · 🛑 STOP）**：以下三类操作必须人类确认后方可继续——SRS 回写、`SRS_PATCHES.md` 应用、收敛循环超限加轮；草稿产物无法被 FINAL/交付清单/跨图验证/执行上下文消费
 5. **零运行时依赖**：仅 devDeps（typescript、@types/node、gherkin-lint、gherklin）；TypeScript strict 全开；0 `any`（用 `unknown` + `instanceof Error`）；文件 ≤300 行
 
 ## 依赖技能与快速参考
