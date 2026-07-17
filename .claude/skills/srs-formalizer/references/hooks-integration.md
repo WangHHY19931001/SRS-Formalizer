@@ -152,10 +152,10 @@ Load skill: srs-formalizer (from .gemini/skills/srs-formalizer/)
 
 Execute the full pipeline:
 1. S0 Discovery — scan SRS structure, detect TLA+/Lean triggers
-2. S1 Preprocessing — init + manifest
+2. S1 Preprocessing — Agent Bootstrap（手动创建 workdir 结构）
 3. S2 Extraction — R1→Arch-1→R2→Arch-2→R3-1→Arch-3→R3-2
-4. S3 Graph — build-graph → analyze → merge → export-cypher
-5. S4 BDD — generate-bdd → validate-bdd
+4. S3 Graph — Agent 生成 Cypher → validate-cypher
+5. S4 BDD — Agent 生成 BDD → validate-bdd
 6. S5 Formal — TLA+/Lean (conditional)
 7. S6 Gate — verify-gate FINAL
 

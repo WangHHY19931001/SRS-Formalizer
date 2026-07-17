@@ -31,7 +31,7 @@
 
 若任一阶段失败：
 1. 错误报告自动关联到对应的 IR-NODE id
-2. 将 IR-NODE id 列表 + 校验错误返回 Frontend 的 `guided-extract`
+2. 将 IR-NODE id 列表 + 校验错误返回 Frontend 阶段（Agent 按 executor-frontend-parse.md 重新分片提取）
 3. Frontend 按 Mode B 逐行修正被标记的 IR-NODE
 4. 修正完成后重新触发生成 → 重新进入四级校验
 

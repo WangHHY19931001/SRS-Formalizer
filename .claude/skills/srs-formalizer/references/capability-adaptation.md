@@ -156,15 +156,16 @@ capability-probe --mode score --file <llm_answer.json>  → TS 脚本判分
 
 ### 使用示例
 
+> **注意**：`capability-probe` 命令已在 v2.0.0 架构反转中归档。以下流程改为 Agent 自主执行。
+
 ```bash
-# 1. 生成评估题
-npx tsx index.ts capability-probe --mode generate > probes.json
+# 1. 生成评估题（Agent 按 SKILL.md capability_requirements 维度自行设计题目）
+#    Agent 将题目 prompt 发给 LLM
 
-# 2. 编排者将 probes.json 中的每道题 prompt 发给 LLM
-#    LLM 答案收集为 answers.json: {"answers": {"instruction_following-1": "...", ...}}
+# 2. 编排者将题目发给 LLM，收集答案为 answers.json:
+#    {"answers": {"instruction_following-1": "...", ...}}
 
-# 3. 判分
-npx tsx index.ts capability-probe --mode score --file answers.json
+# 3. 判分（Agent 按 0-100 评分规则自行判分，写入 STATE.md）
 # → {"capability_profile":{"instruction_following":100,...},"estimated_tier":"medium","recommendations":[...]}
 ```
 
@@ -174,7 +175,7 @@ npx tsx index.ts capability-probe --mode score --file answers.json
 
 智能体在首次执行 srs-formalizer 时应：
 
-1. **运行能力探测**——`capability-probe --mode generate` → 发送给 LLM → `--mode score` 判分
+1. **能力探测**——Agent 按 SKILL.md `capability_requirements` 维度自行设计题目发给 LLM，收集答案后按 0-100 规则判分（`capability-probe` 命令已归档）
 2. **确定 Tier**——取各阶段所需维度的最低分，对照 Tier 阈值
 3. **生成适配配置**——写入 `STATE.md` 的能力适配章节：
    ```markdown
