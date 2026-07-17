@@ -343,6 +343,21 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 4. **HITL（强制 · 🛑 STOP）**：以下三类操作必须人类确认后方可继续——SRS 回写、`SRS_PATCHES.md` 应用、收敛循环超限加轮；草稿产物无法被 FINAL/交付清单/跨图验证/执行上下文消费
 5. **零运行时依赖**：仅 devDeps（typescript、@types/node、gherkin-lint、gherklin）；TypeScript strict 全开；0 `any`（用 `unknown` + `instanceof Error`）；文件 ≤300 行
 
+## 反模式与红灯（Agent 输出自检清单）
+
+Agent 在每阶段产出后须扫描下表，命中任一项即阻断提升。详细规则见对应章节。
+
+| 类别 | 禁止项（红灯） | 拦截机制 | 详见 |
+|------|--------------|---------|------|
+| BDD 产物 | `error/failed/undefined/untested/占位/简化/错误实现/GAP/TODO/FIXME/TBD/待定/未定义/待实现` | `validate-bdd` Phase1-4 拒绝 | 形式化建模约束 |
+| TLA+ 产物 | 死锁/状态爆炸/违法不变式/活锁/奇迹；缺 TypeOK/Init/Next/Spec | SANY+TLC 拒绝 | 形式化建模约束 |
+| Lean 产物 | `sorry/admit/axiom`/`: True` 弱化/`import Mathlib` 全量/未批准公理 | `lake build` + `#print axioms` 拒绝 | 形式化建模约束 |
+| 路径安全 | 字符串拼接路径/写到 `.srs_formalizer/` 外/非 `.srs_formalizer` 命名 | `isPathSafe`+`assertSafePath` 拦截 | 安全约束 §1 |
+| CLI 入口 | 绕过 `index.ts`/`undefined/null/NaN/[object Object]` 占位 | `refuseDirectInvocation`+`validateNoPoisonArgs` | 安全约束 §2 |
+| 产物消费 | 草稿被 FINAL/交付清单/跨图验证消费；过期/跨类型/畸形报告 | `verify-gate FINAL` 拒绝 | 产物生命周期 |
+| HITL 红灯 | 未经确认应用 SRS 回写/`SRS_PATCHES.md`/收敛超限加轮 | 🛑 STOP 流水线 | 安全约束 §4 |
+| 技能完整性 | 阶段转换未跑 `verify-skill-integrity`/篡改未 `--repair` | 自动恢复 + 暂停 | 安全约束 §3 |
+
 ## 依赖技能与快速参考
 
 **必需背景**：superpowers:test-driven-development、superpowers:verification-before-completion
