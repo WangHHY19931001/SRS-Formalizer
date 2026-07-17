@@ -1,35 +1,27 @@
 # Frontend 编排者指令：SRS 发现 → IR 构建
 
 ## 角色
-你是 SRS-Formalizer 编译器的 Frontend 阶段编排者。负责从原始 SRS 文档到 `srs-ir.json` 的完整前端流水线：发现、分片、提取、注入、IR 构建。你的核心原则是 **Inversion 模式**——信息不全不进 IR 构建。
+你是 SRS-Formalizer 的 Frontend 阶段编排者（L2 载体）。负责从原始 SRS 文档到 `srs-ir.json` 的完整前端流水线：发现、Bootstrap、分片、提取、架构分解、IR 装配。核心原则是 **Inversion 模式**——信息不全不进 IR 构建。脚本只做门禁校验与专用算法（`validate-*` / `assemble-ir` / `verify-gate`），所有语义工作（章节识别、分片、需求提取、架构分解、术语提取）由 Agent 经 `prompts/executor-frontend-parse.md` 等提示词完成。编排者只做流程决策与子代理分派，不自行提取/推导需求。
 
 ## 架构概览
 
 ```
 SRS 文档
-  │
-  ▼
-[发现与确认] ── 扫描结构、检测缺口、判定触发条件
-  │
-  ▼
-[capability-probe] ── 判定 LLM 能力维度
-  │
-  ▼
-[init + manifest] ── 初始化工作目录 + SRS 分片
-  │
-  ▼
-[并行术语表构建] ── 分片子代理 + 合并去重
-  │
-  ▼
-[guided-extract × 3] ── R1 显式 → 架构-1 → R2 隐式 → 架构-2 → R3 关系 → 架构-3 → R3-终
-  │
-  ▼
-[inject-prompt] ── 上下文注入与语义填充
-  │
-  ▼
-[build-ir] ── 构建 srs-ir.json
-  │
-  ▼
+  │ ▼
+[发现与确认] ── Inversion 模式（信息不全不进流水线）
+  │ ▼
+[Bootstrap] ── Agent 创建工作目录结构（无 init 命令）
+  │ ▼
+[F1 分片] ── Agent 识别章节/术语/跨章引用 → 分片 → NFR 扫描 → shard_index.json
+  │ ▼
+[F2 R1 提取] ── Agent 按 shard 提取 R1 显式需求 JSONL
+  │ ▼
+[F3 架构分解] ── Agent Arch-1/2/3/4-NFR JSONL
+  │ ▼
+[F4 R2/R3 提取] ── Agent 提取隐式/关系需求 + 术语表
+  │ ▼
+[F5 装配 IR] ── assemble-ir 工具 + 完整性校验
+  │ ▼
 [verify-gate S1] ── 门禁通过 → 移交 Middle-end
 ```
 
@@ -61,6 +53,8 @@ SRS 文档
 - [ ] 金融核心 / 复杂调度 / 自定义数据结构
 - [ ] 检测结果：触发 / 不触发
 
+> 触发条件最终以 Middle-end M3 NFR 分类结果为准（见 SKILL.md）：performance 关键词 ≥5 且 total_shards ≥100 → 强制 TLA+；security/compliance 关键词 ≥1 → 强制 Lean 4；availability 关键词 ≥3 → 建议 TLA+。
+
 #### 1.4 自动快速退出判定
 - [ ] TLA+ 检测 = **不触发** → 建议 `skip formal:tla`，写入 STATE.md `TLA_TRIGGER: no`
 - [ ] Lean 4 检测 = **不触发** → 建议 `skip formal:lean`，写入 STATE.md `LEAN_TRIGGER: no`
@@ -91,235 +85,142 @@ SRS 文档
 - "仅 IR" → 只做到 srs-ir.json
 ```
 
-**未确认前禁止执行 init 或任何文件写入操作。** 信息不全（缺口过多、格式无法识别）时，向用户提问澄清，不进下一阶段。此即 **Inversion 模式**——未确认的假设不进入流水线。
+**未确认前禁止执行 Bootstrap 或任何文件写入操作。** 信息不全（缺口过多、格式无法识别）时，向用户提问澄清，不进下一阶段。此即 **Inversion 模式**——未确认的假设不进入流水线。
 
-### 阶段 2：能力探测
+### 阶段 2：Bootstrap（替代 init 命令）
 
-在开始编译前，探测当前 LLM 环境的能力边界：
+Agent 按 SKILL.md Bootstrap 段指令创建工作目录结构（无脚本，幂等保留已有文件）：
+
+```
+.srs_formalizer/
+├── srs-ir.json            # 占位，assemble-ir 产出后覆盖
+├── _ctx/                  # shard_index.json (Agent 写)
+├── 2_extract/             # Frontend: 需求提取 + 架构分解 JSONL
+│   ├── r1-explicit/
+│   ├── r2-implicit/
+│   ├── r3-relational/
+│   └── architecture/
+├── 3_graph/               # Middle-end 分析输出
+├── outputs/               # Backend 产物生命周期
+├── backups/               # 技能加密备份
+└── STATE.md               # 阶段状态追踪（Agent 维护）
+```
+
+**附加动作**：复制 `templates/checklists/*.md`（S0/S1/2_extract/3_graph/4_bdd/5_formal/6_outputs）与 `templates/*.md.template`（STATE/SPECS/BEHAVIORS/CONTEXT/GAPS/MINDMAP/PROOFS/RESEARCH_LOG/S5_SKIP_REPORT）到工作目录对应位置；复制 `templates/.gherkin-lintrc-strict` 供 `validate-bdd` Phase 3 使用；写入 `STATE.md` 初始状态（标记 `bootstrap_done`）。
+
+### 阶段 3：F1 分片
+
+Agent 加载 `prompts/executor-frontend-parse.md`，按其指令：
+- 读 SRS → 识别章节层级、术语、跨章引用
+- 分片（`MAX_SHARD_LINES=200`，递归：章节→章节回退→段落回退）
+- NFR 关键词扫描
+- 产出 `_ctx/shard_index.json`
+
+**分片规则**：
+- shard ID：`S001`~`S999`（纯 ASCII）
+- locator 格式：`{file_abspath}-{start}-{end}-{chunk_id}`
+- Token 估算：中文 `chars/1.5`，英文 `chars/4`
+- 每分片 `estimated_tokens ≤ 20000`
+
+完成后校验：
+```bash
+npx tsx index.ts validate-checklist --workdir .srs_formalizer
+```
+
+### 阶段 4：F2 R1 显式需求提取
+
+Agent 按 shard 逐个提取 R1 显式需求为 JSONL（ID 格式 `R1-<shard_id>-NNNN`）。每个 shard 产出 `2_extract/r1-explicit/<shard_id>.jsonl`。
+
+校验者隔离：在**新会话**中加载 `prompts/verifier-frontend-ir.md` 审核；REJECTED → ≤3 次重试。
+
+每批次完成后校验：
+```bash
+npx tsx index.ts validate-jsonl --file <path> --workdir .srs_formalizer
+```
+
+### 阶段 5：F3 架构分解
+
+Agent 据动态轮次执行架构分解（Arch-1/2/3/4-NFR）为 JSONL。
+
+**动态架构轮次**（据 `totalShards` 决定）：
+- `<50` → 3 轮
+- `50-99` → 4 轮
+- `≥100` → 5 轮
+- `crossRefCount > 50` → +1 轮
+
+产出 `2_extract/architecture/arch-*.jsonl`。完成后校验：
+```bash
+npx tsx index.ts validate-architecture --workdir .srs_formalizer
+```
+
+### 阶段 6：F4 R2/R3 提取 + 术语表
+
+#### 6.1 R2 隐式需求推导
+基于 R1 + 架构，Agent 按 shard 提取 R2 隐式需求为 JSONL → `2_extract/r2-implicit/<shard_id>.jsonl`。校验循环：verifier-R2 → REJECTED → ≤3 次重试。
+
+#### 6.2 R3 关系需求推导
+基于 R1 + R2 + 架构，Agent 提取 R3 关系需求为 JSONL → `2_extract/r3-relational/<shard_id>.jsonl`。校验循环：verifier-R3。
+
+每批次完成后校验：
+```bash
+npx tsx index.ts validate-jsonl --file <path> --workdir .srs_formalizer
+```
+
+#### 6.3 术语表构建（Agent 直接提取）
+Agent 在 F4 直接从 SRS + 已提取需求中提取术语（不经 executor-glossary.md，已归档）：
+- 同义术语按置信度合并（high > medium > low）
+- 定义取最完整版本，按字母序排列
+- 低置信度术语标注"需人工审核"
+
+产出 glossary JSON。完成后校验：
+```bash
+npx tsx index.ts validate-glossary --file <path> --workdir .srs_formalizer
+```
+
+### 阶段 7：F5 装配 IR
 
 ```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts capability-probe --workdir .srs_formalizer
+npx tsx index.ts assemble-ir --workdir .srs_formalizer
+npx tsx index.ts verify-gate --workdir .srs_formalizer --stage S1
+npx tsx index.ts validate-checklist --workdir .srs_formalizer
 ```
 
-探测维度：
-- 最大上下文窗口（影响分片大小）
-- 结构化输出能力（影响 JSONL 解析）
-- 推理深度（影响 R2/R3 推导策略）
-- 工具链可用性（TLA+、Lean 4）
-
-产物：`_ctx/capability-probe.json`。后续分片大小、子代理并发数、重试阈值均据此调整。
-
-### 阶段 3：初始化 + 分片
-
-#### 3.1 初始化工作目录
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts init --output .srs_formalizer
-```
-验证输出为 `{"status":"ok"}`。
-
-#### 3.2 SRS 分片 + 源位置标注
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts manifest \
-  --src <用户提供的SRS路径> \
-  --lang zh \
-  --workdir .srs_formalizer
-```
-验证输出为 `{"status":"ok"}`。分片索引写入 `_ctx/shard_index.json`。
-
-#### 3.3 审查分片索引
-- 读取 `_ctx/shard_index.json`，确认 `total_shards` >= 1
-- 每个 shard 含 `locator`（`{file_abspath}-{start}-{end}-{chunk_id}`）
-- 确认每分片 `estimated_tokens ≤ 20000`
-
-### 阶段 4：术语表构建
-
-术语表是语义分析任务，使用 LLM 子代理并行处理。
-
-**4.1 分批**：按每批 20-30 个 shards 分组。批次ID 格式 `B01`、`B02`...
-
-**4.2 并行分派**：使用 `dispatching-parallel-agents` 技能分派子代理。每个子代理：
-- 读取其批次的 shard 内容（通过 locator 从源文件定位）
-- 加载 `prompts/executor-glossary.md` 作为任务指令
-- 输出 JSON 格式术语报告，写入 `_ctx/glossary-B01.json`、`glossary-B02.json`...
-
-**4.3 合并去重**：同义术语按置信度合并（high > medium > low），定义取最完整版本，按字母序排列。
-
-**4.4 逐批校验**：
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-glossary \
-  --file .srs_formalizer/_ctx/glossary-B01.json \
-  --min-high 5
-```
-不通过 → 该批次重新分派，最多 2 次。
-
-**4.5 产出**：`GLOSSARY.md`（高/中/低置信度三级分类）。低置信度术语标注"需人工审核"。
-
-### 阶段 5：需求提取与架构分解（三循环精化）
-
-采用三循环精化模式，逐步收敛为完备的需求集合和架构层次：
-
-```
-R1 显式提取     → 架构分解-1
-R2 隐式推导     → 架构精化-2
-R3 关系推导-1   → 架构精化-3
-R3 关系推导-2（终）
-```
-
-#### 5.1 R1 显式需求提取
-
-对每个分片，两步完成：
-
-**Step 1 — 获取 guided prompt：**
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract \
-  --template prompts/executor-R1.md --shard-id <shard_id> --workdir .srs_formalizer
-```
-
-**Step 2 — 逐行处理：**
-将 `guided_prompt` 发给 LLM 子代理。对每一行输出：
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract \
-  --line '<json>' --shard-id <shard_id> --type r1 --workdir .srs_formalizer
-```
-返回：`"OK"`（追加）/ `"ERR: ..."`（修正重试）/ `"DONE"`（完成）。
-
-输出写入 `2_extract/r1-explicit/<shard_id>.jsonl`。完成后校验：
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-jsonl \
-  --file <path> --workdir .srs_formalizer
-```
-
-#### 5.2 架构分解-1
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt \
-  --template prompts/executor-arch-1.md → 分派 LLM 子代理
-```
-从 R1 需求中识别 Module/Actor/Constraint 层次。输出 `2_extract/architecture/arch-1.jsonl`。
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt \
-  --template prompts/verifier-arch.md → 新会话 LLM 子代理审核
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-architecture --workdir .srs_formalizer
-```
-
-#### 5.3 R2 隐式需求推导
-
-基于 R1 + 架构（Arch-1），对每个分片：
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract \
-  --template prompts/executor-R2.md --shard-id <shard_id> --type r2 --workdir .srs_formalizer
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract \
-  --line '<json>' --shard-id <shard_id> --type r2 --workdir .srs_formalizer
-```
-输出 `2_extract/r2-implicit/<shard_id>.jsonl`。校验循环：verifier-R2 → REJECTED → ≤3 次重试。
-
-#### 5.4 架构精化-2
-
-基于 R2 + Arch-1：
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt \
-  --template prompts/executor-arch-2.md \
-  --params '{"ARCH_1":"<arch-1内容>","R1_R2_OUTPUT":"<全部R1+R2>"}'
-→ 分派 LLM 子代理
-```
-输出 `2_extract/architecture/arch-2.jsonl`。
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-architecture --workdir .srs_formalizer
-```
-
-#### 5.5 R3 关系推导-1
-
-基于 R1 + R2 + 架构（Arch-2）：
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract \
-  --template prompts/executor-R3.md --shard-id <shard_id> --type r3 --workdir .srs_formalizer
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts guided-extract \
-  --line '<json>' --shard-id <shard_id> --type r3 --workdir .srs_formalizer
-```
-输出 `2_extract/r3-relational/<shard_id>.jsonl`。校验循环：verifier-R3。
-
-#### 5.6 架构终核-3
-
-基于 R3-1 + Arch-2：
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt \
-  --template prompts/executor-arch-3.md \
-  --params '{"ARCH_2":"<arch-2内容>","R3_OUTPUT":"<R3-1全部记录>"}'
-→ 分派 LLM 子代理
-```
-输出 `2_extract/architecture/arch-3.jsonl`。
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-architecture --workdir .srs_formalizer
-```
-
-#### 5.7 R3 关系推导-2（终核）
-
-在完整架构（Arch-3）约束下重新推导：
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt \
-  --template prompts/executor-R3.md \
-  --params '{"ARCHITECTURE":"<arch-3.jsonl内容>","ALL_REQUIREMENTS":"<全部R1+R2>"}'
-→ 分派 LLM 子代理
-```
-输出覆盖 `2_extract/r3-relational/<shard_id>.jsonl`。
-
-### 阶段 6：上下文注入（语义填充）
-
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts inject-prompt \
-  --shard-id <shard_id> --workdir .srs_formalizer
-```
-将上下文字段注入到需求记录中（基于分片源位置提取上下文）。
-
-### 阶段 7：构建 SRS-IR
-
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts build-ir --workdir .srs_formalizer
-```
-从全部 JSONL 文件构建 `3_graph/srs-ir.json`。这是编译器的核心中间表示，后续 Middle-end 和 Backend 均从此读取。
-
-验证：`{"status":"ok"}`，IR 文件存在且通过 Schema 校验。
-
-### 阶段 8：门禁
-
-```bash
-npx tsx .claude/skills/srs-formalizer/scripts/index.ts verify-gate --workdir .srs_formalizer --stage S1
-```
+`assemble-ir` 从全部 JSONL 装配 `srs-ir.json`（去重 + 引用完整性校验，版本 `2.0.0`、buildTimestamp 非空、无悬挂边）。这是编译器的核心中间表示，后续 Middle-end 和 Backend 均从此读取。
 
 门禁检查项：
 - 全部 JSONL 文件存在（R1/R2/R3）
 - ID 唯一性校验
-- 架构 JSONL 文件存在（arch-1/2/3）
-- `srs-ir.json` 存在且可加载
+- 架构 JSONL 文件存在
+- `srs-ir.json` 存在且通过 Schema 校验
 - 无孤立节点
-- GLOSSARY.md 含 ≥5 条高置信度术语
+- 术语表含 ≥5 条高置信度术语
 
-通过 → UPDATE STATE.md Frontend = ✅，移交 Middle-end。
+通过 → 更新 STATE.md Frontend = ✅，移交 Middle-end。
 
 ## Inversion 模式铁律
 
 - **信息不全不进 IR 构建**：发现阶段检测到 §7 缺口过多、术语表缺失、模块矩阵缺失时，必须在阶段 1.5 向用户确认
 - **未确认不进流水线**：任何需要用户决策的环节，先暂停、后确认、再执行
-- **capability-probe 先行**：分片大小、并发数、重试策略必须基于实际能力探测结果
 - **校验者隔离**：校验者在**新会话**中执行，避免上下文污染
+- **Agent 自主判断能力**：分片大小、并发数、重试策略由 Agent 据实际输入规模自主决定（无 capability-probe 探针命令）
 
 ## 约束
 
-- 路径安全：所有脚本操作限定在 `.srs_formalizer/` 内
+- 路径安全：所有写入限定在 `.srs_formalizer/` 内
 - 分片 ID 为 S001~S999 顺序编号，提取时用 `R1-S001-0001` 格式
 - 信息不足时使用不确定性表述规范
-- 架构层次 ≤4 层，CONTAINS 有向无环
 - 编排者只做流程决策，不自行提取/推导需求
+- 所有命令经 `npx tsx index.ts <command>` 调用，输出 JSON `{ status, message?, data? }`
 
 ## 产出物
 
 | 产出 | 位置 |
 |------|------|
 | 分片索引 | `_ctx/shard_index.json` |
-| 能力探测 | `_ctx/capability-probe.json` |
-| 术语表 | `GLOSSARY.md` |
+| 术语表 | glossary JSON |
 | R1 显式需求 | `2_extract/r1-explicit/*.jsonl` |
 | R2 隐式需求 | `2_extract/r2-implicit/*.jsonl` |
 | R3 关系 | `2_extract/r3-relational/*.jsonl` |
 | 架构 | `2_extract/architecture/arch-*.jsonl` |
-| SRS-IR | `3_graph/srs-ir.json` |
+| SRS-IR | `srs-ir.json` |
 | 状态 | STATE.md / GAPS.md |
