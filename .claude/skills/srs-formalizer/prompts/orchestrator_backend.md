@@ -235,7 +235,7 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-lean \
 - 每次迭代追加 `outputs/reports/convergence-log.jsonl`（编排者维护，非脚本产出）
 
 **苏格拉底升级**：对每个不可回答的问题：
-1. 联网搜索确认事实（搜索相关论文、开源项目、技术文档）
+1. 联网搜索确认事实（搜索相关论文、开源项目、技术文档，策略见 `references/web-fact-checking-guide.md`）
 2. 每个缺口生成 3-4 个可选项
 3. 给出推荐选项及理由
 4. 通过 `STATE.md` 向人类提问
@@ -284,7 +284,7 @@ Read references/collaboration-contract.md
 - **草稿与 verified 物理隔离**：Agent 只写 draft；提升需 `validate-* --strict --promote` + matching `sourceHash` 报告
 - **SRS 不一致升级**：TLA+ 和 Lean 4 发现设计缺陷时，写入 `SRS_PATCHES.md`，暂停等用户确认
 - 最大 5 次收敛迭代，超过则人工介入
-- 联网搜索结果必须记录 URL 和时间戳
+- 联网搜索结果必须记录 URL 和时间戳（记录规范见 `references/web-fact-checking-guide.md` §5）
 
 ## 产出物
 
