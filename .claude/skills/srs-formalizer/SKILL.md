@@ -198,6 +198,24 @@ metadata:
 5. **子代理 ID 必须 ASCII-only**，正则 `^R[123]-[A-Za-z0-9_.]+-\d{4}$`，禁止中文
 6. **SRS 回写必须经用户确认**；**技能工程零运行时 npm 依赖**（devDeps 仅 typescript、@types/node、gherkin-lint、gherklin）
 
+## 失败模式与恢复
+
+以下 if-then 三段式覆盖管线全生命周期的主要失败场景。Agent 在遇到对应症状时按表执行，禁止跳过或静默忽略。
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---------|---------|-----------|
+| `verify-gate --stage S1` 未通过 | 检查 `validate-jsonl` / `validate-architecture` / `validate-glossary` 报错 → 修复对应 JSONL 后重跑 F2-F4 → 重新 `assemble-ir` | 连续 2 次修复失败 → 🛑 **STOP**：将错误报告与当前 shard_index 打包，等待人类确认是否跳过或重建 |
+| `verify-gate --stage R3` 未通过 | 检查 `validate-semantics --strict` 具体字段 → 修复结构/语义/NFR/连通性/冲突/风险中对应项 → 重跑 M1-M6 | 连续 2 次修复失败 → 🛑 **STOP**：输出 `3_graph/analysis/` 全量快照，等待人类决策 |
+| `verify-gate --stage FINAL` 未通过 | 检查 `sourceHash` 不匹配项 → 定位过期/草稿/跨类型产物 → 回退至对应 Backend 步骤（B1-B4）重新生成 → 重新 `--strict --promote` | 连续 2 次修复失败 → 🛑 **STOP**：禁止提交草稿或过期报告，等待人类确认是否加轮或收工 |
+| `assemble-ir` 装配失败 | 保留上一阶段有效 JSONL 产物 → 检查去重冲突与悬挂边 → 修复后重跑 | 仍失败 → 回退到 F2 重新提取，不删除已有校验数据 |
+| B3 TLA+ SANY/TLC 报错 | 根据错误行定位模块 → 检查 TypeOK/Init/Next/Spec 完整性 → 修复后重跑 `validate-tla --strict --promote` | 仍失败 → 检查是否需 L2→L3 拆分；若状态爆炸则加 `--promote` 前必须先拆分 |
+| B4 Lean 4 `lake build` 失败 | 检查 `sorry`/`admit`/`axiom`/`: True`/全量 `import Mathlib` → 逐项消除后重跑 | 仍失败 → 检查平台兼容性（Windows 不支持）；若为平台问题 → 标记 `platform_unsupported` 并跳过 |
+| B7 收敛循环超限（>max_iterations） | 检查当前 high-confidence 比例与 NFR 覆盖率 → 若 ≥7/13 且 NFR≥60% → 允许标记 `partial_convergence`；否则 → 苏格拉底拷问当前最大分歧点 | 仍无法收敛 → 🛑 **STOP**：强制人类确认是否加轮或收工 |
+| 文件写入冲突/越界 | `isPathSafe` + `assertSafePath` 拦截 → 改用 `path.join()` 修正路径 → 原子 temp-file + rename 重试 | 仍失败 → 中止当前操作并告警，不继续写入 |
+| 子代理输出 JSONL 校验失败 | `validate-jsonl` 返回具体行号与字段 → 重派子代理修正该批次 → 不通过则整批重跑 | 连续 3 次子代理修正失败 → 降级为人工提取该 shard |
+
+> **Agent 自检**：每阶段转换前扫描本表，若当前场景命中任一触发条件但未执行对应修复 → 阻断阶段提升。
+
 ## 渐进式披露
 
 | 级别 | 内容 | 加载时机 |

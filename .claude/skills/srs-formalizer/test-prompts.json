@@ -1,20 +1,17 @@
 [
   {
     "id": 1,
-    "prompt": "请把这个在线商店的 SRS 需求文档形式化为知识图谱、BDD 和 TLA+ 规约",
-    "expected": "技能应识别 SRS 输入，启动 Frontend→Middle-end→Backend 三阶段管线，调用门禁脚本校验，最终产出 Cypher 图谱、Gherkin .feature、TLA+ .tla+.cfg 等形式化产物",
-    "scenario": "happy path - 最典型的全流程形式化场景"
+    "prompt": "我有一个在线商城的 SRS 文档（Markdown 格式，约 300 行），请帮我将其形式化为需求知识图谱、BDD 测试用例、TLA+ 规约和 Lean 4 证明。",
+    "expected": "Agent 应启动 Bootstrap → Frontend 分片提取 → Middle-end 分析 → Backend 生成四类产物，并在各 CHECKPOINT 暂停等待确认。输出应包含 .srs_formalizer/ 工作目录结构和各阶段状态。"
   },
   {
     "id": 2,
-    "prompt": "我有一个包含 security 和 compliance 关键词的支付系统需求文档，帮我生成 Lean 4 证明",
-    "expected": "技能应识别 security/compliance NFR 关键词触发 Lean 4 强制生成，按 Lake 项目结构拆分证明骨架，经 validate-lean --strict --promote 校验后提升至 verified",
-    "scenario": "条件触发场景 - 验证 NFR 关键词条件分支是否清晰"
+    "prompt": "请只帮我生成这个 SRS 文档的 BDD .feature 文件和 Cypher 知识图谱，不需要 TLA+ 和 Lean 证明。",
+    "expected": "Agent 应识别阶段过滤意图，仅执行 Frontend + Middle-end + Backend 的 B1(Cypher) 和 B2(BDD) 步骤，跳过 B3(TLA+) 和 B4(Lean)，并在 STATE.md 记录阶段裁剪决策。"
   },
   {
     "id": 3,
-    "prompt": "这个需求文档有点乱，帮我分析一下质量并形式化",
-    "expected": "技能应先确认是否有 SRS 文档输入；若有则走形式化流程，若文档质量差应在 Middle-end 阶段产出结构/语义/NFR/连通性分析并标记 gap，不应在无 SRS 时强行启动",
-    "scenario": "歧义场景 - 验证何时不该使用与边界条件处理"
+    "prompt": "帮我 review 一下这段代码的需求实现是否符合 SRS 规格",
+    "expected": "由于包含 'review' 和 '代码' 关键词，命中 negative_triggers，技能不应激活。Agent 应拒绝触发并提示用户使用代码审查工具而非 SRS 形式化流程。"
   }
 ]
