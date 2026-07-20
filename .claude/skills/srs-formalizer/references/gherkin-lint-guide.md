@@ -31,7 +31,7 @@ gherkin-lint -r ./my-rules/
 
 ### 3.1 标准模式（`.gherkin-lintrc`）
 
-技能在 `init` 时生成到工作目录 `outputs/bdd/draft/` 下。
+技能在 Bootstrap 时复制 `templates/.gherkin-lintrc-strict` 到工作目录 `outputs/bdd/draft/` 下。
 
 ### 3.2 严格模式（`.gherkin-lintrc-strict`）
 
@@ -48,7 +48,7 @@ gherkin-lint -c .claude/skills/srs-formalizer/templates/.gherkin-lintrc-strict .
 
 ### 3.3 srs-formalizer 标准配置
 
-技能在 `init` 时生成 `.gherkin-lintrc` 到工作目录 `outputs/bdd/draft/` 下：
+技能在 Bootstrap 时复制 `templates/.gherkin-lintrc-strict` 到工作目录 `outputs/bdd/draft/` 下：
 
 ```json
 {

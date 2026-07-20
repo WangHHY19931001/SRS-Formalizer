@@ -61,7 +61,7 @@ TLA+ 使用内置 `tla2tools-1.7.4.jar`（`tools/` 目录）。仅需 Java（不
 - **禁止奇迹**：不允许不可能的状态转换
 - **禁止未定义**：TypeOK 不变式强制执行
 - **禁止活锁（停滞）**：Stuttering 检测
-- **6 类 NFR 不变式通过**：性能/安全/可靠性/可用性/可维护性/可观测性
+- **6 类 NFR 不变式通过**：performance/security/availability/compatibility/maintainability/compliance
 
 ### 拆解判据
 
@@ -88,7 +88,7 @@ Lean 4 建模不再无条件触发，而是按以下 NFR 关键词触发：
 | macOS ARM64  |          ✅          |
 | Windows      | ❌ 禁止（使用 WSL2） |
 
-安装后执行 `lake exe cache get` 下载 mathlib4 最新版编译缓存（避免从源码编译）。要求使用 mathlib4 最新版本。
+安装后执行 `lake exe cache get` 下载 mathlib4 最新版编译缓存（避免从源码编译）。仅最小导入集合，禁止 `import Mathlib` 全量。
 
 Lean 4 严格交付流程为：Emitter 写入 `outputs/lean4/draft` 中的完整 Lake 项目（必须有 `lakefile.lean` 或 `lakefile.toml`）→ 人工/子代理完成项目本地证明 → `validate-lean --strict --promote` 审计并在项目根运行 `lake build` → 成功时原子提升整个项目到 verified。`.lean`、Lake 项目定义和可选 `lean-toolchain` 均纳入 source hash；FINAL 只接受该 hash 与当前 verified 内容匹配的报告。审计拒绝 `sorry`、`admit`、`axiom`、全量 `import Mathlib`、`: True` 弱化定理及编译 warning，详见 `references/lean4-coding-guide.md`。
 
@@ -108,7 +108,7 @@ Lean 4 严格交付流程为：Emitter 写入 `outputs/lean4/draft` 中的完整
 | Q8  | 它与外部如何交互（BDD+TLA+ 联合建模）                            | 行为 + TLA+ + 系统架构 |
 | Q9  | 它的工作边界是什么（联合建模+边界条件）                          | 行为 + TLA+ + 系统架构 |
 | Q10 | 它的兜底方案是什么（降级/回滚/恢复）                             | 需求 + 行为 + 系统架构 |
-| Q11 | 它的 NFR 约束如何验证（性能/安全/可靠性/可用性/可维护性/可观测性）| NFR + TLA+ + Lean      |
+| Q11 | 它的 NFR 约束如何验证（performance/security/availability/compatibility/maintainability/compliance）| NFR + TLA+ + Lean      |
 | Q12 | 合规性如何保证（GDPR/HIPAA/SOC2/ISO27001）                       | 需求 + Lean + 系统架构 |
 | Q13 | 回溯链路是否完整（需求→设计→验证→证明）                          | 全部图谱               |
 

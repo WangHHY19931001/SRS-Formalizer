@@ -2,7 +2,7 @@
 
 ## 适用场景
 
-当编码智能体执行 `/init` 或项目初始化时加载本文档，获取将 srs-formalizer 技能集成到各平台 hook/规则系统的指令。
+当编码智能体执行 Bootstrap 或项目初始化时加载本文档，获取将 srs-formalizer 技能集成到各平台 hook/规则系统的指令。
 
 ---
 
@@ -63,8 +63,8 @@ done
 "§"分节标记、"软件需求"、"系统需求"等特征）时：
 
 1. 立即加载 srs-formalizer 技能
-2. 先运行 S0 Discovery — 扫描 SRS 结构、检测 TLA+/Lean 触发条件、报告用户
-3. 用户确认后按 S1→S6 流水线执行
+2. 先运行 Frontend F1 阶段 — 扫描 SRS 结构、检测 TLA+/Lean 触发条件、报告用户
+3. 用户确认后按 F1-F5 → M1-M6 → B1-B7 流水线执行
 4. 每阶段产物通过 verify-gate 后才进入下一阶段
 5. 若工具链缺失（Java/Lean 4），对应阶段标记不可用，不阻塞主线
 ```
@@ -149,8 +149,8 @@ skill-flow doctor  # 诊断部署状态
 |------|------|---------|---------|
 | Node.js ≥20 | ✅ | `node --version` | 安装指引 → ERRORS.md |
 | TypeScript 5.5+ | ✅ | `npx tsc --version` | `npm install` |
-| Java (TLC) | S5 | `java -version` | 标记 TLA+ 不可用 |
-| Lean 4 (lake) | S5 | `lake --version` | 标记 Lean 4 不可用 |
+| Java (TLC) | B3 | `java -version` | 标记 TLA+ 不可用 |
+| Lean 4 (lake) | B4 | `lake --version` | 标记 Lean 4 不可用 |
 
 ---
 
@@ -159,7 +159,7 @@ skill-flow doctor  # 诊断部署状态
 - [ ] 技能目录已部署到目标平台的 skills 路径
 - [ ] AGENTS.md / CLAUDE.md 中已加入 SRS 触发规则
 - [ ] `npm install` 已执行（仅 typescript + @types/node）
-- [ ] `npm test` 168 测试全通过
+- [ ] `npm test` 200 测试全通过
 - [ ] （可选）Claude Code hook 已注册
 - [ ] （可选）Qoder API 已上传技能 zip
 - [ ] （可选）swarmskills / skill-flow 已配置跨平台同步
@@ -169,7 +169,7 @@ skill-flow doctor  # 诊断部署状态
 | 问题 | 平台 | 解决 |
 |------|------|------|
 | 技能未被触发 | 全部 | 检查 AGENTS.md 规则是否包含 SRS 关键词 |
-| `init` 拒绝路径 | 全部 | `--output` 参数必须以 `.srs_formalizer` 结尾 |
+| `init` 已归档 | 全部 | Bootstrap 无脚本，Agent 手动创建工作目录（幂等保留已有文件） |
 | TLA+/Lean 跳过 | 全部 | 安装对应工具链或确认跳过正确 |
 | validate-jsonl REJECTED | 全部 | LLM 输出偏离填空模板——检查 executor prompt |
 | Claude Code 不扫描 `.agents/` | Claude Code | 需单独部署到 `.claude/skills/` |

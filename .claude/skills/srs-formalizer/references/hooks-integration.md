@@ -81,8 +81,8 @@ alwaysApply: false
 When the user provides or references an SRS document:
 
 1. Load skill: srs-formalizer (from .cursor/skills/srs-formalizer/)
-2. Run S0 Discovery first — scan structure, detect TLA+/Lean triggers, report to user
-3. After user confirmation, execute S1→S6 pipeline
+2. Run Frontend F1 阶段 first — scan structure, detect TLA+/Lean triggers, report to user
+3. After user confirmation, execute F1-F5 → M1-M6 → B1-B7 pipeline
 4. Each stage must pass verify-gate before next stage
 
 **Keyword triggers**: SRS, 需求规格, 软件需求, §1., §2., 功能需求, Gherkin, TLA+, Lean, Cypher, 形式化, 知识图谱, BDD
@@ -151,13 +151,13 @@ prompt = """
 Load skill: srs-formalizer (from .gemini/skills/srs-formalizer/)
 
 Execute the full pipeline:
-1. S0 Discovery — scan SRS structure, detect TLA+/Lean triggers
-2. S1 Preprocessing — Agent Bootstrap（手动创建 workdir 结构）
-3. S2 Extraction — R1→Arch-1→R2→Arch-2→R3-1→Arch-3→R3-2
-4. S3 Graph — Agent 生成 Cypher → validate-cypher
-5. S4 BDD — Agent 生成 BDD → validate-bdd
-6. S5 Formal — TLA+/Lean (conditional)
-7. S6 Gate — verify-gate FINAL
+1. Frontend F1 阶段 — scan SRS structure, detect TLA+/Lean triggers
+2. F1-F5 Preprocessing — Agent Bootstrap（手动创建 workdir 结构）+ R1/Arch/R2/R3 提取
+3. M1-M6 Middle-end — 结构/语义/NFR/连通性/冲突/风险分析
+4. B1 Graph — Agent 生成 Cypher → validate-cypher
+5. B2 BDD — Agent 生成 BDD → validate-bdd
+6. B3-B4 Formal — TLA+/Lean (conditional)
+7. B7 Gate — verify-gate FINAL
 
 Run verify-gate before each stage transition.
 Args: {{args}}
@@ -183,7 +183,7 @@ BDD, Gherkin, TLA+, Lean, Cypher, Neo4j
 
 ## When Detected
 1. Load skill: srs-formalizer from .windsurf/skills/srs-formalizer/
-2. Run S0 Discovery → report → confirm → S1→S6 pipeline
+2. Run Frontend F1 阶段 → report → confirm → F1-F5 → M1-M6 → B1-B7 pipeline
 3. verify-gate at each stage boundary
 
 ## Tech Stack Lock
@@ -205,8 +205,8 @@ When a user provides or references an SRS document (files containing
 "需求规格", "软件需求", "§1.", "功能需求", "SRS", etc.):
 
 1. Load srs-formalizer skill
-2. Start with S0 Discovery — confirm triggers with user
-3. Execute S1→S6 pipeline with gate checks
+2. Start with Frontend F1 阶段 — confirm triggers with user
+3. Execute F1-F5 → M1-M6 → B1-B7 pipeline with gate checks
 4. Never skip stages or run out of order
 ```
 
@@ -227,7 +227,7 @@ Qoder 使用三级 Rules 系统（Project > Team > Global）。
 
 激活后执行：
 1. 加载技能 `srs-formalizer`
-2. S0 Discovery → S1→S6 流水线
+2. Frontend F1 阶段 → F1-F5 → M1-M6 → B1-B7 流水线
 3. 每阶段 verify-gate 门禁
 ```
 
@@ -243,7 +243,7 @@ Qoder 使用三级 Rules 系统（Project > Team > Global）。
 ## srs-formalizer 激活
 
 当检测到 SRS 文档特征时（含"需求规格"、"§"分节标记、"功能需求"等），
-激活 srs-formalizer 技能，执行 S0→S6 流水线。
+激活 srs-formalizer 技能，执行 F1-F5 → M1-M6 → B1-B7 流水线。
 
 每个平台特定目录：
 - Trae:    .trae/skills/srs-formalizer/
@@ -304,7 +304,7 @@ Run: aider --skill srs-formalizer
 # AGENTS.md
 ## SRS 处理
 当用户提供 SRS 文档（特征：含"需求规格"、"§"分节、"功能需求"等），
-激活 srs-formalizer 技能。S0 发现→S1→S6 流水线。阶段门禁强制。
+激活 srs-formalizer 技能。Frontend F1 阶段 → F1-F5 → M1-M6 → B1-B7 流水线。阶段门禁强制。
 ```
 
 ### 优先级 2：项目根目录约定文件
@@ -327,7 +327,7 @@ Run: aider --skill srs-formalizer
 
 ```
 [SYSTEM] 当检测到 SRS 文档时，使用 srs-formalizer 技能处理。
-该技能位于 {path}/SKILL.md，包含 S0→S6 六阶段流水线。
+该技能位于 {path}/SKILL.md，包含 Frontend (F1-F5) → Middle-end (M1-M6) → Backend (B1-B7) 三阶段流水线。
 ```
 
 ### 优先级 5：MCP 服务器分发
@@ -359,4 +359,4 @@ Run: aider --skill srs-formalizer
 - [ ] Antigravity: `.gemini/commands/srs-formalizer.toml` 已创建
 - [ ] Windsurf: `.windsurfrules` 已加入 SRS 规则
 - [ ] Qoder: `.qoder/rules/srs-formalizer.md` Always Apply
-- [ ] 168 测试全部通过
+- [ ] 200 测试全部通过

@@ -101,8 +101,8 @@ alwaysApply: false
 # SRS Formalizer Activation
 When user provides or references an SRS document:
 1. Load skill srs-formalizer from .cursor/skills/srs-formalizer/
-2. Run S0 Discovery → report → confirm
-3. Execute S1→S6 pipeline with verify-gate at each stage
+2. Run Frontend F1 阶段 → report → confirm
+3. Execute F1-F5 → M1-M6 → B1-B7 pipeline with verify-gate at each stage
 4. Never skip stages or run out of order
 MDCEOF
 
@@ -152,7 +152,7 @@ mkdir -p .gemini/commands
 cat > .gemini/commands/srs-formalizer.toml << 'TOMLEOF'
 description = "SRS formalization pipeline: preprocess→extract→graph→BDD→formal→gate"
 prompt = """
-Load skill srs-formalizer. Execute full S0→S6 pipeline.
+Load skill srs-formalizer. Execute full F1-F5 → M1-M6 → B1-B7 pipeline.
 Run verify-gate before each stage transition.
 Args: {{args}}
 """
@@ -170,7 +170,7 @@ cat >> .windsurfrules << 'WSEOF'
 When SRS document detected (关键词: SRS, 需求规格, 软件需求, 功能需求,
 §1., Gherkin, TLA+, Lean, Cypher, 形式化):
 1. Load skill from .windsurf/skills/srs-formalizer/
-2. S0 Discovery → confirm → S1→S6 pipeline
+2. Frontend F1 阶段 → confirm → F1-F5 → M1-M6 → B1-B7 pipeline
 WSEOF
 
 echo "✅ Windsurf: .windsurfrules updated"
@@ -185,7 +185,7 @@ cat > .qoder/rules/srs-formalizer.md << 'QEOF'
 # SRS Formalizer — Always Apply
 
 触发：用户上传/引用 .md 文件含"需求规格"、"§1."、"功能需求"。
-激活后加载 srs-formalizer 技能，执行 S0→S6 流水线。
+激活后加载 srs-formalizer 技能，执行 F1-F5 → M1-M6 → B1-B7 流水线。
 QEOF
 
 echo "✅ Qoder: Always Apply rule configured"
@@ -227,8 +227,8 @@ if ! grep -q "srs-formalizer" AGENTS.md 2>/dev/null; then
 When user provides/creates an SRS document (特征: "需求规格", "§"分节,
 "功能需求", "软件需求"):
 1. Activate srs-formalizer skill
-2. Run S0 Discovery — scan, detect triggers, report, confirm
-3. Execute S1→S6 pipeline, verify-gate at each stage
+2. Run Frontend F1 阶段 — scan, detect triggers, report, confirm
+3. Execute F1-F5 → M1-M6 → B1-B7 pipeline, verify-gate at each stage
 AGENTSEOF
   echo "✅ AGENTS.md updated with SRS rule"
 fi
@@ -268,5 +268,5 @@ echo "  cd $TARGET/scripts && npm test"
 - [ ] 技能已部署到平台特定目录
 - [ ] 激活机制已配置（hook/rule/command 至少一项）
 - [ ] AGENTS.md 已包含 SRS 处理规则
-- [ ] `npm test` 168 测试全部通过
+- [ ] `npm test` 200 测试全部通过
 - [ ] 向智能体发送含"需求规格"的消息，确认技能被激活

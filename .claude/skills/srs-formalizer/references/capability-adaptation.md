@@ -4,7 +4,7 @@
 
 基于 AgentBench（8 大类 23 项任务）、SkillAudit（23 职业类别×多维度评估）、SkillsBench（87 任务×8 领域）等 2026 年研究，LLM 在 Agent 技能场景下不是"强/弱"二分，而是**多维能力画像**。同一模型在指令遵循上出色，在形式化推理上可能完全失败。
 
-本方案为 srs-formalizer 的 7 个阶段定义能力需求和分级适配策略，编码智能体可根据实际使用的 LLM 能力自动选择合适的执行模式。
+本方案为 srs-formalizer 的 Frontend (F1-F5) / Middle-end (M1-M6) / Backend (B1-B7) 阶段定义能力需求和分级适配策略，编码智能体可根据实际使用的 LLM 能力自动选择合适的执行模式。
 
 ---
 
@@ -29,11 +29,11 @@
 
 ## 二、分级定义
 
-| 层级 | 分数 | 标签 | 含义 |
-|------|------|------|------|
-| **Tier 3（强）** | ≥80 | `full_auto` | LLM 自主执行，编排者做流程决策 |
-| **Tier 2（中）** | 50-79 | `guided` | LLM 执行+verifier 密集审核+人工抽查 |
-| **Tier 1（弱）** | <50 | `human_in_loop` | 每步人工确认，或跳过该阶段 |
+| 层级 | SKILL.md `capability_tiers` | 分数 | adaptation | 含义 |
+|------|------|------|------|------|
+| **Tier 3** | `strong` | ≥80 | `full_auto` | LLM 自主执行，编排者做流程决策 |
+| **Tier 2** | `medium` | 50-79 | `guided` | LLM 执行+verifier 密集审核+人工抽查 |
+| **Tier 1** | `weak` | <50 | `human_in_loop` | 每步人工确认，或跳过该阶段 |
 
 ### 能力分数估算
 
@@ -45,7 +45,7 @@
 | Claude Sonnet 4.x / DeepSeek-V3 | 65-80 | Tier 2-3 |
 | GPT-4o / Qwen3.5-72B | 55-70 | Tier 2 |
 | Claude Haiku / Qwen3.5-7B | 35-50 | Tier 1 |
-| 本地小模型 (<7B) | <35 | Tier 1（仅 S0,S1） |
+| 本地小模型 (<7B) | <35 | Tier 1（仅 F1） |
 
 > 精确评估建议运行 SkillsBench 或 AgentBench 的对应子集。本表为经验估计。
 
@@ -53,7 +53,7 @@
 
 ## 三、各阶段分级适配
 
-### S0 — Discovery（文本分析+推理）
+### F1 — Discovery（文本分析+推理）
 
 | Tier | 行为 |
 |------|------|
@@ -61,11 +61,11 @@
 | 2 | 自动扫描→生成报告→**人工审查 TLA+/Lean 触发判断**→确认 |
 | 1 | **人工指定**所有参数（路径、语言、触发条件），不依赖 LLM 判断 |
 
-### S1 — 预处理（纯 TS 确定性，不依赖 LLM）
+### Bootstrap — 工作目录创建（Agent 手动，不依赖 LLM）
 
-所有 Tier 相同——TS 脚本执行。
+所有 Tier 相同——Agent 按 `.srs_formalizer` 命名约定手动创建 workdir 结构（幂等保留已有文件）。
 
-### S2.1 — R1 显式需求提取
+### F2 — R1 显式需求提取
 
 | Tier | 适配 |
 |------|------|
@@ -73,7 +73,7 @@
 | 2 | 填空模板 → TS 门禁 → **verifier 逐条全量审核** → 修正循环 |
 | 1 | 填空模板 → TS 门禁 → **人工逐条审核** → 修正 |
 
-### S2.2 — 架构分解-1
+### F3 — 架构分解（Arch-1/2/3/4-NFR）
 
 | Tier | 适配 |
 |------|------|
@@ -81,7 +81,7 @@
 | 2 | LLM 生成 → validate-architecture → **人工审查模块归属** → 修正 |
 | 1 | **人工编写 arch-1.jsonl**，LLM 不参与 |
 
-### S2.3 — R2 隐式需求推导
+### F4 — R2 隐式需求推导
 
 | Tier | 适配 |
 |------|------|
@@ -89,11 +89,11 @@
 | 2 | LLM 推导 → TS 门禁 → **verifier 逐条打回不合理推导** |
 | 1 | **跳过 R2**（标记为人力待补），不阻塞管道 |
 
-### S2.4 — 架构精化-2
+### F3 — 架构精化（迭代）
 
-| Tier | 同 S2.2 |
+| Tier | 同 F3 架构分解 |
 
-### S2.5 — R3 关系推导-1
+### F4 — R3 关系推导
 
 | Tier | 适配 |
 |------|------|
@@ -101,7 +101,7 @@
 | 2 | **仅推导 DEPENDS_ON+REFINES**，跳过 CONFLICTS_WITH（矛盾检测不可靠） |
 | 1 | **跳过 R3**，图谱无边（标记为人力待补） |
 
-### S2.6-2.7 — 架构终核+R3-2
+### F3+F4 — 终核（架构终核+R3-2）
 
 | Tier | 适配 |
 |------|------|
@@ -109,37 +109,31 @@
 | 2 | **跳过 arch-3+R3-2**，两次精化即可 |
 | 1 | 跳过 |
 
-### S3-S4 — 图谱构建+BDD 生成（纯 TS 确定性）
+### B1+B2 — Cypher 图谱构建+BDD 生成（纯 TS 确定性）
 
 所有 Tier 相同——TS 脚本执行。
 
-### S5 — 形式化（TLA+/Lean 4）
+### B3+B4 — 形式化（TLA+/Lean 4）
 
 | Tier | 适配 |
 |------|------|
 | 3 | LLM 编写 TLA+/Lean → TLC/lake 验证 → 修正循环 |
 | 2 | **仅 TLA+**（不变量检查较成熟），**跳过 Lean 4** |
-| 1 | **跳过全部 S5** |
+| 1 | **跳过全部 B3+B4** |
 
-### S6 — 验收闸门
+### B7 — 验收闸门
 
 所有 Tier 相同。
 
 ---
 
-## 四、能力探测系统（TS 出题→LLM 回答→TS 判分）
+## 四、能力探测系统
 
-**不使用 LLM 自报告**——模型自评能力不可靠。采用标准化评估：
+**不使用 LLM 自报告**——模型自评能力不可靠。`capability-probe` 命令已在 v2.0.0 架构反转中归档；当前由 **Agent 据模型能力画像自主判断**（参考 SKILL.md frontmatter `capability_tiers` 字段：`strong`/`medium`/`weak`）：
 
-```
-capability-probe --mode generate  → 输出 6 道标准化评估题（含 mini SRS 样本）
-        ↓
-编排者将题面发送给 LLM → LLM 返回 JSON 答案
-        ↓
-capability-probe --mode score --file <llm_answer.json>  → TS 脚本判分
-        ↓
-输出: capability_profile + estimated_tier + per-stage recommendations
-```
+- Agent 按 SKILL.md `capability_requirements` 维度自行设计题目发给 LLM
+- 编排者收集答案后，Agent 按 0-100 评分规则自行判分
+- 综合各维度最低分对照 Tier 阈值，输出 `capability_profile` + `estimated_tier` + 各阶段建议
 
 ### 六维度评估题
 
@@ -156,18 +150,7 @@ capability-probe --mode score --file <llm_answer.json>  → TS 脚本判分
 
 ### 使用示例
 
-> **注意**：`capability-probe` 命令已在 v2.0.0 架构反转中归档。以下流程改为 Agent 自主执行。
-
-```bash
-# 1. 生成评估题（Agent 按 SKILL.md capability_requirements 维度自行设计题目）
-#    Agent 将题目 prompt 发给 LLM
-
-# 2. 编排者将题目发给 LLM，收集答案为 answers.json:
-#    {"answers": {"instruction_following-1": "...", ...}}
-
-# 3. 判分（Agent 按 0-100 评分规则自行判分，写入 STATE.md）
-# → {"capability_profile":{"instruction_following":100,...},"estimated_tier":"medium","recommendations":[...]}
-```
+> **已归档**：`capability-probe` 命令已在 v2.0.0 架构反转中归档，原 `--mode generate` / `--mode score` 调用不再有效。当前流程由 Agent 自主执行——按 SKILL.md `capability_requirements` 维度设计题目、收集答案、判分，并写入 STATE.md。
 
 ---
 
@@ -182,10 +165,10 @@ capability-probe --mode score --file <llm_answer.json>  → TS 脚本判分
    ## 能力适配
    | 阶段 | Tier | 模式 |
    |------|------|------|
-   | S2.1 | 2 | guided（逐条全量审核） |
-   | S2.2 | 2 | guided（人工审查归属） |
-   | S2.5 | 1 | skipped |
-   | S5 | 1 | skipped |
+   | F2 | 2 | guided（逐条全量审核） |
+   | F3 | 2 | guided（人工审查归属） |
+   | F4 | 1 | skipped |
+   | B3+B4 | 1 | skipped |
    ```
 4. **执行时遵循**——编排者读取 STATE.md 的能力适配配置，按对应模式执行
 
