@@ -59,12 +59,14 @@
 
 | NFR 类别 | 不变式命名约定 | 典型不变式 |
 |----------|---------------|-----------|
-| `performance` | `ResponseTimeInv` | 请求-响应时间 ≤ 阈值，队列长度 ≤ 上限 |
-| `security` | `AccessControlInv` | 未授权访问 → 状态不变，敏感数据不泄露 |
+| `performance` | `PerfLatencyInv` | 请求-响应时间 ≤ 阈值，队列长度 ≤ 上限 |
+| `security` | `SecurityInv` | 未授权访问 → 状态不变，敏感数据不泄露 |
 | `availability` | `AvailInv` | 故障节点数 ≤ 上限，已确认操作不可回滚且故障后可恢复 |
 | `compatibility` | `CompatInv` | 跨平台/浏览器行为一致，接口契约保持兼容 |
-| `maintainability` | `AuditInv` | 每个状态转换产生审计记录 |
+| `maintainability` | `MaintInv` | 配置/状态迁移完整，每个状态转换可追踪 |
 | `compliance` | `ComplianceInv` | 数据保留策略强制满足，删除动作有据可查 |
+
+> **命名约定统一**：6 类 NFR 不变式命名必须与 `orchestrator_backend.md` L113-118、`debug-tlc.md` L57-62、`convergence-loop.md` L37-39 一致（`PerfLatencyInv`/`SecurityInv`/`AvailInv`/`CompatInv`/`MaintInv`/`ComplianceInv`）。这些命名是「13 个根本问题」跨图一致性检查的目标，分散命名会导致 Q11/Q12/Q13 无法收敛。
 
 ## 输出格式
 
@@ -82,8 +84,8 @@ VARIABLES ...
 TypeOK == ...
 
 (* -- NFR 不变量 -- *)
-AccessControlInv == ...
-DurabilityInv == ...
+PerfLatencyInv == ...
+SecurityInv == ...
 ComplianceInv == ...
 
 (* -- 初始状态 -- *)
