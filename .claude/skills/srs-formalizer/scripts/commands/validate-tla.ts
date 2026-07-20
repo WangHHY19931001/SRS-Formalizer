@@ -39,10 +39,13 @@ export async function main(args: string[]): Promise<CliResult> {
   try { result = validateTla(tlaFile, cfgFile); }
   catch (err) { return { status: 'error', message: 'TLA+ toolchain unavailable', data: { error: (err as Error).message } }; }
   if (!result.passed) return { status: 'error', message: 'TLA+ SANY or TLC validation failed', data: { sany: result.sany, tlc: result.tlc } };
-  const sourceHash = hashFiles([tlaFile, cfgFile]);
-  const reportPath = path.join(artifactPath(workDir, ARTIFACT_PATHS.tlaValidation), `${sourceHash}.json`);
-  writeValidationReport(reportPath, { artifactKind: 'tlaplus', lifecycle: 'verified', sourcePaths: [tlaFile, cfgFile], sourceHash, irHash: sourceHash, tools: [{ name: 'java', version: result.javaVersion }, { name: 'tla2tools', version: result.jarVersion }], startedAt, completedAt: new Date().toISOString(), passed: true, checks: [{ name: 'static specification checks', passed: true }, { name: 'SANY', passed: true, detail: result.sany.output.slice(0, 500) }, { name: 'TLC', passed: true, detail: result.tlc.output.slice(0, 500) }] });
+  // Promote first, then hash the FINAL file locations (verified/ when --promote, draft/ otherwise)
+  // so that checks-final.ts (which hashes the verified/ paths) can match the report's sourceHash.
+  // Earlier versions hashed draft paths which never matched verified paths.
   const files = promote ? promoteFiles(sourceDir, artifactPath(workDir, ARTIFACT_PATHS.tlaVerified), [`${name}.tla`, `${name}.cfg`]) : [tlaFile, cfgFile];
+  const sourceHash = hashFiles(files);
+  const reportPath = path.join(artifactPath(workDir, ARTIFACT_PATHS.tlaValidation), `${sourceHash}.json`);
+  writeValidationReport(reportPath, { artifactKind: 'tlaplus', lifecycle: 'verified', sourcePaths: files, sourceHash, irHash: sourceHash, tools: [{ name: 'java', version: result.javaVersion }, { name: 'tla2tools', version: result.jarVersion }], startedAt, completedAt: new Date().toISOString(), passed: true, checks: [{ name: 'static specification checks', passed: true }, { name: 'SANY', passed: true, detail: result.sany.output.slice(0, 500) }, { name: 'TLC', passed: true, detail: result.tlc.output.slice(0, 500) }] });
   return { status: 'ok', data: { files, report: reportPath } };
 }
 

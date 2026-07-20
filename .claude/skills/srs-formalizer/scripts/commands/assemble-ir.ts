@@ -19,7 +19,8 @@ import {
 } from '../lib/cli.js';
 import { listJsonlFiles, readJsonl } from '../lib/jsonl.js';
 
-const EXTRACT_SUBDIRS = ['r1-explicit', 'r2-implicit', 'r3-relational', 'architecture'] as const;
+const REQUIREMENT_SUBDIRS = ['r1-explicit', 'r2-implicit', 'r3-relational'] as const;
+const ARCHITECTURE_SUBDIR = 'architecture';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -47,6 +48,39 @@ function toIRNode(record: JsonlRecord): IRNode {
     },
     source: {
       filePath: record.source_file,
+      startLine: toNum(meta?.['start_line'], 1),
+      endLine: toNum(meta?.['end_line'], 1),
+      shardId: toStr(meta?.['shard_id'], record.id),
+      chapter: toStr(meta?.['chapter'], ''),
+    },
+  };
+}
+
+/** 将 architecture JSONL 记录映射为 IR architecture 节点。
+ *  arch-1 用 type 字段，arch-2/3 用 action 字段；映射为 IRProperties.archType 枚举。 */
+function toArchIRNode(record: JsonlRecord): IRNode {
+  const meta = isRecord(record.metadata) ? record.metadata : null;
+  const raw = record as unknown as Record<string, unknown>;
+  const typeOrAction = toStr(raw['type'] ?? raw['action'], '');
+  const archType =
+    typeOrAction === 'module' || typeOrAction === 'add_module' || typeOrAction === 'merge' ? 'Module'
+    : typeOrAction === 'actor' || typeOrAction === 'add_actor' ? 'Actor'
+    : typeOrAction === 'constraint' || typeOrAction === 'add_constraint' ? 'Constraint'
+    : typeOrAction === 'add_dependency_layer' ? 'Component'
+    : 'Module';
+  const name = toStr(raw['name'], record.id);
+  const reasoning = toStr(raw['reasoning'], '');
+  return {
+    id: record.id,
+    type: 'architecture',
+    module: name,
+    labels: [':Architecture', `:${archType}`],
+    properties: {
+      statement: reasoning || `${name} architecture element`,
+      archType,
+    },
+    source: {
+      filePath: name,
       startLine: toNum(meta?.['start_line'], 1),
       endLine: toNum(meta?.['end_line'], 1),
       shardId: toStr(meta?.['shard_id'], record.id),
@@ -92,23 +126,36 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   try {
-    const records: JsonlRecord[] = [];
-    for (const sub of EXTRACT_SUBDIRS) {
+    const nodes: IRNode[] = [];
+    const idSet = new Set<string>();
+
+    // Load requirement records (R1/R2/R3) and convert via toIRNode
+    for (const sub of REQUIREMENT_SUBDIRS) {
       const dir = path.join(workDir, '2_extract', sub);
       if (!fs.existsSync(dir)) continue;
       for (const file of listJsonlFiles(dir, workDir)) {
-        records.push(...readJsonl(file, workDir));
+        for (const r of readJsonl(file, workDir)) {
+          if (idSet.has(r.id)) {
+            return { status: 'error', message: `重复 ID: ${r.id}，无法装配 IR` };
+          }
+          idSet.add(r.id);
+          nodes.push(toIRNode(r));
+        }
       }
     }
 
-    const nodes: IRNode[] = [];
-    const idSet = new Set<string>();
-    for (const r of records) {
-      if (idSet.has(r.id)) {
-        return { status: 'error', message: `重复 ID: ${r.id}，无法装配 IR` };
+    // Load architecture records and convert via toArchIRNode (type='architecture')
+    const archDir = path.join(workDir, '2_extract', ARCHITECTURE_SUBDIR);
+    if (fs.existsSync(archDir)) {
+      for (const file of listJsonlFiles(archDir, workDir)) {
+        for (const r of readJsonl(file, workDir)) {
+          if (idSet.has(r.id)) {
+            return { status: 'error', message: `重复 ID: ${r.id}，无法装配 IR` };
+          }
+          idSet.add(r.id);
+          nodes.push(toArchIRNode(r));
+        }
       }
-      idSet.add(r.id);
-      nodes.push(toIRNode(r));
     }
 
     const ir: SRSIR = {
