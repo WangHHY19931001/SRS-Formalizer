@@ -1,5 +1,10 @@
 # Lean 错误诊断
 
+## 调用时机
+1. **何时调用**：当 `validate-lean --strict --promote` 报错或 `lake build` 失败时
+2. **不调用**：模块无 `NFR_SEC`/`NFR_COMPLIANCE` 标签（Lean 未触发为正常）；`.lean` 文件不存在
+3. **上下游**：上游 executor-lean4 的 `.lean` + `lake build` 错误输出 → 本文件 VERDICT → 下游 executor-lean4 修正
+
 ## 触发条件说明
 
 Lean 4 仅在 IR 节点命中 **security** 或 **compliance** 关键词时触发，对应的 NFR 标注为 `NFR_SEC`（安全性——加密、认证、授权、审计、脱敏）或 `NFR_COMPLIANCE`（合规性——GDPR、等保、审计追踪、数据驻留）。**非安全关键模块不生成 Lean 证明。** 这意味着：

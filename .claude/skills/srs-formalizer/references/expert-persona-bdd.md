@@ -52,12 +52,12 @@
 
 针对 SRS 中的非功能需求，必须为每个相关模块生成独立的 NFR 场景：
 
-- **性能场景**：必须含具体指标（如 "response time < 200ms"），禁止模糊表述
-- **安全场景**：认证/授权/加密场景必须含完整 Given 前置（token/session/凭据）
-- **可靠性场景**：重试/降级/熔断场景必须含具体阈值（如 "retry ≤ 3 times"）
-- **可用性场景**：含超时/故障转移/健康检查的具体阈值
-- **可维护性场景**：日志/指标/告警的前提条件和断言
-- **可观测性场景**：追踪/tracing span 的结构化断言
+- **performance 场景**：必须含具体指标（如 "response time < 200ms"），禁止模糊表述
+- **security 场景**：认证/授权/加密场景必须含完整 Given 前置（token/session/凭据）
+- **availability 场景**：含超时/故障转移/重试/降级/熔断/健康检查的具体阈值（如 "retry ≤ 3 times"）
+- **compatibility 场景**：版本/接口/平台兼容范围的具体约束与断言
+- **maintainability 场景**：日志/指标/告警/追踪/tracing span 的结构化前提条件和断言
+- **compliance 场景**：GDPR/HIPAA/SOC2/ISO27001 等合规要求的可验证断言
 
 ### 多框架支持
 你需精通以下 BDD 框架：
@@ -116,3 +116,9 @@
 ## 相关参考
 
 - **`references/bdd-coding-guide.md`** — Gherkin 语法速查、声明式 vs 过程式对比、Scenario Outline 数据驱动模式、常用 BDD 框架对照表。编码时按需加载。
+
+## 门禁调用
+
+```bash
+npx tsx index.ts validate-bdd --strict --promote --workdir <wd>
+```

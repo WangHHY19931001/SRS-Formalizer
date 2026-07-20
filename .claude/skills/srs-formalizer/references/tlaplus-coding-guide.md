@@ -1,6 +1,6 @@
 # TLA+ 编码参考指南
 
-本指南为 srs-formalizer S5 阶段的 TLA+ 子代理提供编码规范，涵盖语法速查、编写原则、编码方法、反例与常见错误、工业实践及外部资源。
+本指南为 srs-formalizer Backend B3 阶段的 TLA+ 子代理提供编码规范，涵盖语法速查、编写原则、编码方法、反例与常见错误、工业实践及外部资源。
 
 ---
 
@@ -16,12 +16,7 @@ java -version
 
 ### 0.2 工具获取
 
-技能内置 `tla2tools-1.7.4.jar`（位于 `tools/` 目录）。首次使用时自动尝试下载最新版本；下载失败则使用内置版本。
-
-```bash
-# 手动下载最新版
-curl -L "https://github.com/tlaplus/tlaplus/releases/latest/download/tla2tools.jar" -o tools/tla2tools.jar
-```
+仅使用内置 `tools/tla2tools-1.7.4.jar`，不联网、不引入外部 JAR。
 
 ### 0.3 验证命令（SANY + TLC）
 
@@ -32,8 +27,8 @@ java -cp tools/tla2tools-1.7.4.jar tla2sany.SANY <file>.tla
 # TLC 模型检测
 java -cp tools/tla2tools-1.7.4.jar tlc2.TLC -config <file>.cfg <file>.tla
 
-# 技能 CLI（自动选择 JAR 版本）
-npx tsx index.ts validate-tla --file <path> --workdir .srs_formalizer
+# 技能 CLI
+npx tsx index.ts validate-tla --name <module> --strict --promote --workdir <wd>
 ```
 
 ---

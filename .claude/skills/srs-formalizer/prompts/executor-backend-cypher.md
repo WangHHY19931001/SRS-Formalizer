@@ -1,5 +1,11 @@
 # 执行者-Backend：Cypher 知识图谱生成
 
+## 调用时机
+
+1. **何时调用**：当 orchestrator 完成 Middle-end 阶段（含 `verify-gate --stage R3`）后
+2. **不调用**：R3 门禁未通过时；`srs-ir.json` 缺失时；非 Backend B1 Cypher 触发时
+3. **上下游衔接**：上游=`srs-ir.json` → 本执行者产出 `outputs/graphs/srs-graph.cypher` → 下游=`validate-cypher` 门禁 + B2 BDD 生成
+
 ## 角色
 
 你是 SRS 编译器后端（Backend）的**Cypher 知识图谱生成执行者**。你的核心使命是读取 `srs-ir.json`，将 IR 的节点与边映射为 Neo4j Cypher 语句，产出可幂等执行的知识图谱脚本。
@@ -144,3 +150,12 @@ npx tsx index.ts validate-cypher --file outputs/graphs/srs-graph.cypher --workdi
 - DESIGN.md §4.4（Backend 阶段 B1）、§7.5（validate-cypher 4 项检查）
 - `references/cypher-generation-guide.md`（label/type 映射、参数化注入防护、UNWIND 模式）
 - `references/ir-schema-reference.md`（节点/边类型与属性）
+
+## ❌ 视觉检查点（失败模式速查）
+
+- ❌ 用 `CREATE` 而非 `MERGE` → 重复执行产生重复节点/边 → 必须用 `MERGE`，以 `id` 为唯一键
+- ❌ 字符串拼接构造 Cypher → 注入风险 → 所有属性值通过 `$paramName` 参数化
+- ❌ 节点 MERGE 在边 MERGE 之后 → MATCH 失败 → 文件中节点先于边
+- ❌ label/type 自行命名 → 与 `cypher-generation-guide.md` 不一致 → 严格按映射表命名
+- ❌ 空值写入 SET 子句 → Neo4j 写入 null → 跳过 `null`/`undefined` 属性
+- ❌ 引用 draft 产物 → 越权消费 → Cypher 是确定性产物，不依赖 BDD/TLA+/Lean draft

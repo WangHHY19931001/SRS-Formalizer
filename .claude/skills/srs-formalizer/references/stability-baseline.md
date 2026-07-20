@@ -2,6 +2,8 @@
 
 > **已归档**：`capability-probe` 与 `stability-test` 命令已在 v2.0.0 架构重构中归档。LLM 能力探测与稳定性测试现由 Agent 自主判断能力维度 + 编排者观察完成，无替代命令。本文档保留为历史参考，下方命令调用不再有效。
 
+> ⚠️ **DEPRECATED (v2.0.0)**：本文档基于已归档的 `capability-probe`/`stability-test` 命令，仅作历史参考。当前能力适配请参考 `capability-adaptation.md` 与 SKILL.md frontmatter `capability_tiers` 字段。
+
 ## What Is Stability Testing?
 
 Stability testing measures how consistently an LLM performs across repeated

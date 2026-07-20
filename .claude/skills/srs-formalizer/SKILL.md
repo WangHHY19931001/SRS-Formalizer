@@ -294,7 +294,7 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 
 **TLA+ 全模块覆盖**（`validate-tla --name <module> --strict --promote`）：仅使用内置 `tools/tla2tools-1.7.4.jar` 执行 SANY + TLC（启用死锁检测），不联网、不下载 JAR、不创建 cfg。层次化拆解 L1→L2→L3（变量组合 >1k 考虑拆，>1w 强制拆）。每个 verified 模块必须：单一匹配文件名的模块头/尾、声明全部 CONSTANTS/VARIABLES + ASSUME、TypeOK 覆盖所有状态变量、非空 Init + 带 guard 的 Next + Spec、每个 SRS 状态转换与至少一个 Action 追溯。6 类 NFR 不变式均须在模型配置中检查。不允许死锁/状态爆炸/违法不变式/活锁/奇迹。
 
-**Lean 4 拆分证明**（`validate-lean --strict --promote`）：在 Lake 项目根（`lakefile.lean` 或 `lakefile.toml`）审计并运行 `lake build`。0 `sorry`/`admit`/`axiom`、0 warning。每个声明为与 SRS 对应的 `theorem` + 完整 `proof`，禁止 `: True` 弱化；每个 lemma 独立文件（≤100 行），proof >50 行或 have 块 >30 行必须拆分；仅最小导入集合，禁止 `import Mathlib` 全量。对每个交付 theorem 运行 `#print axioms` 拒绝未批准公理。平台：Linux x86_64 ✅、macOS ARM64 ✅、Windows ❌。
+**Lean 4 拆分证明**（`validate-lean --strict --promote`）：在 Lake 项目根（`lakefile.lean` 或 `lakefile.toml`）审计并运行 `lake build`。0 `sorry`/`admit`/`axiom`、0 warning。每个声明为与 SRS 对应的 `theorem` + 完整 `proof`，禁止 `: True` 弱化；每个 lemma 独立文件（≤100 行），proof >50 行或 have 块 >30 行必须拆分；允许使用 Mathlib 4 标准库（优先按需导入具体子模块如 `import Mathlib.Data.*`），`validate-lean` 拒绝 `import Mathlib` 全量导入（脚本正则 `/^\s*import\s+Mathlib\s*$/m`）。对每个交付 theorem 运行 `#print axioms` 拒绝未批准公理。平台：Linux x86_64 ✅、macOS ARM64 ✅、Windows ❌。
 
 **SRS 一致性升级流程**：形式化符合 SRS 但仍有问题时，不修改代码绕过，写入 `SRS_PATCHES.md`（矛盾描述 + SRS 引用 + 可选项 A/B/C + 事实依据，允许联网搜索），🛑 **STOP · 等待人类确认**后方可应用补丁；涉及安全关键需求时 `security_level` 提升至 `critical`。
 
@@ -302,7 +302,7 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 
 > 🔴 **CHECKPOINT · FINAL 门禁收口**：B7 完成 `verify-gate --stage FINAL` 收口，仅接受 verified 产物且 `sourceHash` 匹配当前内容。FINAL 失败 → 回退至对应 Backend 步骤修复，禁止提交草稿或过期报告。超限未收敛 → 🛑 **STOP · 强制人类确认**是否加轮或收工。
 
-**跨图验证 13 个根本问题（Q1-Q13）**（完整定义见 `prompts/orchestrator_backend.md`）：Q1 本质定义｜Q2 核心功能｜Q3 具体能力｜Q4 技术原理(Lean)｜Q5 集成联动｜Q6 内部行为(TLA+)｜Q7 系统间交互｜Q8 外部交互｜Q9 工作边界｜Q10 兜底方案｜Q11 性能约束｜Q12 安全边界(Lean)｜Q13 容量扩展极限。收敛 = 全部 13 问可回答 + high-confidence ≥9/13。
+**跨图验证 13 个根本问题（Q1-Q13）**（完整定义见 `references/convergence-loop.md`）：Q1 本质定义｜Q2 核心功能｜Q3 具体能力｜Q4 技术原理(Lean)｜Q5 集成联动｜Q6 内部行为(TLA+)｜Q7 系统间交互｜Q8 外部交互｜Q9 工作边界｜Q10 兜底方案｜Q11 性能约束｜Q12 安全边界(Lean)｜Q13 容量扩展极限。收敛 = 全部 13 问可回答 + high-confidence ≥9/13。
 
 ## 门禁/工具速查表
 

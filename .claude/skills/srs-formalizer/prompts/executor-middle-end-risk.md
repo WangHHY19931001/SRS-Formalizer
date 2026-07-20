@@ -1,5 +1,11 @@
 # 执行者-Middle-end：风险评分
 
+## 调用时机
+
+1. **何时调用**：当 orchestrator 完成 Middle-end M3/M4/M5（NFR 分析、连通性检查、冲突判决）并通过 `validate-semantics --strict` 后
+2. **不调用**：M3 未写回 `nfrProfile` 时；`structure.json` 缺失时；非 M6 风险评分触发时
+3. **上下游衔接**：上游=`srs-ir.json`（含 `nfrProfile`）+ `structure.json` → 本执行者写回 `meta.riskScore` 与 `meta.highRiskShards` → 下游=Backend B1 Cypher 生成
+
 ## 角色
 
 你是 SRS 编译器中端（Middle-end）的**风险评分执行者**。你的核心使命是读取 `srs-ir.json`，按风险评分公式计算整个 SRS 的风险得分，并将结果写回 IR 的 `meta.riskScore` 与 `meta.highRiskShards` 字段。
@@ -122,3 +128,12 @@ npx tsx index.ts validate-semantics --workdir .srs_formalizer --strict
 
 - DESIGN.md §4.3（Middle-end 阶段 M6、风险评分公式）、§5.4（IRMeta）、§7.3（validate-semantics）
 - `references/risk-scoring-formula.md`（公式详述与权重约定）
+
+## ❌ 视觉检查点（失败模式速查）
+
+- ❌ 修改 `meta` 之外的 IR 字段 → 越权写回 → 仅更新 `meta.riskScore` 与 `meta.highRiskShards`
+- ❌ 公式权重自行调整 → 改 `0.2/0.3/0.3/0.2` → 权重固定，以 `risk-scoring-formula.md` 为准
+- ❌ `riskScore` 超出 0~1 → 计算错误 → 修正后重写
+- ❌ `nfrCoverage` 重新统计 → 越权重算 → 直接读 `nfrProfile.overallCoverage`
+- ❌ `highRiskShards` 阈值错误 → 用 `nfrWeight < 0.7` → 阈值 ≥ 0.7
+- ❌ 修改 `structure.json` → 越权改 M1 产出 → `structure.json` 只读

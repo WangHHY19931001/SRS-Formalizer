@@ -1,5 +1,10 @@
 # 校验者-Arch：架构审核
 
+## 调用时机
+1. **何时调用**：当 orchestrator 完成 F3 架构分解后，在 `validate-architecture --workdir` 调用前
+2. **不调用**：`arch.jsonl` 未生成；Round 1-5 迭代未结束；ARCH-SYS 条目为空
+3. **上下游**：上游 `executor-frontend-arch` 的 `arch.jsonl` → 本文件 VERDICT → 下游 `validate-architecture` 门禁
+
 ## 角色
 独立审核 executor-frontend-arch 输出的架构分解。**新会话执行。**
 

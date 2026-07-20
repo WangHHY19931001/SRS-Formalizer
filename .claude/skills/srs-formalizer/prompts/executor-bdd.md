@@ -1,10 +1,14 @@
 # 执行者-Backend：Gherkin 发射器
 
+## 调用时机
+
+1. **何时调用**：当 orchestrator 完成 Backend B1（Cypher 生成）并通过 `validate-cypher` 后
+2. **不调用**：B1 未通过门禁时；IR 无 `requirement`/`nfr` 节点时；BDD 骨架未就位时
+3. **上下游衔接**：上游=`srs-ir.json` + BDD 骨架（含 `<THEN_PLACEHOLDER>`） → 本执行者产出 `.feature` 文件 → 下游=`validate-bdd --strict --promote` + B3 TLA+ 生成
+
 ## 角色
 
-你是一位**行为驱动开发（BDD）形式化专家**，是 SRS 编译器后端（Backend）的一部分。你的核心使命是将 SRS-IR 中的业务规则与用户旅程，转化为机器可执行、业务可读的精细化 Gherkin 行为模型。你擅长通过场景细化挖掘需求歧义，是连接产品需求与底层形式化验证的桥梁。
-
-你信奉 BDD 的三大支柱：**Discovery（发现）**——通过协作探讨理解需求；**Formulation（表述）**——用 Gherkin 精确描述行为；**Automation（自动化）**——将规范转化为可执行的验证。你的目标是让验收测试成为系统的"单一事实来源"。
+> 专家人设见 [references/expert-persona-bdd.md](../references/expert-persona-bdd.md) 的「## 身份定位」段。
 
 ## 任务
 
@@ -136,10 +140,14 @@ Feature: 用户登录
 
 ## 完整人设参考
 
-本 prompt 内含精简版 BDD 专家人设。若你需要更详细的方法论指导，可自行加载完整人设：
+专家人设见 [references/expert-persona-bdd.md](../references/expert-persona-bdd.md) 的「## 身份定位」段。`references/bdd-coding-guide.md` 提供 Gherkin 语法参考、声明式 vs 过程式的对比示例、Scenario Outline 数据驱动模式和常用 BDD 框架对照表，可按需加载。
 
-```
-Read references/expert-persona-bdd.md
-```
+## ❌ 视觉检查点（失败模式速查）
 
-此外，`references/bdd-coding-guide.md` 提供了 Gherkin 语法参考、声明式 vs 过程式的对比示例、Scenario Outline 数据驱动模式和常用 BDD 框架对照表，可按需加载。
+- ❌ 占位符 `<LLM_FILL_*>`/`<THEN_PLACEHOLDER>` 残留 → 未填充 Then 步骤 → 全部替换为具体断言
+- ❌ 阈值数值化缺失 → 用模糊表述"快速响应" → 必须含具体数值或 `<THRESHOLD>` 标记
+- ❌ Given/When/Then 顺序错乱 → 步骤缺失或重排 → 严格保持 Given → When → Then 顺序
+- ❌ 模糊断言 → "系统正常"/"处理成功" → 细化到具体字段/状态码/界面反馈
+- ❌ `TODO` 步骤或空实现 → 未完成场景 → 删除或补全，禁止 `TODO`
+- ❌ NFR 场景缺 `verification_method` → 标注遗漏 → 每个 Then 步骤必须独立标注
+- ❌ 简化版断言 → 仅检查 HTTP 200 不验证响应体 → 必须验证完整响应契约

@@ -1,5 +1,11 @@
 # Frontend 编排者指令：SRS 发现 → IR 构建
 
+## 调用时机
+
+- **何时调用本编排者**：当用户提交 SRS 文档并完成 Bootstrap 后，驱动 F1-F5 全流水线至 `srs-ir.json` 装配
+- **不调用本编排者的场景**：SRS 文件不可读或格式无法识别；用户未在阶段 1.5 确认"继续"；仅查询已有 IR 不需重新提取
+- **上下游衔接**：上游=用户（提交 SRS + 阶段 1.5 确认）；下游=Middle-end 编排者（经 `verify-gate --stage S1` 移交）
+
 ## 角色
 你是 SRS-Formalizer 的 Frontend 阶段编排者（L2 载体）。负责从原始 SRS 文档到 `srs-ir.json` 的完整前端流水线：发现、Bootstrap、分片、提取、架构分解、IR 装配。核心原则是 **Inversion 模式**——信息不全不进 IR 构建。脚本只做门禁校验与专用算法（`validate-*` / `assemble-ir` / `verify-gate`），所有语义工作（章节识别、分片、需求提取、架构分解、术语提取）由 Agent 经 `prompts/executor-frontend-parse.md` 等提示词完成。编排者只做流程决策与子代理分派，不自行提取/推导需求。
 
@@ -53,12 +59,12 @@ SRS 文档
 - [ ] 金融核心 / 复杂调度 / 自定义数据结构
 - [ ] 检测结果：触发 / 不触发
 
-> 触发条件最终以 Middle-end M3 NFR 分类结果为准（见 SKILL.md）：performance 关键词 ≥5 且 total_shards ≥100 → 强制 TLA+；security/compliance 关键词 ≥1 → 强制 Lean 4；availability 关键词 ≥3 → 建议 TLA+。
+> 触发条件最终以 Middle-end M3 NFR 分类结果为准（见 SKILL.md）：performance 关键词 ≥5 且 total_shards ≥100 → 强制 TLA+；security/compliance 关键词 ≥1 → 强制 Lean 4；availability 关键词 ≥3 → 生成 TLA+ 草稿（Agent 决定是否 `--promote`，须在 STATE.md 记录决策依据）。
 
 #### 1.4 自动快速退出判定
-- [ ] TLA+ 检测 = **不触发** → 建议 `skip formal:tla`，写入 STATE.md `TLA_TRIGGER: no`
-- [ ] Lean 4 检测 = **不触发** → 建议 `skip formal:lean`，写入 STATE.md `LEAN_TRIGGER: no`
-- [ ] 两者均不触发 → 建议 `skip formal`（Backend 仍运行，但不生成 TLA+/Lean 产物）
+- [ ] TLA+ 检测 = **不触发** → 标记 `skip formal:tla`，写入 STATE.md `TLA_TRIGGER: no`
+- [ ] Lean 4 检测 = **不触发** → 标记 `skip formal:lean`，写入 STATE.md `LEAN_TRIGGER: no`
+- [ ] 两者均不触发 → 标记 `skip formal`（Backend 仍运行，但不生成 TLA+/Lean 产物）
 
 #### 1.5 用户确认报告
 

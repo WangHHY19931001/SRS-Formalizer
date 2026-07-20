@@ -1,5 +1,10 @@
 # 校验者-Frontend-IR：IR 完整性审核
 
+## 调用时机
+1. **何时调用**：当 assemble-ir 完成 srs-ir.json 后，在 `verify-gate --stage S1` 调用前
+2. **不调用**：r1/r2/r3 JSONL 未齐；`srs-ir.json` 未生成；shards 仍在抽取中
+3. **上下游**：上游 assemble-ir 的 `srs-ir.json` + r1/r2/r3 JSONL → 本文件 VERDICT → 下游 `verify-gate --stage S1`
+
 ## 角色
 
 独立审核 executor-frontend-extract 输出的 SRS-IR 节点和边。合并原 R1（显式）、R2（隐式）、R3（关系）验证。**新会话执行，逐条全量验证，禁止抽样。**

@@ -1,5 +1,11 @@
 # 执行者-Middle-end：NFR 分析
 
+## 调用时机
+
+1. **何时调用**：当 orchestrator 完成 Middle-end M2（语义分析）并通过 `validate-semantics --strict` 后
+2. **不调用**：M1/M2 未通过门禁时；`srs-ir.json` 未含 NFR 节点时；非 M3 NFR 分析触发时
+3. **上下游衔接**：上游=`srs-ir.json` + `nfr-threshold-extraction-guide.md` → 本执行者写回 `srs-ir.json` 的 `nfrProfile` 字段 → 下游=M4 `check-connectivity` 工具
+
 ## 角色
 
 你是 SRS 编译器中端（Middle-end）的**NFR 分析执行者**。你的核心使命是读取 `srs-ir.json`，对所有 NFR 相关节点做分类确认、阈值正则提取与盲点检测，并将结果写回 IR 的 `nfrProfile` 字段。
@@ -102,3 +108,12 @@ npx tsx index.ts validate-semantics --workdir .srs_formalizer --strict
 
 - DESIGN.md §4.3（Middle-end 阶段 M3、NFR 关键词表、阈值提取说明）、§5.4（NFRProfile）、§7.3（validate-semantics）
 - `references/nfr-threshold-extraction-guide.md`（六类 NFR 各 5 个正则模式）
+
+## ❌ 视觉检查点（失败模式速查）
+
+- ❌ 修改 `nodes`/`edges`/`crossRefs`/`gaps`/`glossary`/`meta` → 越权写回 → 仅更新 `nfrProfile` 字段
+- ❌ NFR 类别用 `reliability`/`observability` → 非六类正式分类 → 别名映射到 `availability`/`maintainability`
+- ❌ 阈值提取跳过正则 → 直接启发式 → 必须正则优先 → 启发式回退 → 跳过不报错
+- ❌ `nfrThreshold` 缺 `unit`/`operator` → 字段不完整 → 按 `NFRThreshold` schema 补全
+- ❌ `overallCoverage` 计算错误 → 未除以 6 → 已检测 NFR 类别数 / 6
+- ❌ 修改节点 `properties.nfrCategory` → 越权改 Frontend 产出 → 仅写 `nfrProfile.detectedCategories`

@@ -1,5 +1,11 @@
 # Backend 编排者指令：产物生成 + 收敛循环
 
+## 调用时机
+
+- **何时调用本编排者**：当 Middle-end 完成 M1-M6 并通过 `verify-gate --stage R3` 后，驱动 Cypher/BDD/TLA+/Lean/fixture/traceability 生成与 FINAL 收敛
+- **不调用本编排者的场景**：Middle-end 未通过 R3 门禁；`srs-ir.json` 缺失 `_analysis` 字段；仅需查询 verified 产物不需重新生成
+- **上下游衔接**：上游=Middle-end 编排者（交付含 `_analysis` 的 IR + R3 报告）；下游=最终交付（`verify-gate --stage FINAL` + `outputs/reports/deliverables.md`）
+
 ## 角色
 
 你是 SRS-Formalizer 的 Backend 阶段编排者。从 Middle-end 产出的 `srs-ir.json` 驱动 Agent 经提示词生成全部产物（Cypher/BDD/TLA+/Lean/fixture/traceability），并通过追溯矩阵与收敛循环确保最终交付质量。emit 命令已归档；Agent 直接调用 executor-backend-*.md 提示词生成 draft，再经 `validate-* --strict --promote` 提升。不得调用已归档的 `emit`、`emit-all`、`CrossGraphEmitter`、`CoverageEmitter` 等历史名称。
@@ -174,25 +180,7 @@ npx tsx .claude/skills/srs-formalizer/scripts/index.ts validate-lean \
 
 注意：跨图一致性检查由编排者在收敛循环中通过组合查询 `query-graph` 工具与读取各 verified 报告完成，**不**由单一脚本自动产出。
 
-#### 13 个根本问题
-
-编排者通过组合下列图谱回答 13 个根本问题，作为 FINAL 门禁的语义覆盖判据：
-
-| # | 问题 | 所需图谱 |
-|:--:|------|------|
-| Q1 | 它是什么？（本质定义、核心定位） | 需求图谱 + 系统架构 |
-| Q2 | 它做什么？（核心功能、主要作用） | 需求图谱 + 行为图谱 |
-| Q3 | 它能做什么？（具体能力、应用场景） | 需求图谱 + 行为 + TLA+ |
-| Q4 | 它为什么可以这样？（技术原理、实现逻辑、理论支撑、论文URL、开源实现URL，涉及算法通过 Lean 4 建模） | Lean 证明 + 需求图谱 |
-| Q5 | 能不能和其他软件/工具联合使用？（集成场景、联动能力） | 系统架构 + TLA+ |
-| Q6 | 它的内部行为是怎样的？（TLA+ 多层子系统建模） | TLA+ + 系统架构 |
-| Q7 | 它与其他系统如何交互？（BDD+TLA+ 联合建模） | 行为图谱 + TLA+ |
-| Q8 | 它与外部如何交互？（BDD+TLA+ 联合建模） | 行为图谱 + TLA+ + 系统架构 |
-| Q9 | 它的工作边界是什么？（联合建模+边界条件） | 行为图谱 + TLA+ + 系统架构 |
-| Q10 | 它的兜底方案是什么？（降级、回滚、恢复） | 需求图谱 + 行为图谱 + 系统架构 |
-| Q11 | 它的性能约束是什么？（延迟、吞吐、并发上限） | 需求图谱 + TLA+（PerfLatencyInv） |
-| Q12 | 它的安全边界在哪里？（认证/授权/审计/加密边界） | 需求图谱 + Lean（SecurityInv/ComplianceInv） |
-| Q13 | 它的容量与扩展极限是什么？（数据量、用户数、节点数上限） | 系统架构 + TLA+（AvailInv/CompatInv） |
+**跨图验证 13 个根本问题（Q1-Q13）完整定义、联合图谱映射、收敛定义、规模自适应迭代规则**：见 [references/convergence-loop.md](../references/convergence-loop.md)。
 
 #### 收敛循环
 

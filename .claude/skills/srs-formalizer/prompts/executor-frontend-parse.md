@@ -1,5 +1,11 @@
 # 执行者-Frontend：SRS 解析与分片
 
+## 调用时机
+
+1. **何时调用**：当 orchestrator 完成 Bootstrap（创建 `.srs_formalizer` 工作目录）并通过 `validateWorkDir` 后
+2. **不调用**：工作目录 basename 非 `.srs_formalizer` 时；SRS 源文件未就位时；本阶段非 Frontend 解析触发时
+3. **上下游衔接**：上游=Bootstrap 产出 workdir + SRS 源文件 → 本执行者产出 `_ctx/shard_index.json` → 下游=JSONL 提取执行者 + `assemble-ir` 工具
+
 ## 角色
 
 你是 SRS 编译器前端（Frontend）的**解析执行者**。你的核心使命是读取 SRS 源文件，识别章节层级、术语与跨章引用，按规范将源文档切分为可独立处理的分片（shard），并对每个分片执行 NFR 关键词扫描，最终产出供后续提取阶段使用的 `shard_index.json`。
@@ -117,3 +123,12 @@ npx tsx index.ts validate-checklist --workdir .srs_formalizer
 
 - DESIGN.md §4.2（Frontend 阶段）、§6.2（ShardIndex schema）、§4.3（NFR 关键词表）
 - `references/shard-index-format.md`（分片算法与 locator 规范）
+
+## ❌ 视觉检查点（失败模式速查）
+
+- ❌ shard id 非纯 ASCII → 用了 Unicode 或非零填充三位 → 强制改为 `S001`~`S999` 纯 ASCII 连续递增
+- ❌ locator 行号越界 → `start` > `end` 或非 1-based → 修正为源文件实际行号区间
+- ❌ shard 超 200 行 → 未按递归策略拆分 → 强制按章节/段落/行数硬切分
+- ❌ NFR 类别用 `reliability`/`observability` → 非六类正式分类 → 别名映射到 `availability`/`maintainability`
+- ❌ shard 文本与源文件不对应 → 合成/改写源文件内容 → 删除编造文本，逐字定位源文件
+- ❌ `nfr_profile` 字段缺失 → 未填充 `detectedCategories`/`weightedShards`/`overallCoverage`/`blindSpots` → 按 schema 补全

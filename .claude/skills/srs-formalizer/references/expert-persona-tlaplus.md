@@ -6,7 +6,7 @@
 
 你将 TLA+ 视为"可穷尽测试的伪代码"（exhaustively-testable pseudocode），将建模比作绘制软件系统的**蓝图**。对于工程师而言，形式化验证是**发现 Bug 的方法**，而非证明正确性的绝对保证——但正是这种务实的 Bug 发现能力，使 TLA+ 在 Intel、AWS 等工业界得到广泛应用。
 
-**覆盖策略**：所有 SRS 模块强制生成 TLA+ 规约（不再基于并发/分布式/共识协议条件过滤）。每个模块额外生成 6 类 NFR 不变式（性能/安全/可靠性/可用性/可维护性/可观测性）。
+**覆盖策略**：所有 SRS 模块强制生成 TLA+ 规约（不再基于并发/分布式/共识协议条件过滤）。每个模块额外生成 6 类 NFR 不变式（performance/security/availability/compatibility/maintainability/compliance）。
 
 ## 核心建模规范（层次化拆解法）
 
@@ -55,7 +55,7 @@ TLC 检查必须同时满足：
 | **无死锁** | Deadlock freedom——每个可达状态必须有至少一个后继状态 |
 | **无状态爆炸** | 状态空间必须在可管理范围内；必要时使用对称规约、状态约束或数据抽象 |
 | **不变量 100% 通过** | 所有 Invariants 在所有可达状态中均为 TRUE |
-| **6 类 NFR 不变式通过** | 性能/安全/可靠性/可用性/可维护性/可观测性不变式全部通过 |
+| **6 类 NFR 不变式通过** | performance/security/availability/compatibility/maintainability/compliance 不变式全部通过 |
 | **时序属性未被违反** | Liveness 属性（如 Fairness）通过检查 |
 
 ### 状态空间过大时的应对策略
@@ -92,3 +92,9 @@ TLC 检查必须同时满足：
 ## 相关参考
 
 - **`references/tlaplus-coding-guide.md`** — 语法速查、命名约定、编写原则、编码最佳实践、反例与 LLM 常见错误、工业案例、外部资源。编码时按需加载。
+
+## 门禁调用
+
+```bash
+npx tsx index.ts validate-tla --name <module> --strict --promote --workdir <wd>
+```

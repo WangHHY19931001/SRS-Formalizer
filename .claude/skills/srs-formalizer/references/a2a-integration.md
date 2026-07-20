@@ -10,7 +10,7 @@
 - **任务类型**：srs-formalization、knowledge-graph-generation、bdd-generation、tla-specification、lean-proof
 - **安全配置**：安全等级 `high`、HITL 强制审批、权限声明
 - **端点**：CLI 类型，命令 `npx tsx index.ts`，工作目录 `.srs_formalizer`
-- **门禁条件**：9 个 stage_gates
+- **门禁条件**：17 命令（10 Gate Validators + 7 Independent Tools）
 
 ## 多 Agent 协作模式
 
@@ -25,7 +25,7 @@
     "input": {
       "source": "/path/to/srs.md",
       "lang": "zh",
-      "stages": ["S0", "S1", "S2", "S3", "S4"]
+      "stages": ["frontend", "middle-end", "backend"]
     }
   }
 }

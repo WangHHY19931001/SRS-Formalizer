@@ -209,7 +209,7 @@ Mathlib4 拥有全面的 linting 系统：
 - 合理划分命名空间
 - 使用 `import` 管理依赖
 - 公共导入与私有导入之间留有空格
-- 只导入实际使用的模块——禁止 `import Mathlib`（全量导入）
+- 只导入实际使用的子模块（如 `import Mathlib.Data.Nat.Basic`）；`import Mathlib`（全量）会被 `validate-lean` 拒绝——该拒绝仅为简化能力探测的编译时间，并非限制 Mathlib 4 本身的使用
 
 ### 3.7 递归与终止
 
@@ -287,7 +287,7 @@ def problematic (n : Nat := 0) : Nat :=
 - ❌ 占位实现（`sorry`, `admit`）
 - ❌ 简化实现（用具体值代替通用类型）
 - ❌ 错误实现（与 SRS 设计矛盾的证明）
-- ❌ `import Mathlib`（全量导入）
+- ❌ `import Mathlib`（全量；`validate-lean` 拒绝，仅能力探测场景下避免以简化编译时间——Mathlib 4 本身允许使用，优先按需导入子模块）
 - ❌ `#eval` 替代 `theorem` 证明
 - ❌ 编译告警（warning）
 
@@ -303,7 +303,7 @@ def problematic (n : Nat := 0) : Nat :=
 
 ### 6.1 正常流程
 
-Lean 4 建模必须符合 SRS 的设计。S5 阶段在已确认的 SRS 需求基础上进行定理证明。
+Lean 4 建模必须符合 SRS 的设计。Backend B4 阶段在已确认的 SRS 需求基础上进行定理证明。
 
 ### 6.2 发现 SRS 设计问题
 
@@ -393,7 +393,7 @@ Lean 4 建模必须符合 SRS 的设计。S5 阶段在已确认的 SRS 需求基
 - [ ] 0 warnings
 - [ ] 每个 lemma 独立文件（≤100 行）
 - [ ] 使用 `theorem` + 完整 `proof`（非 `#eval`）
-- [ ] 无 `import Mathlib`（全量导入）
+- [ ] 无 `import Mathlib`（全量；`validate-lean` 拒绝，仅能力探测简化——按需 `import Mathlib.Data.*` 子模块允许）
 - [ ] 符合 SRS 设计；如有矛盾已报告至 `SRS_PATCHES.md`
 - [ ] 每个修改后立即 `lake build`，不积攒
 - [ ] 证明覆盖 security/compliance 属性（如适用）
