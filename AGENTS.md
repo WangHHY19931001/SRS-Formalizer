@@ -25,7 +25,7 @@ Single test file: `npx tsx --test __tests__/assemble-ir.test.ts`
 - **Zero runtime npm deps** — only devDeps allowed. Never add a runtime dependency.
 - **Strict TS** — `strict`, `noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noFallthroughCasesInSwitch`.
 - **0 `any`** — use `unknown` + `instanceof Error` for error handling.
-- **Max 300 lines/file** (current max is 298).
+- **Max 300 lines/file** (current max is 272, `validate-semantics.ts`).
 - **`path.join()` only** — never string-concatenate paths. Use `path.dirname`/`path.join`.
 - **Poison values rejected** — `undefined/null/NaN/[object Object]` caught at CLI entry by `validateNoPoisonArgs`.
 - **All commands routed through `index.ts`** — `refuseDirectInvocation` guard on all registered commands.
@@ -61,8 +61,9 @@ scripts/
 │   ├── skill-integrity.ts, text-analysis.ts, checklists.ts, security.ts
 ├── types/
 │   ├── srs-ir.ts        # SRS-IR type system (SRSIR, IRNode, IREdge, NFRCategory...)
-│   └── index.ts         # JsonlRecord, CliResult
-└── __tests__/           # 200 tests
+│   ├── skir.ts          # Skill IR (SkillIR, Constraint, Permission, CapabilityTier...)
+│   └── index.ts         # JsonlRecord, CliResult, ShardIndex, GlossaryEntry
+└── __tests__/           # 200 tests (26 files, 31 suites)
 ```
 
 ## Key CLI commands

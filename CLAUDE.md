@@ -53,9 +53,10 @@ scripts/
 │   ├── skill-integrity.ts  # 技能完整性加解密
 │   └── checklists.ts       # 检查表工具
 ├── types/
-│   ├── srs-ir.ts         # ★ SRS-IR 强类型（20+ 类型）
-│   └── index.ts          # JsonlRecord, CliResult
-├── __tests__/            # 200 测试
+│   ├── srs-ir.ts         # ★ SRS-IR 强类型（18 类型：SRSIR、IRNode、IREdge、NFRCategory...）
+│   ├── skir.ts          # Skill IR（SkillIR、Constraint、Permission、CapabilityTier...）
+│   └── index.ts          # JsonlRecord, CliResult, ShardIndex, GlossaryEntry
+├── __tests__/            # 200 测试（26 文件，31 套件）
 └── templates/            # 模板 + bdd-nfr-scenarios.json
 ```
 

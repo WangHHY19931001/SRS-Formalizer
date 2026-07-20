@@ -159,7 +159,7 @@ v1.0.1 采用编译器三段式架构，脚本（commands/ + lib/）承担了大
 **编排/元/工具移除（8）**：`pipeline`、`status`、`health-check`、`export-audit`、`tools-schema`、`compile`、`capability-probe`、`stability-test`
 → Agent 经 SKILL.md 编排；状态/健康检查由 Agent 读文件；审计包由 Agent 用 `hash-compute` 组装；compile/probe/stability/tools-schema 与 SRS 处理无关，归档
 
-**对应 lib 归档**（约 50 个文件 → 约 20 个保留）至 `.worktrees/archive/2026-07-16/`：
+**对应 lib 归档**（约 50 个文件 → 24 个保留）至 `.worktrees/archive/2026-07-16/`：
 - `frontend/`（除 builder 逻辑并入 assemble-ir）
 - `emitters/`（全部 10 个 Emitter）
 - `fixture-gen/`（全部）
@@ -168,7 +168,7 @@ v1.0.1 采用编译器三段式架构，脚本（commands/ + lib/）承担了大
 - `emitter-claude-xml.ts`、`emitter-generic-md.ts`、`prompt-templates.ts`
 - `architecture/builder.ts` 中架构子图装配逻辑迁移至 `assemble-ir`
 
-**保留的 lib**：`verify-gate/`、`bdd-validator.ts`、`bdd-tool-runner.ts`、`tla-validator.ts`、`artifacts/{paths,promotion,validation-report}.ts`、`middle-end/connectivity-checker.ts`、`graph*.ts`、`security.ts`、`cli.ts`、`fs-utils.ts`、`jsonl.ts`、`id-utils.ts`、`skill-integrity.ts`、`text-analysis.ts`（供 Agent 引用的纯工具函数）
+**保留的 lib**（24 个 .ts）：`verify-gate/{shared,checks-s1,checks-r3,checks-final}.ts`、`bdd-validator.ts`、`bdd-tool-runner.ts`、`tla-validator.ts`、`artifacts/{index,paths,promotion,validation-report}.ts`、`middle-end/connectivity-checker.ts`、`graph.ts`、`graph-algorithms.ts`、`graph-operations.ts`、`cypher.ts`、`security.ts`、`cli.ts`、`fs-utils.ts`、`jsonl.ts`、`id-utils.ts`、`skill-integrity.ts`、`text-analysis.ts`、`checklists.ts`（供 Agent 引用的纯工具函数）
 
 ---
 
@@ -923,7 +923,7 @@ npm run evals
 
 ### 14.3 测试变化
 
-- **保留**：所有保留命令的单元测试（约 15 个测试文件）
+- **保留**：所有保留命令的单元测试（26 个 `.test.ts` 文件，31 个测试套件，200 个测试用例）
 - **归档**：移除命令的测试文件随命令归档至 `.worktrees/archive/2026-07-16/`
 - **新增**：`hash-compute.test.ts`、`tlc-trace-parse.test.ts`、`assemble-ir.test.ts`（瘦身后）
 
@@ -969,7 +969,7 @@ npm run evals
 
 | 版本 | 日期 | 关键变更 |
 |------|------|----------|
-| 2.0.0 | 2026-07-16 | **架构反转重构**：脚本只做门禁校验（10 个 validate-*/verify-gate）与专用算法（7 个工具：assemble-ir/check-connectivity/query-graph/hash-compute/tlc-trace-parse/verify-skill-integrity/pack-skill）。移除 24 个语义/生成/编排命令及全部 10 个 Emitter。语义工作（解析/提取/分析/生成/编排）全部交由 Agent 经 SKILL.md + prompts + references 完成。命令数 39→17（含 2 个新增工具），lib 模块约 50→20。详见 `docs/superpowers/specs/2026-07-16-architecture-inversion-design.md` |
+| 2.0.0 | 2026-07-16 | **架构反转重构**：脚本只做门禁校验（10 个 validate-*/verify-gate）与专用算法（7 个工具：assemble-ir/check-connectivity/query-graph/hash-compute/tlc-trace-parse/verify-skill-integrity/pack-skill）。移除 24 个语义/生成/编排命令及全部 10 个 Emitter。语义工作（解析/提取/分析/生成/编排）全部交由 Agent 经 SKILL.md + prompts + references 完成。命令数 39→17（含 2 个新增工具），lib 模块约 50→24。详见 `docs/superpowers/specs/2026-07-16-architecture-inversion-design.md` |
 | 1.0.1 | 2026-07-13 | 可验证产物生命周期加固：Emitter registry 固化为 10 个；TLA+ 验证仅使用内置 JAR；Lean 以完整 Lake 项目为验证单位；FINAL hash 绑定；新增 `npm run evals` |
 | 1.0.0 | 2026-07-13 | 编译器架构重构：S0-S6 流水线 → Frontend/Middle-end/Backend；SRS-IR 强类型 IR；10 个 Emitter 统一注册表；NFR 贯穿全阶段 |
 | 0.8.0 | 2026-07-13 | V-Model Zero-Gap Wiring |
