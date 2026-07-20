@@ -144,12 +144,19 @@ npx tsx index.ts verify-gate --workdir .srs_formalizer --stage R3
 - **ID 规范**：子代理 ID 必须 ASCII-only，正则 `^R[123]-[A-Za-z0-9_.]+-\d{4}$`，禁止中文
 - **Agent 合并**：编排者收集子代理判决，直接合并入 IR `edges`（无 merge 命令）
 
-## 错误处理
+## 失败模式与三段式恢复
 
-- **结构性缺陷**（孤儿节点/悬挂边）：必须回退至 Frontend，修正 JSONL 源文件后重新 `assemble-ir`。Middle-end 不自行修改 IR 结构
-- **NFR 覆盖率不足**：标记 warning，不阻塞流水线。但 `verify-gate R3` 可能据此判定不合格
-- **连通性异常**（孤岛子图 ≥3）：标记 error，流水线暂停。需人工判定是 SRS 设计问题还是提取遗漏
-- **风险评分 > 0.7**：标记 warning，在 STATE.md 中记录高风险模块列表
+> HL-2 实战教训：dim3 失败模式编码必须显式分支。每条给出「触发条件 / 一线修复 / 仍失败兜底」三段。Middle-end 不自行修改 IR 结构——所有结构性修复必须回退 Frontend。
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---|---|---|
+| **结构性缺陷**（孤儿节点数 > 0 或悬挂边数 > 0） | 回退 Frontend，修正 JSONL 源文件后重新 `assemble-ir` | 连续 3 次回退未通过 → 标记 STATE.md `BLOCKED` + 列出未修复节点 + 暂停等人工 |
+| **NFR 覆盖率 < 80%** | M3 重新分类（检查 `nfr_category` 标注遗漏，参考 `references/nfr-threshold-extraction-guide.md`） | 仍 < 80% → 标记 warning 进 STATE.md，继续 Backend（不阻塞流水线；TLA+/Lean 触发决策可能降级） |
+| **连通性异常**（孤岛子图 ≥ 3） | 标记 error；检查是否 SRS 设计问题（多子系统本就独立）或提取遗漏（R1 漏边） | 编排者人工判定后选其一：标记为「合法独立子系统」进 STATE.md，或回退 F2 补 R3 关系边 |
+| **风险评分 > 0.7** | 在 STATE.md 记录高风险模块列表 + 输出 `meta.highRiskShards` | 触发 TLA+/Lean 4 强制生成（即使 nfrCategory 未触发）+ 收敛循环加严 |
+| **M5 子代理判决与 `semantic.json` 候选对数不一致** | 重新分派子代理判决遗漏的候选对（CONTRADICTS/同侧面/可合并） | 连续 2 次判决缺漏 → 标记 `BLOCKED` + 输出未判决候选对列表给人工 |
+| **`validate-semantics --strict` 失败** | 检查 IR Schema 字段类型与必填项；定位具体错误节点（`status.message`） | 连续 3 次失败 → 回退 F5 `assemble-ir` 重新装配 + 检查 JSONL 源 |
+| **`check-connectivity` 工具调用失败**（exit 1） | 检查 IR `nodes[]`/`edges[]` 是否为空；检查 `source_id`/`target_id` 完整性 | 工具调用 2 次失败 → 标记 error + 输出工具错误消息给人工 |
 
 ## 产出物
 

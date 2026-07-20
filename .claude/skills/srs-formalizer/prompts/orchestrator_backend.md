@@ -274,6 +274,22 @@ Read references/collaboration-contract.md
 - 最大 5 次收敛迭代，超过则人工介入
 - 联网搜索结果必须记录 URL 和时间戳（记录规范见 `references/web-fact-checking-guide.md` §5）
 
+## 失败模式与三段式恢复
+
+> HL-2 实战教训：dim3 失败模式编码必须显式分支。每个 Backend 步骤的失败必须给出「触发条件 / 一线修复 / 仍失败兜底」三段，不只写正向流程。已有「失败回退机制」（B2 L83-87）作为本表的子集，本表覆盖 B1-B6 与 FINAL 全部失败场景。
+
+| 步骤 | 触发条件 | 一线修复 | 仍失败兜底 |
+|---|---|---|---|
+| **B1 Cypher** | `validate-cypher` 失败（4 项语法检查任一不通过） | 检查节点/边 Cypher 语法（MERGE/CREATE/RETURN 关键字、字符串转义、属性类型） | 连续 2 次失败 → 回退 M1 检查 IR 结构性缺陷 + 重新生成 srs-graph.cypher |
+| **B2 BDD 四级校验** | L1/L2/L3/L4 任一级 `status: error` | 提取失败原因和失败节点 + 回退 Frontend 在对应分片补充需求信息 + 重新执行 Frontend→Middle-end→Backend graphs→Backend bdd | 连续 3 次回退 → 标记 `BLOCKED` + 通知人类做决策 |
+| **B3 TLA+ SANY 语法错误** | `validate-tla --strict` SANY 阶段失败 | 检查 .tla 语法（EXTENDS/VARIABLES/INIT/NEXT/INVARIANT）+ matching `.cfg` 完整性（CONSTANTS/INIT/NEXT/INVARIANT 对齐） | 连续 3 次失败 → 跳过该模块 TLA+ + 标记 `outputs/tlaplus/verified/_SKIPPED.md` + 进 STATE.md |
+| **B3 TLA+ TLC 反例** | `validate-tla --strict` TLC 阶段失败（死锁 / 不变量违反 / 状态爆炸 / 活锁） | 调用 `debug-tlc` 子代理定位根因 + 用 `tlc-trace-parse` 解析反例 trace | 若为 SRS 设计缺陷 → 写入 `SRS_PATCHES.md` + 暂停等用户确认；若为状态爆炸 → 缩小 Next 关系范围 + 加 INVARIANT 约束 |
+| **B4 Lean `sorry`/`axiom`/`admit` 残留** | `validate-lean --strict` 硬门禁 #1/#2 命中 | 子代理重新完成 tactic proof（策略级联：`rfl → simp → ring → linarith → nlinarith → omega → exact? → apply? → aesop`） | 连续 3 次失败 → 跳过该 lemma + 标记 `outputs/lean4/verified/_SKIPPED.md` + 通知人类 |
+| **B4 Lean `lake build` warning** | `validate-lean --strict` 硬门禁 #3 命中 | 检查 `lakefile.lean`/`lean-toolchain` 配置 + 修复 deprecation warning（linter 指明位置） | 连续 2 次失败 → 切换 lemma 实现策略（如换 tactic 级联顺序）+ 重新评估命题等价变形 |
+| **B5 收敛循环不收敛**（13 个根本问题有缺口） | 追溯矩阵 `traceability.md` 存在 `-` 标记行 | iteration 1-2：自动回退修复（补充图谱、修正不一致）；iteration 3-5：联网搜索 + 苏格拉底拷问 + 3-4 可选项 + 推荐 | iteration > 5 → 标记 STATE.md `BLOCKED` + 列出所有未解决项 + 等待人工介入 |
+| **B6 追溯矩阵缺口**（`-` 标记 > 0） | 回退对应阶段：需求缺口→Frontend / 行为缺口→Backend bdd / 形式化缺口→Backend formal | 缺口数 > 5 → 强制进入收敛循环迭代 + 苏格拉底升级 | 收敛循环 5 次后仍 > 0 缺口 → 触发人工介入 |
+| **FINAL 报告 `sourceHash` 不匹配** | `verify-gate --stage FINAL` 检测到 verified 内容与报告 hash 不符 | 重新跑对应 `validate-* --strict --promote` 重新生成报告（draft 已变更但报告未更新） | 内容已实际变更但 hash 仍不匹配 → 标记为「过时产物」+ 重新执行 Backend 全流程 |
+
 ## 产出物
 
 | 产出 | 位置 | 来源 |
