@@ -1,7 +1,7 @@
 ---
 name: srs-formalizer
-description: "将 SRS 文档通过受门控的 Agent 流水线转化为 Cypher、Gherkin、TLA+ 与条件触发的 Lean 4 产物；当用户提供/引用 SRS 并要求形式化、需求图谱、BDD 或形式化规约时触发。默认执行全量依赖闭包；若用户明确只要部分产物则仅执行其依赖阶段并记录跳过项与残余风险。不用于纯代码审查、调试、营销或法律文档。"
-compatibility: requires Node.js>=20, typescript>=5.5, Agent Skills-compatible runtime
+description: "Use when the user provides or references an SRS, requirements specification, or requirements document and asks for formalization, a knowledge graph, BDD/Gherkin, TLA+, Lean 4, Cypher, or traceability. Do not use for code review, debugging, code generation, marketing copy, contracts, or legal documents."
+compatibility: "Requires Node.js >=20, TypeScript >=5.5, and an Agent Skills-compatible runtime."
 tags:
   [
     srs,
@@ -216,9 +216,44 @@ metadata:
 
 # SRS Formalizer
 
+## 快速决策
+
+- **输入**：必须有可读的 SRS 文件（`.md`/`.html`）或目录，并能确定 `lang` 为 `zh` 或 `en`。
+- **默认范围**：未指定产物时执行完整依赖闭包；只指定 Backend 产物时仍先完成 Frontend 与 Middle-end。
+- **只读检查**：可直接读取 SRS、生成 draft、运行门禁。
+- **必须确认**：SRS 回写、应用 `SRS_PATCHES.md`、收敛超限加轮、技能完整性修复后的继续执行。
+- **不确定时**：先问一个阻塞问题，不要猜测输入、语言或产物范围。
+
+## 渐进式披露与导航
+
+主技能只负责编排决策、阶段顺序和安全红线；细节按需加载，避免一次性读取全部参考资料。
+
+| 任务 | 读取内容 |
+|------|----------|
+| 启动、范围、目录 | 本文的 Bootstrap 与执行范围 |
+| Frontend 编排 | `prompts/orchestrator_frontend.md`、`prompts/executor-frontend-parse.md` |
+| Middle-end 编排 | `prompts/orchestrator_middle-end.md`、`references/risk-scoring-formula.md` |
+| Backend 编排 | `prompts/orchestrator_backend.md`、`references/convergence-loop.md` |
+| BDD 产物 | `prompts/executor-bdd.md`、`references/bdd-coding-guide.md` |
+| TLA+ 产物 | `prompts/executor-tlaplus.md`、`references/tlaplus-coding-guide.md` |
+| Lean 4 产物 | `prompts/executor-lean4.md`、`references/lean4-coding-guide.md` |
+| 命令参数 | `references/quick-reference.md` |
+| 平台部署 | `references/auto-setup.md` |
+
+**直接引用规则**：只从本文直接加载参考文件；不要依赖多层嵌套引用。阶段提示词负责调度，执行者提示词负责语义生成，脚本只负责确定性校验与专用算法。
+
+## 交付不变量
+
+1. 所有语义产物都从同一份 `srs-ir.json` 派生。
+2. 阶段门禁未通过，不得提升到下一阶段。
+3. BDD、TLA+、Lean 只能由 `draft` 经对应 `validate-* --strict --promote` 进入 `verified`。
+4. `verify-gate --stage FINAL` 只消费 `verified`、`passed: true` 且 `sourceHash` 匹配当前内容的报告。
+5. 工具不可用时写入 `S5_SKIP_REPORT.md`，记录受影响需求、替代验证和残余风险；不得伪造 `verified`。
+6. 所有写入限定在 `.srs_formalizer/`，并使用原子临时文件加 rename。
+
 ## 概述
 
-将 SRS 文档通过 Agent 驱动流水线转化为四类形式化产出：需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约（默认全模块覆盖；用户明确裁剪时记录跳过）和 Lean 4 证明（security/compliance 关键词触发）。TS 脚本只做门禁校验与专用算法，不调用 LLM、不产生随机性；LLM Agent 经 SKILL.md + prompts + references 完成全部语义工作（解析/分析/生成/推导/编排）。核心中间表示 `srs-ir.json v2.0.0` 连接 Frontend / Middle-end / Backend 三阶段。Agent 每阶段做语义工作 → 调用门禁/工具 → 通过后进入下一阶段。
+将 SRS 文档通过 Agent 驱动流水线转化为 Cypher 知识图谱、Gherkin BDD、TLA+ 规约和条件触发的 Lean 4 证明。脚本只做门禁校验与专用算法；语义工作由 Agent 经本文、阶段 prompts 与按需 references 完成。核心中间表示 `srs-ir.json v2.0.0` 连接 Frontend、Middle-end、Backend 三阶段。
 
 ## 何时不该使用
 
