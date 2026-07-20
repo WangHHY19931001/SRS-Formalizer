@@ -50,12 +50,15 @@ export async function main(args: string[]): Promise<CliResult> {
   if (errors.length > 0) return { status: 'error', message: 'BDD validation failed', data: { valid: false, errors, files_checked: files.length } };
 
   const sourcePaths = files.map(file => path.join(sourceDir, file));
-  const sourceHash = hashFiles(sourcePaths);
   let verifiedFiles = sourcePaths;
   if (promote) verifiedFiles = promoteFiles(sourceDir, artifactPath(workDir, ARTIFACT_PATHS.bddVerified), files);
+  // Hash the FINAL file locations (verified/ when --promote, draft/ otherwise) so that
+  // checks-final.ts (which hashes the verified/ paths) can match the report's sourceHash.
+  // Earlier versions hashed sourcePaths (draft paths) which never matched verified paths.
+  const sourceHash = hashFiles(verifiedFiles);
   const reportPath = path.join(artifactPath(workDir, ARTIFACT_PATHS.bddValidation), `${sourceHash}.json`);
   writeValidationReport(reportPath, {
-    artifactKind: 'bdd', lifecycle: 'verified', sourcePaths, sourceHash, irHash: sourceHash,
+    artifactKind: 'bdd', lifecycle: 'verified', sourcePaths: verifiedFiles, sourceHash, irHash: sourceHash,
     tools: strict ? [{ name: 'gherkin-lint', version: 'configured' }, { name: 'gherklin', version: 'configured' }] : [],
     startedAt: new Date().toISOString(), completedAt: new Date().toISOString(), passed: true,
     checks: [{ name: 'BDD structure', passed: true }, { name: 'strict validation', passed: strict }],
