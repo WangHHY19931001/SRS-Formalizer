@@ -1,2 +1,3 @@
 timestamp	commit	skill	old_score	new_score	status	dimension	note	eval_mode
 2026-07-20T10:00	baseline	srs-formalizer	-	71.6	baseline	-	初始评估; dim3=6.0(失败模式编码), dim5=11.9(可执行具体性), dim8=16.1(干跑)	dry_run
+2026-07-20T10:10	956c44c	srs-formalizer	71.6	76.4	keep	失败模式编码	新增 if-then 三段式 fallback 表(9场景); dim3 5→8, dim2 8→9	dry_run

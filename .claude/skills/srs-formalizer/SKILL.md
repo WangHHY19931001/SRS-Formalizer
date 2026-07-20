@@ -279,14 +279,17 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 | M2 | 读 IR → Jaccard 重复检测、反义词冲突、同侧面聚类 | — | `3_graph/analysis/semantic.json` |
 | M3 | 读 IR → NFR 分类（六类正式分类）+ 阈值正则提取 + 盲点检测 → 写回 IR `nfrProfile` | `validate-semantics --strict` | `srs-ir.json`（mutate nfrProfile） |
 | M4 | 调用图算法工具检查跨 shard 连通性、SCC、孤岛、桥接边建议 | `check-connectivity --workdir` | `3_graph/analysis/connectivity.json` |
-| M5 | 子代理冲突判决 → Agent 直接合并/标记冲突边/同侧面边 → 写回 IR `edges` | `validate-semantics --strict` | `srs-ir.json`（mutate edges） |
+| M5 | 子代理按判决规则执行 → Agent 处理：① **合并**（两源 confidence 均 ≥0.8 且 statement 语义一致）；② **标记冲突边**（confidence 差 ≥0.3 或 statement 语义矛盾）；③ **标记同侧面边**（同模块且同 NFR 类别） → 写回 IR `edges` | `validate-semantics --strict` | `srs-ir.json`（mutate edges） |
 | M6 | 读 IR → 按风险公式计算风险评分 → 写回 `meta.riskScore` | `verify-gate --stage R3` | `srs-ir.json`（mutate meta） |
 
 **NFR 六类正式分类**（全系统唯一）：`performance`、`security`、`availability`、`compatibility`、`maintainability`、`compliance`。SRS-IR 枚举、BDD 模板、TLA+ 不变式、Lean 定理、门禁与报告均只能使用这六项；`reliability`/`observability` 等术语仅作别名或映射信号。
 
 **风险评分公式**：`riskScore = orphanRate×0.2 + crossFileCoverage×0.3 + nfrCoverage×0.3 + gapWeight×0.2`（详见 `references/risk-scoring-formula.md`）。
 
-**NFR 条件触发 TLA+/Lean 4**（Agent 判断）：performance 关键词 ≥5 且 total_shards ≥100 → 强制 TLA+；security/compliance 关键词 ≥1 → 强制 Lean 4；availability 关键词 ≥3 → 生成 TLA+ 草稿（Agent 决定是否 `--promote`，须在 STATE.md 记录决策依据）。
+**NFR 条件触发 TLA+/Lean 4**（Agent 按以下规则判断，禁止模糊决策）：
+- `performance` 关键词 ≥5 且 `total_shards ≥100` → **强制 TLA+**，必须 `--promote`
+- `security`/`compliance` 关键词 ≥1 → **强制 Lean 4**，必须 `--promote`
+- `availability` 关键词 ≥3 → 生成 TLA+ 草稿；若 `total_shards ≥50` 或 `performance ≥5` → **强制 `--promote`**；仅当 `total_shards < 50` 且 `performance < 5` 时可跳过 `--promote`，但须在 STATE.md 记录跳过理由、风险与责任人，且须经 🛑 **STOP** 人类确认
 
 > 🔴 **CHECKPOINT · R3 门禁收口**：M6 完成 `verify-gate --stage R3` 必须通过才可进入 Backend。R3 失败 → 修复 Middle-end 分析（结构/语义/NFR/连通性/冲突/风险）后重跑，禁止跳过。
 
