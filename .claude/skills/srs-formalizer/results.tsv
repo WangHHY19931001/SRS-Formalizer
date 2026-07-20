@@ -4,3 +4,9 @@ timestamp	commit	skill	old_score	new_score	status	dimension	note	eval_mode
 2026-07-20T10:20	b3dcda8	srs-formalizer	76.4	79.15	keep	可执行具体性	消除 NFR promote/M5 冲突的模糊决策; dim5 7→8.5	dry_run
 2026-07-20T10:30	cf800b1	srs-formalizer	79.15	80.15	keep	反例与黑名单	新增 Agent 编排反模式表(8条); dim9 7→9	dry_run
 2026-07-20T10:40	128715e	srs-formalizer	80.15	82.0	keep	prompts/references 同步	orchestrator_frontend.md NFR规则量化+失败恢复6场景; convergence-loop.md 超限if-then	dry_run
+2026-07-20T15:10	f66baed	srs-formalizer	79.45	82.10	keep	跨文件一致性/失败模式编码/可执行具体性/整体架构	R1 修 verifier-frontend-ir.md ID 正则 R[123]-/R3- + category 枚举 + relation 枚举 + 目录引用 + cross_shard 标识; dim2 8->8.5, dim3 8->8.5, dim5 8.5->9, dim7 7.5->8	dry_run
+2026-07-20T16:32	96c5cf6	srs-formalizer	82.10	83.60	keep	失败模式编码/可执行具体性/整体架构	R2 修 verifier-middle-end.md S3->R3 + 删除 contradiction/clarify 引用 + Part C 重写为 M5 判决审核 + 拒绝条件扩为7项; dim3 8.5->9, dim5 9->9.5, dim7 8->8.5	dry_run
+2026-07-20T16:45	37ef6ea	srs-formalizer	83.60	84.10	keep	整体架构/可执行具体性	R3 修 verifier-arch.md executor-frontend-arch->orchestrator_frontend F3 + ID 正则 IR-NODE->R[123]- + 拒绝示例 ID; dim7 8.5->9, dim5 9.5->9.6	dry_run
+2026-07-20T17:00	045199a	srs-formalizer	84.10	85.60	keep	失败模式编码/可执行具体性/整体架构	R4 给 orchestrator_middle-end.md (4行错误处理->7行三段式表) + orchestrator_backend.md (新增9行三段式表覆盖B1-B6+FINAL) 补 if-then 三段式失败恢复表; 修复 nfr-keywords.md->nfr-threshold-extraction-guide.md; dim3 9->9.7, dim5 9.6->9.7, dim7 9->9.2	dry_run
+2026-07-20T17:15	425e42b	srs-formalizer	85.60	86.60	keep	整体架构/可执行具体性	R5 统一 6 类 NFR 不变式命名 (executor-tlaplus.md ResponseTimeInv->PerfLatencyInv, AccessControlInv->SecurityInv, AuditInv->MaintInv 语义错位修正) + 新增命名约定说明 + 示例代码同步 + capability-adaptation.md L177 重复 ## 五 -> ## 六; dim7 9.2->9.7, dim5 9.7->9.8	dry_run
+2026-07-20T17:30	7ac40ad	srs-formalizer	86.60	87.60	keep	整体架构	R6 消除 quick-reference.md 调用时机表 (与 SKILL.md 门禁/工具速查表重复, -16行) + stability-baseline.md 178行压缩为8行归档说明 (保留文件维持 MANIFEST.json 兼容); dim7 9.7->9.9, dim2 工作流清晰度 9->9.1 (单一职责分工); 文件总行数 -188	dry_run

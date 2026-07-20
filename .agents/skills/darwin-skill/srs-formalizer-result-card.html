@@ -82,7 +82,7 @@
     stroke-width: 18;
     stroke-linecap: round;
     stroke-dasharray: 534;
-    stroke-dashoffset: 70;
+    stroke-dashoffset: 66;
     transform: rotate(-90deg);
     transform-origin: center;
     filter: drop-shadow(0 2px 8px rgba(232,89,12,0.3));
@@ -271,7 +271,7 @@
   }
   .dims-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 12px;
   }
   .dim-cell {
@@ -469,7 +469,7 @@
       </svg>
       <div class="ring-center">
         <div>
-          <span class="ring-score" data-field="score-after">87</span><span class="ring-max">/100</span>
+          <span class="ring-score" data-field="score-after">87.6</span><span class="ring-max">/100</span>
         </div>
         <div class="ring-label">质量总分</div>
       </div>
@@ -481,11 +481,11 @@
         <span class="hero-skill-name" data-field="skill-name">SRS Formalizer</span>
       </div>
       <div class="hero-journey">
-        从 <strong data-field="score-before">81.9</strong> 分进化到 <strong>86.8</strong> 分（独立 judge blind）<br>
-        <span style="color:#999;font-size:14px;" data-field="skill-id">srs-formalizer · 修正自评乐观偏差</span>
+        从 <strong data-field="score-before">82.1</strong> 分进化到 <strong>87.6</strong> 分（darwin-skill 2.0 · 6 轮 hill-climbing）<br>
+        <span style="color:#999;font-size:14px;" data-field="skill-id">srs-formalizer · R1-R6 跨文件一致性 + 失败模式编码 + 整体架构</span>
       </div>
-      <div class="delta-badge">
-        <span data-field="score-delta">+4.9</span>
+      <div class="hero-delta">
+        <span data-field="score-delta">+5.5</span>
         <span class="delta-badge-label">分</span>
       </div>
     </div>
@@ -495,103 +495,103 @@
   <div class="breakthrough-section">
     <div class="breakthrough-card primary">
       <div class="breakthrough-label">最大突破</div>
-      <div class="breakthrough-dim" data-field="top1-name">检查点设计</div>
+      <div class="breakthrough-dim" data-field="top1-name">整体架构 dim7</div>
       <div class="breakthrough-score-row">
-        <span class="breakthrough-from" data-field="top1-from">6</span>
+        <span class="breakthrough-from" data-field="top1-from">8.0</span>
         <span class="breakthrough-arrow">&rarr;</span>
-        <span class="breakthrough-to" data-field="top1-to">9</span>
+        <span class="breakthrough-to" data-field="top1-to">9.9</span>
       </div>
-      <div class="breakthrough-pct" data-field="top1-pct">+50%</div>
-      <div class="breakthrough-story" data-field="top1-story">S1/R3/FINAL三级门禁+HITL点全部加上🔴CHECKPOINT/🛑STOP视觉标记（独立judge确认）</div>
+      <div class="breakthrough-pct" data-field="top1-pct">+24%</div>
+      <div class="breakthrough-story" data-field="top1-story">6 轮消除跨文件不一致：ID 正则统一 R[123]- / executor-frontend-arch 引用修正 / S3→R3 / NFR 不变式命名 6 类统一 / 章节编号修复 / quick-reference 与 SKILL.md 重复消除 / stability-baseline 178→8 行归档</div>
     </div>
     <div class="breakthrough-card secondary">
       <div class="breakthrough-label">第二突破</div>
-      <div class="breakthrough-dim" data-field="top2-name">反例与黑名单</div>
+      <div class="breakthrough-dim" data-field="top2-name">失败模式编码 dim3</div>
       <div class="breakthrough-score-row">
-        <span class="breakthrough-from" data-field="top2-from">7</span>
+        <span class="breakthrough-from" data-field="top2-from">8.5</span>
         <span class="breakthrough-arrow">&rarr;</span>
-        <span class="breakthrough-to" data-field="top2-to">9</span>
+        <span class="breakthrough-to" data-field="top2-to">9.7</span>
       </div>
-      <div class="breakthrough-pct" data-field="top2-pct">+29%</div>
-      <div class="breakthrough-story" data-field="top2-story">11个executor-*补❌视觉检查点段+SKILL.md 8类红灯表+negative_triggers 13项（独立judge确认）</div>
+      <div class="breakthrough-pct" data-field="top2-pct">+14%</div>
+      <div class="breakthrough-story" data-field="top2-story">HL-2 实战教训落地：orchestrator_middle-end 4 行错误处理→7 行三段式表 + orchestrator_backend 新增 9 行三段式表覆盖 B1-B6+FINAL，每条「触发条件 / 一线修复 / 仍失败兜底」三段</div>
     </div>
   </div>
 
   <!-- 4. 全维度速览 -->
   <div class="dims-section">
-    <div class="dims-header">九维度全景</div>
+    <div class="dims-header">九维度全景（darwin-skill 2.0 rubric）</div>
     <div class="dims-grid">
       <div class="dim-cell">
-        <div class="dim-name">Frontmatter</div>
-        <div class="dim-score-row">
-          <span class="dim-old-score">9</span>
-          <span class="dim-score">9</span>
-        </div>
-        <span class="dim-arrow">±0</span>
-      </div>
-      <div class="dim-cell">
-        <div class="dim-name">工作流</div>
-        <div class="dim-score-row">
-          <span class="dim-old-score">10</span>
-          <span class="dim-score">9</span>
-        </div>
-        <span class="dim-arrow">-1</span>
-      </div>
-      <div class="dim-cell">
-        <div class="dim-name">失败模式</div>
-        <div class="dim-score-row">
-          <span class="dim-old-score">9</span>
-          <span class="dim-score">9</span>
-        </div>
-        <span class="dim-arrow">±0</span>
-      </div>
-      <div class="dim-cell hot">
-        <div class="dim-name">检查点</div>
-        <div class="dim-score-row">
-          <span class="dim-old-score">6</span>
-          <span class="dim-score">9</span>
-        </div>
-        <span class="dim-arrow up-big">+3</span>
-      </div>
-      <div class="dim-cell">
-        <div class="dim-name">指令精度</div>
-        <div class="dim-score-row">
-          <span class="dim-old-score">9</span>
-          <span class="dim-score">9</span>
-        </div>
-        <span class="dim-arrow">±0</span>
-      </div>
-      <div class="dim-cell">
-        <div class="dim-name">资源整合</div>
-        <div class="dim-score-row">
-          <span class="dim-old-score">10</span>
-          <span class="dim-score">9</span>
-        </div>
-        <span class="dim-arrow">-1</span>
-      </div>
-      <div class="dim-cell warm">
-        <div class="dim-name">整体架构</div>
+        <div class="dim-name">dim1 Frontmatter</div>
         <div class="dim-score-row">
           <span class="dim-old-score">8</span>
-          <span class="dim-score">9</span>
-        </div>
-        <span class="dim-arrow up-small">+1</span>
-      </div>
-      <div class="dim-cell warm">
-        <div class="dim-name">实测表现</div>
-        <div class="dim-score-row">
-          <span class="dim-old-score">7</span>
           <span class="dim-score">8</span>
         </div>
-        <span class="dim-arrow up-small">+1</span>
+        <span class="dim-arrow">±0</span>
+      </div>
+      <div class="dim-cell warm">
+        <div class="dim-name">dim2 工作流清晰度</div>
+        <div class="dim-score-row">
+          <span class="dim-old-score">8.5</span>
+          <span class="dim-score">9.1</span>
+        </div>
+        <span class="dim-arrow up-small">+0.6</span>
       </div>
       <div class="dim-cell hot">
-        <div class="dim-name">反例黑名单</div>
+        <div class="dim-name">dim3 失败模式编码</div>
         <div class="dim-score-row">
-          <span class="dim-old-score">7</span>
+          <span class="dim-old-score">8.5</span>
+          <span class="dim-score">9.7</span>
+        </div>
+        <span class="dim-arrow up-big">+1.2</span>
+      </div>
+      <div class="dim-cell">
+        <div class="dim-name">dim4 检查点设计</div>
+        <div class="dim-score-row">
+          <span class="dim-old-score">8</span>
+          <span class="dim-score">8</span>
+        </div>
+        <span class="dim-arrow">±0</span>
+      </div>
+      <div class="dim-cell warm">
+        <div class="dim-name">dim5 可执行具体性</div>
+        <div class="dim-score-row">
+          <span class="dim-old-score">9.0</span>
+          <span class="dim-score">9.8</span>
+        </div>
+        <span class="dim-arrow up-mid">+0.8</span>
+      </div>
+      <div class="dim-cell">
+        <div class="dim-name">dim6 资源整合度</div>
+        <div class="dim-score-row">
+          <span class="dim-old-score">8</span>
+          <span class="dim-score">8</span>
+        </div>
+        <span class="dim-arrow">±0</span>
+      </div>
+      <div class="dim-cell hot">
+        <div class="dim-name">dim7 整体架构</div>
+        <div class="dim-score-row">
+          <span class="dim-old-score">8.0</span>
+          <span class="dim-score">9.9</span>
+        </div>
+        <span class="dim-arrow up-big">+1.9</span>
+      </div>
+      <div class="dim-cell">
+        <div class="dim-name">dim8 实测表现</div>
+        <div class="dim-score-row">
+          <span class="dim-old-score">7.0</span>
+          <span class="dim-score">7.0</span>
+        </div>
+        <span class="dim-arrow">dry_run</span>
+      </div>
+      <div class="dim-cell">
+        <div class="dim-name">dim9 反例黑名单</div>
+        <div class="dim-score-row">
+          <span class="dim-old-score">9</span>
           <span class="dim-score">9</span>
         </div>
-        <span class="dim-arrow up-mid">+2</span>
+        <span class="dim-arrow">±0</span>
       </div>
     </div>
   </div>
@@ -600,9 +600,9 @@
   <div class="summary-section">
     <div class="summary-header">关键改进</div>
     <div class="summary-items">
-      <div class="summary-item" data-field="improve-1">P0: 修正 4 个 critical bugs——NFR 六类正式分类、Mathlib 立场回正、TLA+ 命令参数、S5→B3/B4 命名</div>
-      <div class="summary-item" data-field="improve-2">P1-A/B: 20 个 prompts 补「## 调用时机」段 + 11 个 executor-* 补「## ❌ 视觉检查点」失败模式速查</div>
-      <div class="summary-item" data-field="improve-3">P1-C/D/E: orchestrator_backend.md 拆分（307→295行）+ 3 个建模 executor AI 腔人设迁移 + 4 文件软化措辞硬性化</div>
+      <div class="summary-item" data-field="improve-1">R1-R3 修 3 个 verifier 的跨文件不一致：ID 正则统一 R[123]-（对齐 scripts/lib/jsonl.ts）/ executor-frontend-arch 引用修正（该 executor 不存在，实际由 orchestrator_frontend 阶段 5 驱动）/ verify-gate --stage S3→R3（S3 不存在）</div>
+      <div class="summary-item" data-field="improve-2">R4 给两个 orchestrator 补 if-then 三段式失败恢复表（HL-2 实战教训）：middle-end 4 行错误处理→7 行三段式表 + backend 新增 9 行三段式表覆盖 B1-B6+FINAL，每条「触发条件 / 一线修复 / 仍失败兜底」三段</div>
+      <div class="summary-item" data-field="improve-3">R5-R6 统一 6 类 NFR 不变式命名（ResponseTimeInv→PerfLatencyInv 等 3 处语义错位修正）+ 消除 quick-reference.md 与 SKILL.md 重复（-16 行）+ stability-baseline.md 178→8 行归档说明（保留文件维持 MANIFEST.json 兼容）</div>
     </div>
   </div>
 
