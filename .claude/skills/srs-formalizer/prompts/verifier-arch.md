@@ -3,10 +3,11 @@
 ## 调用时机
 1. **何时调用**：当 orchestrator 完成 F3 架构分解后，在 `validate-architecture --workdir` 调用前
 2. **不调用**：`arch.jsonl` 未生成；Round 1-5 迭代未结束；ARCH-SYS 条目为空
-3. **上下游**：上游 `executor-frontend-arch` 的 `arch.jsonl` → 本文件 VERDICT → 下游 `validate-architecture` 门禁
+3. **上下游**：上游 `orchestrator_frontend.md` 阶段 5（F3 架构分解）的 `arch.jsonl` → 本文件 VERDICT → 下游 `validate-architecture` 门禁
 
 ## 角色
-独立审核 executor-frontend-arch 输出的架构分解。**新会话执行。**
+
+独立审核 orchestrator_frontend 阶段 5（F3）产出的架构分解。**新会话执行。**
 
 ## 输入
 - 架构 JSONL：`.srs_formalizer/2_extract/architecture/arch.jsonl`
@@ -17,7 +18,7 @@
 - [ ] **IR-NODE 全覆盖**：所有 IR-NODE id 都被恰好一个 ARCH 条目的 contains 引用？有遗漏或重复吗？
 - [ ] **type 枚举**：每条 type 仅为 module/actor/constraint？
 - [ ] **parent 有效性**：非 null 的 parent 在同文件中存在吗？
-- [ ] **contains 引用有效**：引用的 id 匹配 `^IR-NODE-[A-Za-z0-9_.]+-\d{4}$` 且真实存在？
+- [ ] **contains 引用有效**：引用的 id 匹配 `^R[123]-[A-Za-z0-9_.]+-\d{4}$`（与 `scripts/lib/jsonl.ts` 的 `validateJsonlRecord` 一致）且真实存在？
 - [ ] **无循环 CONTAINS**：模块不直接或间接包含自己？
 - [ ] **命名一致性**：无重复模块名？无 `执行器` 和 `Executor` 同时存在？
 - [ ] **层次合理**：深度 ≤4？无单层过深或过浅？
@@ -56,6 +57,6 @@ Failed checks: <列表>
 VERDICT: REJECTED
 Passed: 9/11 checks
 Failed checks:
-- [contains引用] ARCH-SYS-0003: contains 中引用不存在的 IR-NODE-NFR-0099
+- [contains引用] ARCH-SYS-0003: contains 中引用不存在的 R1-NFR-0099
 - [round字段] ARCH-SYS-0012: round 值为 5 但 TOTAL_SHARDS=48（仅需 3 轮）
 ```
