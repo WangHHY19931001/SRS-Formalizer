@@ -53,4 +53,12 @@
 | 51-100 | 5 | 2 |
 | >100 | 8 | 4 |
 
-强制 NFR 分维度并行。每次迭代追加 `outputs/reports/convergence-log.jsonl`（编排者维护，非脚本产出）。超限未收敛 → 标记 STATE.md BLOCKED，列出所有未解决项，等待人工介入。
+强制 NFR 分维度并行。每次迭代追加 `outputs/reports/convergence-log.jsonl`（编排者维护，非脚本产出）。
+
+## 超限处理（if-then）
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---------|---------|-----------|
+| 当前轮次 `< max_iterations` 且未收敛 | 检查未回答 Q 的联合图谱是否齐全 → 补充查询或重新生成对应 verified 产物 → 下一轮迭代 | — |
+| 达到 `max_iterations` 仍未收敛 | 检查 high-confidence 比例与 NFR 覆盖率：若 `≥7/13` 且 `NFR≥60%` → 允许标记 `partial_convergence` 并继续 FINAL；否则 → 苏格拉底拷问最大分歧点 | 仍无法收敛 → 🛑 **STOP**：标记 STATE.md `BLOCKED`，列出所有未解决项，等待人类确认是否加轮或收工 |
+| `verify-gate --stage FINAL` 失败 | 检查 `sourceHash` 不匹配项 → 定位过期/草稿/跨类型产物 → 回退对应 Backend 步骤重新生成 → 重新 `--strict --promote` | 连续 2 次修复失败 → 🛑 **STOP**：禁止提交草稿或过期报告，等待人类决策 |

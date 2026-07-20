@@ -59,7 +59,10 @@ SRS 文档
 - [ ] 金融核心 / 复杂调度 / 自定义数据结构
 - [ ] 检测结果：触发 / 不触发
 
-> 触发条件最终以 Middle-end M3 NFR 分类结果为准（见 SKILL.md）：performance 关键词 ≥5 且 total_shards ≥100 → 强制 TLA+；security/compliance 关键词 ≥1 → 强制 Lean 4；availability 关键词 ≥3 → 生成 TLA+ 草稿（Agent 决定是否 `--promote`，须在 STATE.md 记录决策依据）。
+> 触发条件最终以 Middle-end M3 NFR 分类结果为准（见 SKILL.md）：
+> - `performance` 关键词 ≥5 且 `total_shards ≥100` → **强制 TLA+**，必须 `--promote`
+> - `security`/`compliance` 关键词 ≥1 → **强制 Lean 4**，必须 `--promote`
+> - `availability` 关键词 ≥3 → 生成 TLA+ 草稿；若 `total_shards ≥50` 或 `performance ≥5` → **强制 `--promote`**；仅当 `total_shards < 50` 且 `performance < 5` 时可跳过 `--promote`，但须在 STATE.md 记录跳过理由、风险与责任人，且须经 🛑 **STOP** 人类确认
 
 #### 1.4 自动快速退出判定
 - [ ] TLA+ 检测 = **不触发** → 标记 `skip formal:tla`，写入 STATE.md `TLA_TRIGGER: no`
@@ -202,6 +205,19 @@ npx tsx index.ts validate-checklist --workdir .srs_formalizer
 - 术语表含 ≥5 条高置信度术语
 
 通过 → 更新 STATE.md Frontend = ✅，移交 Middle-end。
+
+## 失败恢复路径（if-then）
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---------|---------|-----------|
+| `validate-checklist` 失败 | 检查 S0/S1 检查项缺失 → 补全后重跑 | 连续 2 次失败 → 🛑 **STOP**，等待人类确认 |
+| `validate-jsonl` 失败 | 根据报错字段修复对应 shard → 重跑该 shard 的 executor → 重新校验 | 连续 3 次重试失败 → 标记该 shard 为 `manual_review`，继续下一 shard |
+| `validate-architecture` 失败 | 检查 arch JSONL 6 项格式 → 修复后重跑 | 连续 2 次失败 → 回退到 F2 重新提取 R1，确保基础需求完整 |
+| `validate-glossary` 失败 | 补充缺失定义或提升置信度 → 重跑 | 连续 2 次失败 → 允许用当前术语表继续，但 STATE.md 标注 `glossary_incomplete` |
+| `assemble-ir` 失败 | 保留有效 JSONL → 检查去重冲突与悬挂边 → 修复后重跑 | 仍失败 → 回退到 F2 重新提取，不删除已有校验数据 |
+| `verify-gate --stage S1` 失败 | 按门禁报告逐项修复（JSONL 完整性/ID 唯一性/Schema/孤立节点/术语数）→ 重跑 | 连续 2 次修复失败 → 🛑 **STOP**，打包错误报告与 shard_index 等待人类决策 |
+
+> 🔴 **CHECKPOINT · S1 收口前**：F5 完成后必须运行 `verify-gate --stage S1`，通过后才可移交 Middle-end。禁止跳过。
 
 ## Inversion 模式铁律
 

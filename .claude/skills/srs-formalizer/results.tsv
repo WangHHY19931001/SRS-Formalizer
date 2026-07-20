@@ -1,3 +1,5 @@
 timestamp	commit	skill	old_score	new_score	status	dimension	note	eval_mode
 2026-07-20T10:00	baseline	srs-formalizer	-	71.6	baseline	-	初始评估; dim3=6.0(失败模式编码), dim5=11.9(可执行具体性), dim8=16.1(干跑)	dry_run
 2026-07-20T10:10	956c44c	srs-formalizer	71.6	76.4	keep	失败模式编码	新增 if-then 三段式 fallback 表(9场景); dim3 5→8, dim2 8→9	dry_run
+2026-07-20T10:20	b3dcda8	srs-formalizer	76.4	79.15	keep	可执行具体性	消除 NFR promote/M5 冲突的模糊决策; dim5 7→8.5	dry_run
+2026-07-20T10:30	cf800b1	srs-formalizer	79.15	80.15	keep	反例与黑名单	新增 Agent 编排反模式表(8条); dim9 7→9	dry_run
