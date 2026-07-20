@@ -9,6 +9,69 @@ import { validateTla } from '../lib/tla-validator.js';
 
 const PLACEHOLDER = /LLM_FILL|TODO|FIXME|TBD|\bGAP\b|待定|未定义|待实现/i;
 
+/** The six NFR invariant names (must stay in sync with orchestrator_backend.md / executor-tlaplus.md). */
+const NFR_INVARIANTS = ['PerfLatencyInv', 'SecurityInv', 'AvailInv', 'CompatInv', 'MaintInv', 'ComplianceInv'] as const;
+
+/** Strip TLA+ comments so definition bodies compare on semantics, not prose. */
+function stripTlaComments(src: string): string {
+  return src.replace(/\(\*[\s\S]*?\*\)/g, ' ').split('\n').map(line => {
+    const idx = line.indexOf('\\*');
+    return idx === -1 ? line : line.slice(0, idx);
+  }).join('\n');
+}
+
+/**
+ * Extract the body of a top-level `Name == ...` definition. Captures the first
+ * line after `==` plus any following continuation lines (conjunction/disjunction
+ * lists starting with /\ or \/), normalising whitespace for comparison.
+ */
+function extractDefinitionBody(source: string, name: string): string | null {
+  const lines = source.split('\n');
+  const start = lines.findIndex(line => new RegExp(`^${name}\\s*==`).test(line));
+  if (start === -1) return null;
+  const first = lines[start]!.replace(new RegExp(`^${name}\\s*==`), '').trim();
+  const collected = [first];
+  for (let i = start + 1; i < lines.length; i++) {
+    const trimmed = lines[i]!.trim();
+    if (/^(\/\\|\\\/)/.test(trimmed) || (trimmed !== '' && /^[\s]/.test(lines[i]!) && !/^\w+\s*==/.test(trimmed))) {
+      collected.push(trimmed);
+    } else break;
+  }
+  return collected.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+/** `var \in SetName` (a single membership in a named set) is a type-tautology: permanently true given TypeOK. */
+const TAUTOLOGY_BODY = /^\w+'?\s*\\in\s+\w+$/;
+
+/**
+ * Non-triviality checks (proposal §2.3): reject vacuous invariants and template
+ * duplication that let semantically empty specs pass the deterministic gate.
+ */
+function nonTrivialityErrors(source: string): string[] {
+  const errors: string[] = [];
+  const clean = stripTlaComments(source);
+  const presentNfr = NFR_INVARIANTS.filter(name => new RegExp(`^${name}\\s*==`, 'm').test(clean));
+  const bodies = new Map<string, string>();
+  for (const name of presentNfr) {
+    const body = extractDefinitionBody(clean, name);
+    if (!body) continue;
+    bodies.set(name, body);
+    if (TAUTOLOGY_BODY.test(body)) {
+      errors.push(`${name} is a tautology (\`var \\in TypeSet\` form is permanently true, not a real constraint)`);
+    }
+  }
+  // Detect template duplication: two NFR invariants with identical bodies.
+  const byBody = new Map<string, string[]>();
+  for (const [name, body] of bodies) {
+    if (!byBody.has(body)) byBody.set(body, []);
+    byBody.get(body)!.push(name);
+  }
+  for (const [, names] of byBody) {
+    if (names.length > 1) errors.push(`NFR invariants share an identical body (template duplication): ${names.join(', ')}`);
+  }
+  return errors;
+}
+
 function staticErrors(source: string, cfg: string): string[] {
   const errors: string[] = [];
   if (PLACEHOLDER.test(source)) errors.push('forbidden placeholder found');
@@ -16,8 +79,11 @@ function staticErrors(source: string, cfg: string): string[] {
   if (!/VARIABLES\s+\w+/.test(source)) errors.push('non-empty VARIABLES declaration is required');
   for (const operator of ['Init', 'Next', 'TypeOK']) if (!new RegExp(`^${operator}\\s*==\\s*\\S`, 'm').test(source)) errors.push(`non-empty ${operator} definition is required`);
   if (!/^INVARIANT\s+TypeOK/m.test(cfg)) errors.push('cfg must declare TypeOK invariant');
+  errors.push(...nonTrivialityErrors(source));
   return errors;
 }
+
+export { nonTrivialityErrors };
 
 export async function main(args: string[]): Promise<CliResult> {
   let workDirArg: string | null; let name: string | null;

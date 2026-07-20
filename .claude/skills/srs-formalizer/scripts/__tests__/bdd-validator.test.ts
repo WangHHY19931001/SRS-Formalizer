@@ -3,6 +3,7 @@ import * as assert from 'node:assert/strict';
 import {
   validateFeatureBasic,
   validateFeatureNFR,
+  validateFeatureSemantics,
 } from '../lib/bdd-validator.js';
 
 describe('lib/bdd-validator.ts — Phase 1: Basic structural validation', () => {
@@ -193,5 +194,65 @@ describe('lib/bdd-validator.ts — Phase 2: NFR validation', () => {
     const result = validateFeatureNFR(content, 'nfr_performance.feature');
     const thresholdWarnings = result.warnings.filter(w => w.includes('threshold value pattern'));
     assert.equal(thresholdWarnings.length, 0);
+  });
+});
+
+describe('lib/bdd-validator.ts — semantic heuristics (proposal §1.3)', () => {
+  it('flags generic "processes the requirement" When as an error (B-2)', () => {
+    const content = `Feature: Governance System
+  Scenario: functional requirement 1
+    Given the Governance System subsystem is initialized and operational
+    When the system processes the requirement
+    Then the audit log records the outcome
+`;
+    const result = validateFeatureSemantics(content, 'governance_system.feature');
+    assert.ok(result.errors.some(e => e.includes('Generic placeholder When step')));
+  });
+
+  it('warns when a Then step restates a directive requirement instead of asserting outcome (B-1)', () => {
+    const content = `Feature: Report
+  Scenario: quality check
+    Given input is provided
+    When the user submits the report
+    Then 系统必须使用确定性验证与开放性质量评判共同确认结果质量
+`;
+    const result = validateFeatureSemantics(content, 'report.feature');
+    assert.ok(result.warnings.some(w => w.includes('restates the requirement')));
+  });
+
+  it('requires a negative-boundary scenario in constraint domains (B-3)', () => {
+    const content = `Feature: Approval Governance
+  Scenario: approval granted
+    Given an action is waiting on approval
+    When an approver grants approval
+    Then the action executes
+`;
+    const result = validateFeatureSemantics(content, 'governance_approval.feature');
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some(e => e.includes('negative-boundary scenario')));
+  });
+
+  it('accepts a constraint domain that includes a negative-boundary assertion', () => {
+    const content = `Feature: Approval Governance
+  Scenario: hold execution while approval is unresolved
+    Given an action is waiting on approval
+    When no approval outcome has yet been provided
+    Then execution remains held for that approval-controlled action
+    And the system does not behave as though unresolved approval were implicit consent
+`;
+    const result = validateFeatureSemantics(content, 'governance_approval.feature');
+    assert.equal(result.valid, true);
+  });
+
+  it('does not require negative constraints for non-constraint domains', () => {
+    const content = `Feature: Product Listing
+  Scenario: list products
+    Given the catalog contains items
+    When the user opens the listing page
+    Then the page shows 20 items per page
+`;
+    const result = validateFeatureSemantics(content, 'product_listing.feature');
+    assert.equal(result.valid, true);
+    assert.equal(result.errors.length, 0);
   });
 });

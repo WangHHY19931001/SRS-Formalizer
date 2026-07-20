@@ -9,9 +9,20 @@ import { collectByExtension, collectFiles, hashFiles, writeValidationReport } fr
 import { promoteDirectory } from '../lib/artifacts/promotion.js';
 import { stripLeanComments } from '../lib/verify-gate/shared.js';
 
-function auditLean(source: string): string[] {
+export function auditLean(source: string): string[] {
   const clean = stripLeanComments(source);
-  const checks: Array<[RegExp, string]> = [[/\b(sorry|admit|axiom)\b/, 'unfinished proof or axiom found'], [/^\s*import\s+Mathlib\s*$/m, 'full Mathlib import is forbidden'], [/\b(theorem|lemma)\s+\w+[^\n]*:\s*True\b/, 'semantically weakened : True theorem found']];
+  const checks: Array<[RegExp, string]> = [
+    [/\b(sorry|admit|axiom)\b/, 'unfinished proof or axiom found'],
+    [/^\s*import\s+Mathlib\s*$/m, 'full Mathlib import is forbidden'],
+    [/\b(theorem|lemma)\s+\w+[^\n]*:\s*True\b/, 'semantically weakened : True theorem found'],
+    // A proposition whose consequent (after `->`/`→` or `<->`/`↔`) is `True` is
+    // vacuous: any hypothesis discharges it via `trivial`. Blocks the `→ True`
+    // escape hatch that the plain `: True` pattern misses (proposal §3.3). Not
+    // anchored to the `theorem` keyword so multi-line signatures are caught;
+    // comments are already stripped, and `True` as a codomain is always vacuous.
+    [/(?:->|→)\s*True\b/, 'theorem with True consequent is vacuous (→ True)'],
+    [/(?:<->|↔)\s*True\b/, 'theorem with True consequent is vacuous (↔ True)'],
+  ];
   return checks.filter(([pattern]) => pattern.test(clean)).map(([, message]) => message);
 }
 

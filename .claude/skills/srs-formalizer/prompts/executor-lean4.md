@@ -44,6 +44,30 @@ Lean 4 证明仅在以下条件**同时满足**时触发：
 1. **IR-NODE 中关于算法的描述**：算法步骤、数据结构、不变量
 2. **IR-EDGE 关系**：相关需求的 DEPENDS_ON / REFINES 关系
 
+## 命题必须有实质后件（禁止 `→ True` 套壳）
+
+> **根因**：Backend 曾生成后件为 `True` 的定理（如 `path.startsWith boundary → True`），任何前提都可经 `trivial` 推出，无约束意义。除 `: True` 外，`→ True` / `↔ True` 也逃过旧检测；`validate-lean --strict` 已把这三种形态全部列入弱化黑名单。
+
+将安全/合规约束建模为**有实质后件的命题**，把 statement 的约束反向建模为可判定命题，禁止后件退化为 `True`：
+
+| 约束 | ❌ 空洞写法 | ✅ 实质命题 |
+|------|-------------|-------------|
+| PII 排除 | `hasPii = false → True` | `∀ entry ∈ log, entry.fields ∩ PII_FIELDS = ∅`（集合不相交） |
+| 路径边界 | `path.startsWith boundary → True` | `path.startsWith boundary = true → isWithinWorkspace path = true`（可判定命题） |
+| 审批守卫 | `highRisk = true → approved = true → True` | `highRisk = true → executed = true → approved = true`（真实蕴含链） |
+
+后件必须是等式、不等式、集合关系或可判定命题；出现 `→ True`、`↔ True`、`: True` 一律视为未完成。
+
+## 每条定理引用来源需求 ID（追溯性）
+
+每条 `theorem`/`lemma` 上方以注释标注其来源 IR-NODE id，供追溯矩阵校验 Lean 定理→需求映射完整性：
+
+```lean
+/- 来源: IR-NODE-SEC-0002 (nfr_category: security) -/
+theorem piiExclusion (e : LogEntry) :
+    e.hasPii = true → isRedacted e = true := by ...
+```
+
 ## 核心建模规范（Sorry 驱动开发）
 
 ### 第一步：骨架搭建
@@ -131,6 +155,8 @@ rfl → simp → ring → linarith → nlinarith → omega → exact? → apply?
 
 - ❌ `sorry` 残留 → 证明未完成 → 执行 `grep -r "sorry" *.lean` 必须返回空
 - ❌ `: True` 弱化 → 用 `True` 目标绕过证明 → 必须证明原始定理陈述
+- ❌ `→ True` / `↔ True` 后件 → 用 True 后件套壳（旧检测盲区）→ 后件必须是等式/不等式/集合关系/可判定命题
+- ❌ 定理无来源标注 → 无法追溯到需求 → 每条定理上方注释标 IR-NODE id
 - ❌ `import Mathlib` 全量行 → 编译时间爆炸 → 按需 `import Mathlib.Data.*`/`Mathlib.Tactic` 子模块
 - ❌ `axiom` 引入 → 未经验证的公理 → 禁止自定义公理，改用 Mathlib 已有定理
 - ❌ `#eval` 替代 proof → 用求值代替证明 → 必须用 `theorem` + 完整 `proof`

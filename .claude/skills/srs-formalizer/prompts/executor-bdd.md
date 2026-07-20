@@ -86,13 +86,61 @@
 4. 允许的 verification_method 值：`api_check` | `ui_check` | `db_check` | `log_check` | `output_check`
 5. 当场景有多个 Then 步骤时，每个步骤必须独立标注
 
-## Then 步骤设计约束
+## Then 步骤语义化转换规则（强制，禁止复述需求原文）
 
-1. 每个 Then 步骤必须以可观测的系统状态或输出结尾——禁止"系统应正常工作"类断言
-2. 优先使用精确数值断言（如"返回状态码 200"而非"返回成功"）
-3. 如果 IR-NODE 未定义具体阈值，使用 `<THRESHOLD>` 标记并要求后续补充，而非自行编造
-4. 不得删除或修改已有的 Given/When 步骤
-5. 同一 Feature 文件内所有 Scenario 必须覆盖完整
+> **根因**：Backend 曾以「模板填充代替语义推导」，`Then` 直接复述 IR-NODE 的 statement（如 `Then 系统必须使用确定性验证……`）。这类步骤语法合规但语义空洞，不可执行、不可转成测试。`validate-bdd --strict` 已加入复述检测（含指令性情态词 `必须/应当/shall/must` 且无否定的 Then 步骤将告警），下列规则强制落地。
+
+将需求 statement 转化为**可观测行为断言**，禁止把 statement 原样抄进 `Then`：
+
+| IR-NODE statement 形态 | 转换规则 | 示例 |
+|------------------------|----------|------|
+| 「必须 X」/「shall X」 | `Then <X 发生后可观测的结果/状态/输出>` | statement=「系统必须记录审计日志」→ `Then 审计日志新增一条含操作者、时间戳、动作的记录 # verification_method: log_check` |
+| 「不得 Y」/「must not Y」/「禁止 Y」 | **额外生成**否定断言 `And the system does not <Y>` | statement=「未授权用户不得访问资源」→ `Then 请求返回 403 状态码` + `And 资源内容不出现在响应体中` |
+| 数值/阈值约束 | 精确数值断言 | 「响应时间 < 200ms」→ `Then 响应时间 ≤ 200 ms # verification_method: api_check` |
+
+### Then 铁律
+
+1. 每个 `Then` 必须以**可观测的系统状态、字段变化、状态码或输出**结尾——严禁「系统应正常工作」「处理成功」类断言，也严禁把 statement 中的「必须/应当/shall/must」句原样复述。
+2. 优先精确数值断言（「返回状态码 200」而非「返回成功」）。
+3. IR-NODE 未定义阈值 → 用 `<THRESHOLD>` 标记待补，禁止自行编造。
+4. 不得删除或修改已有 Given/When 步骤。
+5. 同一 Feature 文件内所有 Scenario 必须覆盖完整。
+
+## When 步骤绑定具体触发事件（禁止万能占位）
+
+`When` 必须绑定**具体触发事件**，从 IR-NODE 的 `module` + `statement` 推导真实动作与发起者。
+
+- ❌ 禁止 `When the system processes the requirement` / `When 系统处理需求` 类万能占位（`validate-bdd --strict` 直接判为 error）。
+- ✅ 从 statement 提取动作动词与发起者：statement=「用户提交订单后系统扣减库存」→ `When 用户提交包含 3 件商品的订单`。
+- 同一模块内不同 Scenario 的 `When` 必须体现行为差异，禁止 11 个模块共用同一 When 骨架。
+
+## 否定约束场景（security/approval/governance/audit/compliance 强制）
+
+对齐冻结资产核心价值：**边界约束往往比正向流程更关键**。凡 Feature 涉及 security / approval / governance / audit / compliance / 授权 领域，**必须**至少包含一条否定约束场景（`validate-bdd --strict` 缺失即 error）。
+
+```gherkin
+Scenario: 审批未决期间保持挂起 RID-BDD-GOV-APPROVAL-002
+  Given an action is waiting on approval
+  When no approval outcome has yet been provided
+  Then execution remains held for that approval-controlled action
+  And the system does not behave as though unresolved approval were implicit consent
+```
+
+否定断言可用 `不得/禁止/does not/must not/cannot/is denied/is rejected/is blocked/is held` 等表达。
+
+## Feature 业务意图说明（追溯性）
+
+每个 Feature 顶部补一段业务意图说明，声明该能力「为谁、解决什么、边界在哪」，提升可读性与追溯性（对齐冻结资产）：
+
+```gherkin
+Feature: 审批治理
+  作为治理子系统，在高风险动作执行前强制人工审批，
+  未获批准前一律挂起，防止把「未决」误当「默许」。
+```
+
+## 功能链 Feature（端到端行为验证）
+
+除按子系统平铺外，从 IR 的 `traces_to` / `depends_on` 边推导**跨模块行为链**（如 input→intent→plan→dispatch），在 `outputs/bdd/draft/chains/` 下生成端到端场景，补足单模块视角缺失的端到端行为验证。
 
 ## 零容忍红线
 
@@ -151,3 +199,6 @@ Feature: 用户登录
 - ❌ `TODO` 步骤或空实现 → 未完成场景 → 删除或补全，禁止 `TODO`
 - ❌ NFR 场景缺 `verification_method` → 标注遗漏 → 每个 Then 步骤必须独立标注
 - ❌ 简化版断言 → 仅检查 HTTP 200 不验证响应体 → 必须验证完整响应契约
+- ❌ Then 复述需求原文 → 含「必须/应当/shall/must」且无否定的 statement 原样抄入 → 转为可观测行为断言（见「Then 步骤语义化转换规则」）
+- ❌ 万能 When 占位 → `When the system processes the requirement` → 绑定 IR-NODE 推导的具体触发事件与发起者
+- ❌ 约束域缺否定场景 → security/approval/governance/audit/compliance 无「系统不得……」场景 → 强制补至少 1 条否定约束场景

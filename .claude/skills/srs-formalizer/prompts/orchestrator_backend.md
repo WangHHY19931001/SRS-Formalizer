@@ -26,13 +26,37 @@ srs-ir.json（含 _analysis）
 └──────────────────────────────────────────────────────────────┘
   │
   ▼
+[二级语义验证闸门] ── LLM Verifier 语义评分（见下）
+  │
+  ▼
 [validate-* --strict --promote] ── draft → verified
   │
   ▼
 [verify-gate FINAL] ── 最终交付
 ```
 
-Agent 按 executor-backend-*.md 提示词生成 draft 产物。每个产物经对应 `validate-* --strict --promote` 提升到 verified。`verify-gate --stage FINAL` 仅消费 verified 产物。Agent 生成 draft **不**等同于已验证交付，仅产生 draft 或确定性产物。
+Agent 按 executor-backend-*.md 提示词生成 draft 产物。每个产物先过**二级语义验证闸门**（LLM Verifier），再经对应 `validate-* --strict --promote` 提升到 verified。`verify-gate --stage FINAL` 仅消费 verified 产物。Agent 生成 draft **不**等同于已验证交付，仅产生 draft 或确定性产物。
+
+## 二级语义验证闸门（promote 前强制，防止空洞产物提升）
+
+> **根因**：`validate-*` 均为确定性格式检查，能挡语法错误却挡不住「语法合规但语义空洞」（Then 复述需求、TLA+ 永真式不变式、Lean `→ True` 套壳）。脚本门禁已加入非平凡性启发式（见各 validator），但启发式无法覆盖全部语义缺陷，故在 promote 前增加一道 LLM Verifier 语义评分闸门（DESIGN.md §19.4 定义的机制）。
+
+每个 draft 产物在执行 `validate-* --strict --promote` **之前**，必须先由对应校验者子代理做语义评分：
+
+| 产物 | 校验者 | 语义评分要点（任一不达标 → 打回 executor 重做，不得 promote） |
+|------|--------|--------------------------------------------------------------|
+| BDD | `verifier-bdd.md` | Then 为可观测断言（非需求复述）；When 绑定具体触发事件；约束域含否定场景 |
+| TLA+ | `verifier-*`（形式化）| Next 为显式转换对（非 `var' \in TypeSet`）；6 类 NFR 不变式非平凡且互不相同 |
+| Lean4 | 形式化校验者 | 每条定理后件为实质命题（非 `True`/`→ True`）；可追溯到 IR-NODE id |
+
+流程：`executor-* draft → 校验者语义评分（APPROVED/REJECTED）→ APPROVED 才执行 validate-* --strict --promote → verified`。REJECTED 时携带具体 issue 回退对应 executor 重做，不进入确定性门禁。
+
+## 消费/对照冻结资产基线（复用而非重造）
+
+若仓库存在冻结基线（`frozen/features/`、`frozen/openapi/openapi.yaml` 等高质量参考产物），Backend 生成前必须先加载作为**输入与对照基线**：
+
+- 同名/同域模块优先复用冻结资产的行为覆盖与断言风格，而非从零重造。
+- 生成后与冻结基线做行为覆盖差异对照，差异过大（如 > 20%）时在收敛循环中回退补全。
 
 ## 前置条件
 

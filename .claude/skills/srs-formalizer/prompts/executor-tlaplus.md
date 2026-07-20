@@ -53,18 +53,46 @@
 - 多粒度规约是应对模型-代码差距的**必备实践**
 - 规约只能在小参数集上验证，不代表所有参数下的正确性
 
-## 6 类 NFR 不变式生成指导
+## 状态转换必须从显式状态机推导（禁止 `var' \in TypeSet` 全集跳转）
 
-每个 TLA+ 模块必须包含对应 NFR 类别的不变式（若 IR-NODE 中含该类别）：
+> **根因**：Backend 曾令 `Next` 用 `gateState' \in GateState` 允许任意状态跳到任意状态（如 `Rejected` 直接跳 `Accepted`），状态机形同虚设。`validate-tla --strict` 已加入非平凡性检查，下列规则强制落地。
 
-| NFR 类别 | 不变式命名约定 | 典型不变式 |
+`Next` 的每个 action 必须编码**真实的允许转换对**，从 SRS 的显式状态机推导。DESIGN.md 一般已提供可直接建模的状态机，例如：
+
+- 主循环状态机：`Idle→Observing→Oriented→Planned→Acting→Verifying→Reflecting→{continue|replan|await_approval|clarify|fail|report}`
+- 产物生命周期状态机：`Draft→DeterministicChecking→SemanticVerifying→{Accepted|AcceptedWithWarnings|ReworkRequired|Escalated|Rejected}`
+
+转换应形如（枚举合法转换对），**而非** `gateState' \in GateState`：
+
+```tla
+Next ==
+  \/ (gateState = "Idle"     /\ gateState' = "Checking")
+  \/ (gateState = "Checking" /\ gateState' \in {"Accepted","ReworkRequired","Escalated","Rejected"})
+  \/ (gateState = "ReworkRequired" /\ gateState' = "Checking")
+```
+
+- ❌ 禁止 `var' \in <类型集合>` 作为唯一转换约束（等价于放任任意跳转）。
+- ✅ 每个 action 显式写出 `源状态 guard /\ 目标状态`。
+- `MaxSteps`/常量必须覆盖状态机**完整环路深度**，`MaxSteps=3` 类过小状态空间不足以证明正确性；优先引入真实状态变量而非纯计数器。
+
+## 6 类 NFR 不变式生成指导（禁止永真式与模板复制）
+
+每个 TLA+ 模块必须包含对应 NFR 类别的不变式（若 IR-NODE 中含该类别）。**不变式必须表达真实约束**：
+
+- ❌ 禁止永真式：`SecurityInv == gateState \in GateState`（值恒在集合里，不排除任何状态，`validate-tla --strict` 判为 error）。
+- ❌ 禁止模板复制：6 类不变式定义体互相雷同（如 `AvailInv` 与 `PerfLatencyInv` 完全相同，`validate-tla --strict` 判为 error）。
+- ✅ 不变式应约束**状态间关系**或**可达性**，例如：
+  - `SecurityInv == (gateState = "Accepted") => (prevState = "Checking")`（`Accepted` 只能由 `Checking` 到达，不能从 `Idle` 直跳）
+  - `ComplianceInv == (gateState = "Accepted") => auditChainComplete`（进入 `Accepted` 前必经 `SemanticVerifying`，审计链完整）
+
+| NFR 类别 | 不变式命名约定 | 典型不变式（须为非平凡约束） |
 |----------|---------------|-----------|
 | `performance` | `PerfLatencyInv` | 请求-响应时间 ≤ 阈值，队列长度 ≤ 上限 |
-| `security` | `SecurityInv` | 未授权访问 → 状态不变，敏感数据不泄露 |
+| `security` | `SecurityInv` | 敏感状态只能经授权转换到达（关系约束，非 `var \in Set`） |
 | `availability` | `AvailInv` | 故障节点数 ≤ 上限，已确认操作不可回滚且故障后可恢复 |
 | `compatibility` | `CompatInv` | 跨平台/浏览器行为一致，接口契约保持兼容 |
 | `maintainability` | `MaintInv` | 配置/状态迁移完整，每个状态转换可追踪 |
-| `compliance` | `ComplianceInv` | 数据保留策略强制满足，删除动作有据可查 |
+| `compliance` | `ComplianceInv` | 进入终态前必经审计/验证态，删除动作有据可查 |
 
 > **命名约定统一**：6 类 NFR 不变式命名必须与 `orchestrator_backend.md` L113-118、`debug-tlc.md` L57-62、`convergence-loop.md` L37-39 一致（`PerfLatencyInv`/`SecurityInv`/`AvailInv`/`CompatInv`/`MaintInv`/`ComplianceInv`）。这些命名是「13 个根本问题」跨图一致性检查的目标，分散命名会导致 Q11/Q12/Q13 无法收敛。
 
@@ -141,3 +169,7 @@ Invariant1 == ...
 - ❌ `.cfg` 文件缺失 → 无法运行 TLC → 每个候选必须有 matching `.cfg`
 - ❌ `EXTENDS` 缺失 → 未引入 `Naturals`/`Sequences`/`TLC` → 补全基础模块
 - ❌ ARCH-SYS module 漏覆盖 → 跳过某些模块 → 全模块强制覆盖，禁止跳过
+- ❌ `var' \in TypeSet` 全集跳转 → Next 放任任意状态转换 → 显式枚举合法转换对（源 guard /\ 目标）
+- ❌ 永真式不变式 → `Inv == var \in TypeSet` → 改为状态间关系/可达性约束
+- ❌ NFR 不变式模板复制 → 6 类定义体雷同 → 每类从模块真实语义推导，定义体互不相同
+- ❌ 状态空间过小 → `MaxSteps=3` 覆盖不了完整环路 → 覆盖状态机完整环路深度

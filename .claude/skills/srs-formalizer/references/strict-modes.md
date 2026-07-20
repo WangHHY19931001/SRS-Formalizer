@@ -17,6 +17,14 @@ BDD 校验使用四级全硬阻塞模式。通过 `validate-bdd --strict --promo
 - LLM_FILL 残留检测（禁止任何 `<LLM_FILL_*>` 占位符）
 - 超时/重试上限数值化（必须为具体数字，非 "若干次"）
 
+### Phase 2.5: TS 语义启发式校验（防「语法合规但语义空洞」）
+
+`validate-bdd --strict` 除格式检查外，增加语义非平凡性启发式（`validateFeatureSemantics`）：
+
+- **万能 When 占位**（error）：`When the system processes the requirement` / `系统处理需求` 类无触发语义的占位。
+- **Then 复述需求**（warning）：含指令性情态词 `必须/应当/shall/must` 且无否定的 Then 步骤，判为复述 statement 而非可观测断言。
+- **约束域缺否定场景**（error）：Feature 涉及 security/approval/governance/audit/compliance 域时，必须含至少一条否定约束场景（`不得/does not/must not/is denied` 等）。
+
 ### Phase 3: gherkin-lint（20 条规则）
 
 基于 `templates/.gherkin-lintrc-strict` 配置运行 gherkin-lint：
@@ -62,6 +70,7 @@ TLA+ 使用内置 `tla2tools-1.7.4.jar`（`tools/` 目录）。仅需 Java（不
 - **禁止未定义**：TypeOK 不变式强制执行
 - **禁止活锁（停滞）**：Stuttering 检测
 - **6 类 NFR 不变式通过**：performance/security/availability/compatibility/maintainability/compliance
+- **不变式非平凡性（静态）**：`validate-tla --strict` 拒绝 `Inv == var \in TypeSet` 形式的永真式不变式，并拒绝 6 类 NFR 不变式定义体互相雷同的模板复制。
 
 ### 拆解判据
 
@@ -90,7 +99,7 @@ Lean 4 建模不再无条件触发，而是按以下 NFR 关键词触发：
 
 安装后执行 `lake exe cache get` 下载 mathlib4 最新版编译缓存（避免从源码编译）。Lean 4 证明允许使用 Mathlib 4 标准库——优先按需导入具体子模块（如 `import Mathlib.Data.Nat.Basic`）；`import Mathlib`（全量）会被 `validate-lean` 拒绝，仅能力探测场景下额外避免以简化编译时间。
 
-Lean 4 严格交付流程为：Emitter 写入 `outputs/lean4/draft` 中的完整 Lake 项目（必须有 `lakefile.lean` 或 `lakefile.toml`）→ 人工/子代理完成项目本地证明 → `validate-lean --strict --promote` 审计并在项目根运行 `lake build` → 成功时原子提升整个项目到 verified。`.lean`、Lake 项目定义和可选 `lean-toolchain` 均纳入 source hash；FINAL 只接受该 hash 与当前 verified 内容匹配的报告。审计拒绝 `sorry`、`admit`、`axiom`、全量 `import Mathlib`、`: True` 弱化定理及编译 warning，详见 `references/lean4-coding-guide.md`。
+Lean 4 严格交付流程为：Emitter 写入 `outputs/lean4/draft` 中的完整 Lake 项目（必须有 `lakefile.lean` 或 `lakefile.toml`）→ 人工/子代理完成项目本地证明 → `validate-lean --strict --promote` 审计并在项目根运行 `lake build` → 成功时原子提升整个项目到 verified。`.lean`、Lake 项目定义和可选 `lean-toolchain` 均纳入 source hash；FINAL 只接受该 hash 与当前 verified 内容匹配的报告。审计拒绝 `sorry`、`admit`、`axiom`、全量 `import Mathlib`、`: True` 弱化定理、`→ True` / `↔ True` 空洞后件及编译 warning，详见 `references/lean4-coding-guide.md`。
 
 ## 跨图一致性验证（13 个根本问题）
 

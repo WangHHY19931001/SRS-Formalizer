@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
-import { validateFeatureBasic, validateFeatureNFR } from '../lib/bdd-validator.js';
+import { validateFeatureBasic, validateFeatureNFR, validateFeatureSemantics } from '../lib/bdd-validator.js';
 import { runGherkinLint, runGherklin } from '../lib/bdd-tool-runner.js';
 import { ARTIFACT_PATHS, artifactPath } from '../lib/artifacts/paths.js';
 import { hashFiles, writeValidationReport } from '../lib/artifacts/validation-report.js';
@@ -39,6 +39,8 @@ export async function main(args: string[]): Promise<CliResult> {
       errors.push(...nfr.warnings.filter(warning =>
         warning.includes('authentication precondition') || warning.includes('threshold value pattern'),
       ).map(warning => `[${file}] ${warning}`));
+      const semantics = validateFeatureSemantics(content, file);
+      errors.push(...semantics.errors.map(error => `[${file}] ${error}`));
     }
   }
   if (strict) {
