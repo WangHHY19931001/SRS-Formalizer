@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { nonTrivialityErrors } from '../commands/validate-tla.js';
+import { nonTrivialityErrors, nonTrivialityWarnings } from '../commands/validate-tla.js';
 
 const HEADER = '---- MODULE M ----\nEXTENDS Naturals\nVARIABLES gateState, stepCount\n';
 
@@ -49,5 +49,46 @@ describe('validate-tla nonTrivialityErrors — invariant non-triviality (proposa
     const dup = errors.filter(e => e.includes('template duplication'));
     assert.equal(dup.length, 1);
     assert.ok(dup[0]!.includes('PerfLatencyInv') && dup[0]!.includes('AvailInv') && dup[0]!.includes('MaintInv'));
+  });
+
+  it('flags a `\\/ TRUE` disjunct as a tautology (§P0-2)', () => {
+    const src = `${HEADER}AvailInv == health = "up" \\/ TRUE\n====`;
+    const errors = nonTrivialityErrors(src);
+    assert.ok(errors.some(e => e.includes('AvailInv') && e.includes('tautology') && e.includes('\\/ TRUE')));
+  });
+
+  it('flags an implication with TRUE consequent as a tautology (§P0-2)', () => {
+    const src = `${HEADER}SecurityInv == (gateState = "blocked") => TRUE\n====`;
+    const errors = nonTrivialityErrors(src);
+    assert.ok(errors.some(e => e.includes('SecurityInv') && e.includes('tautology')));
+  });
+
+  it('flags a literal TRUE body as a tautology (§P0-2)', () => {
+    const src = `${HEADER}MaintInv == TRUE\n====`;
+    const errors = nonTrivialityErrors(src);
+    assert.ok(errors.some(e => e.includes('MaintInv') && e.includes('tautology')));
+  });
+
+  it('flags normalized-equivalent bodies as duplication (§P0-2)', () => {
+    const src = `${HEADER}` +
+      'PerfLatencyInv == latency <= MaxLatency\n' +
+      'AvailInv == ( latency =< MaxLatency )\n' +
+      '====';
+    const errors = nonTrivialityErrors(src);
+    assert.ok(errors.some(e => e.includes('template duplication') && e.includes('PerfLatencyInv') && e.includes('AvailInv')));
+  });
+});
+
+describe('validate-tla nonTrivialityWarnings — naming/content consistency (§P0-2)', () => {
+  it('warns when PerfLatencyInv references no latency/time term', () => {
+    const src = `${HEADER}PerfLatencyInv == budgetUsed <= MaxBudget\n====`;
+    const warnings = nonTrivialityWarnings(src);
+    assert.ok(warnings.some(w => w.includes('PerfLatencyInv') && w.includes('naming/content mismatch')));
+  });
+
+  it('does not warn when PerfLatencyInv references latency', () => {
+    const src = `${HEADER}PerfLatencyInv == latency <= 200\n====`;
+    const warnings = nonTrivialityWarnings(src);
+    assert.deepEqual(warnings, []);
   });
 });

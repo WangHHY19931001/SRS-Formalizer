@@ -34,8 +34,12 @@ function toStr(v: unknown, dflt: string): string {
   return typeof v === 'string' ? v : dflt;
 }
 
+const FORMALIZATION_PRIORITIES = new Set(['safety-critical', 'concurrency', 'standard', 'deferred']);
+
 function toIRNode(record: JsonlRecord): IRNode {
   const meta = isRecord(record.metadata) ? record.metadata : null;
+  const rawPriority = toStr(meta?.['formalization_priority'], '');
+  const ridRef = toStr(meta?.['rid_ref'], '');
   return {
     id: record.id,
     type: 'requirement',
@@ -45,6 +49,8 @@ function toIRNode(record: JsonlRecord): IRNode {
       statement: record.statement,
       category: record.category,
       confidence: record.confidence,
+      ...(FORMALIZATION_PRIORITIES.has(rawPriority) ? { formalizationPriority: rawPriority as IRNode['properties']['formalizationPriority'] } : {}),
+      ...(ridRef ? { ridRef } : {}),
     },
     source: {
       filePath: record.source_file,

@@ -53,7 +53,31 @@
 | 51-100 | 5 | 2 |
 | >100 | 8 | 4 |
 
-强制 NFR 分维度并行。每次迭代追加 `outputs/reports/convergence-log.jsonl`（编排者维护，非脚本产出）。
+强制 NFR 分维度并行。每次迭代追加 `outputs/reports/convergence-log.jsonl`（编排者维护，经 `validate-convergence-log` 校验后写入）。
+
+## 收敛日志弱化动作审计（§P2-2）
+
+`convergence-log.jsonl` 不再只记 `pass`/`skip`。任何降低保证强度的动作必须结构化记录，并经 `validate-convergence-log --append '<json>'` 校验后追加：
+
+| action | 语义 | 必填字段 |
+|--------|------|----------|
+| `pass` / `skip` / `rework` | 常规流转 | timestamp, stage, action, subject |
+| `invariant_weakened` | TLA+ 不变式被改弱 | 额外 `before`/`after`（body diff）+ `reason` |
+| `threshold_relaxed` | 阈值放宽 | 额外 `before`/`after` + `reason` |
+| `scope_reduced` | 覆盖范围缩小 | 额外 `before`/`after` + `reason` |
+| `proof_simplified` | Lean 证明简化 | 额外 `before`/`after` + `reason` |
+
+弱化类动作缺 diff 或缺实质性 `reason` 时 `validate-convergence-log` 直接拒绝，供人工复核是「合理修正」还是「为过门禁而放水」。全量校验（不带 `--append`）在 FINAL 前运行，任一条目非法即报错。
+
+## 跨产物反弱化分析（需求→BDD→TLA→Lean，§Q1/Q2/Q3）
+
+`analyze-fidelity --workdir .srs_formalizer [--strict]` 把每一层视为上一层的语义精化，检测下游产物相对上游「丢约束」：
+
+- **Q1 需求→BDD**：coverage（每条需求尤其 safety-critical 至少 1 个场景）、dilution（需求与场景 token 相似度过低=漂移）、negation-drop（`不得/must not` 需求的场景无否定断言）、threshold-drop（NFR 阈值未出现在场景）。
+- **Q2 需求+BDD→TLA+**：nfr-invariant-missing（上游存在的 NFR 类别无对应不变式=反弱化）、threshold-simplified-away（需求/BDD 的阈值常量未进入 `.tla`/`.cfg`=反简化）、de-hierarchization（架构声明多层但 TLA+ 塌缩为极少动作=反去层次化）。
+- **Q3 需求+BDD+TLA→Lean4**：proof-missing（触发 Lean 的安全/合规需求无定理）、proof-drift（无定理签名与需求共享词汇=证明偏移）。
+
+结果写入 `outputs/reports/fidelity.json`。FINAL 门禁读取该报告：任一 `error` 级发现即阻塞（`Cross-artifact fidelity`）；safety-critical 需求存在 coverage/drift 错误即阻塞（`Safety-critical coverage`，无报告则 fail-closed）。RID↔IR 映射由 `build-rid-mapping --frozen <dir>` 产出 `_ctx/rid_mapping.json`，作为需求→BDD 追溯主键（§P1-2）。
 
 ## 超限处理（if-then）
 

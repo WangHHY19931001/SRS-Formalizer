@@ -70,7 +70,13 @@ TLA+ 使用内置 `tla2tools-1.7.4.jar`（`tools/` 目录）。仅需 Java（不
 - **禁止未定义**：TypeOK 不变式强制执行
 - **禁止活锁（停滞）**：Stuttering 检测
 - **6 类 NFR 不变式通过**：performance/security/availability/compatibility/maintainability/compliance
-- **不变式非平凡性（静态）**：`validate-tla --strict` 拒绝 `Inv == var \in TypeSet` 形式的永真式不变式，并拒绝 6 类 NFR 不变式定义体互相雷同的模板复制。
+- **不变式非平凡性（静态，§P0-2）**：`validate-tla --strict` 拒绝下列弱化不变式：
+  - `Inv == var \in TypeSet` 形式的类型永真式；
+  - 恒真体 `TRUE`、含 `\/ TRUE` 析取、蕴含式后件为 `TRUE`（`=> TRUE`）等近乎恒真式（化石证据如 `AvailInv == ... \/ TRUE`）；
+  - 6 类 NFR 不变式定义体在**归一化等价**（忽略空白/括号、`=<`↔`<=`）后互相雷同的模板复制（不再仅比对字节完全相同）。
+  - 命名/内容一致性启发式（非阻塞 warning）：NFR 不变式体若不含与其名称语义相符的关键词（如 `PerfLatencyInv` 不含 latency/延迟/时间类词），提示可能存在「命名承诺与实际断言错位」，需人工复核。
+- **真实工具执行绑定（§P0-1）**：验证报告新增 `toolEvidence` 字段，记录 SANY/TLC 的真实退出码与 stdout 哈希。`validate-tla` 是唯一写入报告的入口，报告在同一次执行内捕获工具进程结果。FINAL 门禁对 tlaplus/lean4 产物要求 `toolEvidence` 非空且每项 `exitCode === 0`、`stdoutHash` 为 64 位十六进制，纯手写 `passed: true` 的静态 JSON 无法通过。
+- **TLC 必须真实运行（§P2-1）**：`validate-tla --strict` 在 SANY 通过后必须实际运行 TLC 且 `exitCode === 0` 才允许 promote；TLC 未参与判定（exitCode 非 0/为空）时拒绝提升。
 
 ### 拆解判据
 
@@ -99,7 +105,9 @@ Lean 4 建模不再无条件触发，而是按以下 NFR 关键词触发：
 
 安装后执行 `lake exe cache get` 下载 mathlib4 最新版编译缓存（避免从源码编译）。Lean 4 证明允许使用 Mathlib 4 标准库——优先按需导入具体子模块（如 `import Mathlib.Data.Nat.Basic`）；`import Mathlib`（全量）会被 `validate-lean` 拒绝，仅能力探测场景下额外避免以简化编译时间。
 
-Lean 4 严格交付流程为：Emitter 写入 `outputs/lean4/draft` 中的完整 Lake 项目（必须有 `lakefile.lean` 或 `lakefile.toml`）→ 人工/子代理完成项目本地证明 → `validate-lean --strict --promote` 审计并在项目根运行 `lake build` → 成功时原子提升整个项目到 verified。`.lean`、Lake 项目定义和可选 `lean-toolchain` 均纳入 source hash；FINAL 只接受该 hash 与当前 verified 内容匹配的报告。审计拒绝 `sorry`、`admit`、`axiom`、全量 `import Mathlib`、`: True` 弱化定理、`→ True` / `↔ True` 空洞后件及编译 warning，详见 `references/lean4-coding-guide.md`。
+Lean 4 严格交付流程为：Emitter 写入 `outputs/lean4/draft` 中的完整 Lake 项目（必须有 `lakefile.lean` 或 `lakefile.toml`）→ 人工/子代理完成项目本地证明 → `validate-lean --strict --promote` 审计并在项目根运行 `lake build` → 成功时原子提升整个项目到 verified。`.lean`、Lake 项目定义和可选 `lean-toolchain` 均纳入 source hash；FINAL 只接受该 hash 与当前 verified 内容匹配、且带真实 `toolEvidence`（`lake build` 退出码与 stdout 哈希，§P0-1）的报告。审计拒绝 `sorry`、`admit`、`axiom`、全量 `import Mathlib`、`: True` 弱化定理、`→ True` / `↔ True` 空洞后件及编译 warning，详见 `references/lean4-coding-guide.md`。
+
+**构建失败不得降级为环境跳过（§P0-3）**：`validate-lean` 先探测 `lake --version`。仅当该探测失败（二进制确实不存在）时才可映射为 SKIPPED；若 `lake` 存在但 `lake build` 失败，一律报 `build-failed` 错误并中止 promote，把原始报错交 CHECKPOINT，禁止误判为「环境缺失」并手写 SKIPPED 报告过门。
 
 ## 跨图一致性验证（13 个根本问题）
 

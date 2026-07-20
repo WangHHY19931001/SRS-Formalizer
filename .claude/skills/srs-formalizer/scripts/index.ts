@@ -36,6 +36,9 @@ const COMMAND_GROUPS: CommandGroup[] = [
     commands: [
       { name: "assemble-ir", desc: "JSONL → srs-ir.json 装配 + 完整性校验", usage: "assemble-ir --workdir .srs_formalizer" },
       { name: "check-connectivity", desc: "图连通性/SCC/孤岛检测", usage: "check-connectivity --workdir .srs_formalizer" },
+      { name: "build-rid-mapping", desc: "构建 RID↔IR 映射契约 (§P1-2)", usage: "build-rid-mapping --frozen <dir> --workdir .srs_formalizer [--strict]" },
+      { name: "analyze-fidelity", desc: "跨产物反弱化分析 (需求→BDD→TLA→Lean)", usage: "analyze-fidelity --workdir .srs_formalizer [--strict]" },
+      { name: "validate-convergence-log", desc: "收敛日志校验/记录弱化动作 (§P2-2)", usage: "validate-convergence-log --workdir .srs_formalizer [--append '<json>']" },
       { name: "query-graph", desc: "IR 查询接口 (node/neighbors/module/path)", usage: "query-graph --query <type> --params '<json>' --workdir .srs_formalizer" },
       { name: "hash-compute", desc: "计算/比对 SHA-256 sourceHash", usage: "hash-compute --file <path> [--compare <hash>] --workdir .srs_formalizer" },
       { name: "tlc-trace-parse", desc: "解析 TLC 反例 trace 为状态序列", usage: "tlc-trace-parse --trace <path> --workdir .srs_formalizer" },
@@ -119,6 +122,9 @@ const COMMANDS: Record<
   "verify-skill-integrity": () => import("./commands/verify-skill-integrity.js"),
   "assemble-ir": () => import("./commands/assemble-ir.js"),
   "check-connectivity": () => import("./commands/check-connectivity.js"),
+  "build-rid-mapping": () => import("./commands/build-rid-mapping.js"),
+  "analyze-fidelity": () => import("./commands/analyze-fidelity.js"),
+  "validate-convergence-log": () => import("./commands/validate-convergence-log.js"),
   "hash-compute": () => import("./commands/hash-compute.js"),
   "tlc-trace-parse": () => import("./commands/tlc-trace-parse.js"),
 };

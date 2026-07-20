@@ -185,6 +185,45 @@ export function checkArchitectureExists(workDir: string): CheckResult {
   }
 }
 
+/** 最大允许孤儿率（无任何边的节点占比）。超过即阻塞（proposal §P1-1）。 */
+export const ORPHAN_RATIO_THRESHOLD = 0.1;
+
+/**
+ * R3: 孤儿率门禁（proposal §P1-1）。统计图谱中不参与任何边（既非 source 也非
+ * target）的节点占比，超过 ORPHAN_RATIO_THRESHOLD 即判为 error，避免 R2/R3
+ * 关系需求悬空被带入后端。空图（0 节点）视为通过，交由其它检查处理。
+ */
+export function checkOrphanRatio(workDir: string): CheckResult {
+  try {
+    const graphPaths = [
+      path.join(workDir, '3_graph', 'graph', 'graph.merged.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.json'),
+    ];
+    let graphData: { nodes: { id: string }[]; edges: { source: string; target: string }[] } | null = null;
+    for (const gp of graphPaths) {
+      if (fs.existsSync(gp)) { graphData = JSON.parse(fs.readFileSync(gp, 'utf-8')); break; }
+    }
+    if (!graphData) return { name: 'Orphan ratio within threshold', passed: false, detail: 'No graph file found' };
+    const total = graphData.nodes.length;
+    if (total === 0) return { name: 'Orphan ratio within threshold', passed: true, detail: 'Empty graph (0 nodes)' };
+    const connected = new Set<string>();
+    for (const e of graphData.edges) { connected.add(e.source); connected.add(e.target); }
+    const orphans = graphData.nodes.filter(n => !connected.has(n.id)).map(n => n.id);
+    const ratio = orphans.length / total;
+    const passed = ratio <= ORPHAN_RATIO_THRESHOLD;
+    return {
+      name: 'Orphan ratio within threshold',
+      passed,
+      detail: passed
+        ? `orphan_ratio ${ratio.toFixed(3)} <= ${ORPHAN_RATIO_THRESHOLD} (${orphans.length}/${total})`
+        : `orphan_ratio ${ratio.toFixed(3)} > ${ORPHAN_RATIO_THRESHOLD} (${orphans.length}/${total} orphans); e.g. ${orphans.slice(0, 5).join(', ')}`,
+    };
+  } catch {
+    return { name: 'Orphan ratio within threshold', passed: false, detail: 'Could not compute orphan ratio' };
+  }
+}
+
 /** R3: 验证图谱中每条边的 source 和 target 节点存在 */
 export function checkGraphEdgeIntegrity(workDir: string): CheckResult {
   try {

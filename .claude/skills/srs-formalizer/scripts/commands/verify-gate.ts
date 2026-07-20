@@ -13,8 +13,9 @@
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardCompleteness, checkGlossaryExists } from '../lib/verify-gate/checks-s1.js';
-import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1 } from '../lib/verify-gate/checks-r3.js';
+import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1, checkOrphanRatio } from '../lib/verify-gate/checks-r3.js';
 import { checkFormalArtifacts } from '../lib/verify-gate/checks-final.js';
+import { checkFidelityReport, checkSafetyCriticalCoverage } from '../lib/verify-gate/checks-fidelity.js';
 import { VALID_STAGES, checkChecklistComplete, type CheckResult, type VerifyOutput } from '../lib/verify-gate/shared.js';
 
 // ---------------------------------------------------------------------------
@@ -78,12 +79,15 @@ export async function main(args: string[]): Promise<CliResult> {
     allChecks.push(checkIdUniqueness(workDir));
     allChecks.push(checkGraphLoadable(workDir));
     allChecks.push(checkGraphEdgeIntegrity(workDir));
+    allChecks.push(checkOrphanRatio(workDir));
     allChecks.push(checkNodeCountVsR1(workDir));
   }
 
   // === FINAL-only checks ===
   if (stageArg === 'FINAL') {
     allChecks.push(...checkFormalArtifacts(workDir));
+    allChecks.push(checkFidelityReport(workDir));
+    allChecks.push(checkSafetyCriticalCoverage(workDir));
   }
 
   const errors = allChecks.filter(c => !c.passed).map(c => c.detail ?? c.name);

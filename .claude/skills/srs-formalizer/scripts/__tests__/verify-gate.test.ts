@@ -145,7 +145,11 @@ describe('verify-gate command', () => {
         { id: 'R2-IMPL-0001', labels: [':ImplicitRequirement'], properties: { statement: '会话过期', source_file: 'srs.md', confidence: 'medium', category: 'implicit' } },
         { id: 'R3-REL-0001', labels: [':RelationalRequirement'], properties: { statement: '登录依赖认证', source_file: 'srs.md', confidence: 'medium', category: 'relational' } },
       ],
-      edges: [],
+      edges: [
+        { id: 'E1', source: 'R1-REQ-0001', target: 'R1-REQ-0002', type: 'RELATES_TO' },
+        { id: 'E2', source: 'R2-IMPL-0001', target: 'R1-REQ-0001', type: 'RELATES_TO' },
+        { id: 'E3', source: 'R3-REL-0001', target: 'R1-REQ-0001', type: 'RELATES_TO' },
+      ],
     });
 
     const { main } = await import('../commands/verify-gate.js');
@@ -161,7 +165,45 @@ describe('verify-gate command', () => {
     assert.ok(checks['JSONL existence (all subdirectories)']!.passed);
     assert.ok(checks['ID uniqueness (no duplicates across files)']!.passed);
     assert.ok(checks['Graph loadable']!.passed);
+    assert.ok(checks['Orphan ratio within threshold']!.passed);
     assert.ok(checks['Node count >= R1 explicit requirements']!.passed);
+  });
+
+  it('R3 stage: fails when orphan ratio exceeds threshold (§P1-1)', async () => {
+    const workDir = createWorkDir('r3-orphans');
+    fs.writeFileSync(path.join(workDir, 'STATE.md'), '# State\n', 'utf-8');
+    fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
+      { id: 'R1-REQ-0001', category: 'explicit', statement: '登录', source_file: 'srs.md', confidence: 'high' },
+    ]);
+    writeJsonl(path.join(workDir, '2_extract', 'r2-implicit'), 'b.jsonl', [
+      { id: 'R2-IMPL-0001', category: 'implicit', statement: '会话', source_file: 'srs.md', confidence: 'medium' },
+    ]);
+    writeJsonl(path.join(workDir, '2_extract', 'r3-relational'), 'c.jsonl', [
+      { id: 'R3-REL-0001', category: 'relational', statement: '关系', source_file: 'srs.md', confidence: 'medium' },
+    ]);
+    writeJsonl(path.join(workDir, '2_extract', 'architecture'), 'arch-1.jsonl', [
+      { id: 'ARCH-SYS-0001', type: 'module', name: 'Test', parent: null, contains: [], reasoning: 'architecture record for orphan gate check' },
+    ]);
+    // 4 nodes, only 2 connected by 1 edge → orphan ratio 0.5 > 0.1
+    writeGraphFile(workDir, 'graph.json', {
+      nodes: [
+        { id: 'R1-REQ-0001', labels: [':Requirement'], properties: { statement: '登录', source_file: 'srs.md', confidence: 'high', category: 'explicit' } },
+        { id: 'R1-REQ-0002', labels: [':Requirement'], properties: { statement: '注册', source_file: 'srs.md', confidence: 'high', category: 'explicit' } },
+        { id: 'R2-IMPL-0001', labels: [':ImplicitRequirement'], properties: { statement: '会话', source_file: 'srs.md', confidence: 'medium', category: 'implicit' } },
+        { id: 'R3-REL-0001', labels: [':RelationalRequirement'], properties: { statement: '关系', source_file: 'srs.md', confidence: 'medium', category: 'relational' } },
+      ],
+      edges: [{ id: 'E1', source: 'R1-REQ-0001', target: 'R1-REQ-0002', type: 'RELATES_TO' }],
+    });
+
+    const { main } = await import('../commands/verify-gate.js');
+    const result = await main(['--workdir', workDir, '--stage', 'R3']);
+
+    const data = result.data as Record<string, unknown>;
+    assert.equal(data.pass, false);
+    const checks = data.checks as Record<string, { passed: boolean }>;
+    assert.equal(checks['Orphan ratio within threshold']!.passed, false);
   });
 
   it('R3 stage: fails when r2-implicit directory is missing', async () => {
