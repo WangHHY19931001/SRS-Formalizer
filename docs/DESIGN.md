@@ -18,11 +18,11 @@
 |------|-----|
 | 名称 | `srs-formalizer` |
 | 类型 | `framework`（基础框架型技能） |
-| 主模式 | `agent-driven`（Agent 驱动 + 脚本门禁） |
+| 主模式 | `pipeline`（Agent 驱动 + 脚本门禁） |
 | 领域 | `formal-methods` |
 | 安全等级 | `high` |
 | HITL | 强制 |
-| 版本 | 2.0.0（语义化版本） |
+| 版本 | 2.1.0（语义化版本） |
 
 ### 1.2 核心能力
 
@@ -32,7 +32,7 @@
 |------|------|----------|
 | 需求知识图谱 | Neo4j Cypher | 必选 |
 | BDD 测试骨架 | Gherkin `.feature` | 必选 |
-| TLA+ 形式化规约 | `.tla` | 所有模块必选；先生成草稿，完成 L1→L2→L3 与严格验证后交付 |
+| TLA+ 形式化规约 | `.tla` | 默认所有模块；用户明确裁剪时记录跳过范围与残余风险；先生成草稿，完成 L1→L2→L3 与严格验证后交付 |
 | Lean 4 定理证明 | `.lean` | security/compliance NFR 触发；先生成拆分计划，完成严格验证后交付 |
 | 测试夹具 | pytest/JUnit/Cucumber/Playwright/fast-check | 可选（选框架） |
 | 追溯矩阵 | Markdown / Cypher | 必选 |
@@ -44,7 +44,11 @@
 - 非技术文档（营销文案、法律条款、合同）
 - 用户仅需代码生成时
 
-### 1.4 设计先行与规格一致性
+### 1.4 执行范围与裁剪
+
+默认执行完整 Frontend → Middle-end → Backend 依赖闭包。用户明确只要部分产物时，仅执行所需依赖阶段，并在 `STATE.md` 写入 `requested_outputs`、`skipped_steps`、`reason` 与 `residual_risk`。裁剪不得伪造未执行产物或 FINAL 通过。
+
+### 1.5 设计先行与规格一致性
 
 `docs/DESIGN.md` 是行为、命令、文件契约和质量门禁的唯一规范。任何修改必须遵循以下顺序：
 

@@ -75,7 +75,7 @@ For full spec see: docs/DESIGN.md
   }
 
   console.log(`
-SRS-Formalizer v2.0.0 — Agent-driven SRS formalization skill
+SRS-Formalizer CLI v2.1.0 — Agent-driven SRS formalization skill
 脚本只做门禁校验与专用算法，语义工作由 Agent 经 SKILL.md + prompts 完成。
 `);
 

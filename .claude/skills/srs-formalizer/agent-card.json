@@ -2,8 +2,8 @@
   "protocolVersion": "1.0",
   "agentCard": {
     "name": "srs-formalizer",
-    "description": "将 SRS（软件需求规格说明）文档转化为需求知识图谱（Cypher）、BDD（Gherkin）、TLA+ 规约和 Lean 4 证明。TS 脚本做确定性机械工作，LLM 子代理做语义判断。支持 OpenAI/Anthropic Tool Calling 集成，提供一键流水线和会话状态持久化。",
-    "version": "1.1.0",
+    "description": "将 SRS 文档通过受门控的 Agent 流水线转化为 Cypher、Gherkin、TLA+ 与条件触发的 Lean 4 产物。默认执行 Frontend → Middle-end → Backend 依赖闭包；用户明确裁剪时记录跳过项与残余风险。",
+    "version": "2.1.0",
     "provider": {
       "name": "srs-formalizer",
       "url": "https://github.com/WangHHY19931001/SRS-Formalizer"
@@ -43,15 +43,10 @@
       "audit"
     ],
     "naturalLanguageAliases": {
-      "@formalize": "pipeline --src <file> --lang zh --workdir .srs_formalizer --full",
-      "@formalize-en": "pipeline --src <file> --lang en --workdir .srs_formalizer --full",
-      "@status": "status --workdir .srs_formalizer --format text",
-      "@generate-bdd": "emit --group bdd --workdir .srs_formalizer",
-      "@validate-all": "validate-bdd --strict --promote --workdir .srs_formalizer",
-      "@full-pipeline": "pipeline --skip-init --workdir .srs_formalizer --strict",
-      "@export-audit": "export-audit --workdir .srs_formalizer --output ./_audit",
-      "@tools-schema": "tools-schema --format openai",
-      "@health-check": "health-check"
+      "@formalize": "Load srs-formalizer and execute the gated Frontend → Middle-end → Backend workflow",
+      "@formalize-en": "Load srs-formalizer with lang=en and execute the gated workflow",
+      "@generate-bdd": "Load srs-formalizer and run the dependency stages needed for BDD",
+      "@validate-all": "Run the registered validation commands through index.ts"
     },
     "toolCalling": {
       "schemaCommand": "tools-schema",
@@ -70,7 +65,7 @@
       "permissions": {
         "filesystem": { "scope": ".srs_formalizer/*", "readOnly": false },
         "network": { "scope": "https://api.search.brave.com/*", "readOnly": true },
-        "execute": { "scope": "npx tsx .claude/skills/srs-formalizer/scripts/*", "readOnly": false }
+        "execute": { "scope": "npx tsx .claude/skills/srs-formalizer/scripts/index.ts <registered-command>", "readOnly": false }
       }
     },
     "endpoint": {
@@ -87,10 +82,9 @@
       "validate-lean",
       "validate-checklist",
       "validate-glossary",
-      "verify-gate",
-      "health-check"
+      "verify-gate"
     ],
-    "skillPattern": "compiler",
-    "nestedPatterns": ["inversion", "generator", "reviewer", "emitter"]
+    "skillPattern": "pipeline",
+    "nestedPatterns": ["inversion", "generator", "reviewer"]
   }
 }

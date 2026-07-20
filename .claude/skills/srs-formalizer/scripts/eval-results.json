@@ -1,25 +1,28 @@
 {
   "suite": "srs-formalizer-deterministic-evals",
   "total": 3,
-  "passed": 3,
-  "failed": 0,
-  "durationMs": 7870,
-  "gitCommit": "772aa3cad01b2a75023414ea4cf20e6e77c3f8ce",
+  "passed": 0,
+  "failed": 3,
+  "durationMs": 12,
+  "gitCommit": "f9c866e21d66feab0e1bcbdd84ebff7d6e95a616",
   "results": [
     {
       "name": "lifecycle-and-report-binding",
-      "passed": true,
-      "durationMs": 1881
+      "passed": false,
+      "durationMs": 4,
+      "output": "\n"
     },
     {
       "name": "tla-toolchain",
-      "passed": true,
-      "durationMs": 4225
+      "passed": false,
+      "durationMs": 3,
+      "output": "\n"
     },
     {
       "name": "artifact-contracts",
-      "passed": true,
-      "durationMs": 1764
+      "passed": false,
+      "durationMs": 5,
+      "output": "\n"
     }
   ]
 }
