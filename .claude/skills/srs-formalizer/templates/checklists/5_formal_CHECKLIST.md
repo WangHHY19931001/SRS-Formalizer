@@ -14,7 +14,7 @@
   - [ ] 未定义检查 — TypeOK 不变式未违反
   - [ ] 无活锁 — Stuttering 检测通过
 - [ ] 层次化建模：L1→L2→... 按拆解阈值拆分（>1k 建议拆，>1w 强制拆）
-- [ ] build-tla-graph PASS → `5_formal/tla-interaction-graph.json`
+- [ ] validate-tla --strict --promote PASS → `outputs/reports/tla-interaction-graph.json`
 - [ ] SPECS.md 索引已更新
 
 ## Lean 4（条件触发）
@@ -38,5 +38,5 @@
   - [ ] 符合 SRS 设计
   - [ ] 如有矛盾 → 已报告至 `SRS_PATCHES.md`（含可选项 + 事实依据）
   - [ ] 已等待人类确认
-- [ ] build-lean-graph PASS → `5_formal/lean-proof-graph.json`
+- [ ] validate-lean --strict --promote PASS → `outputs/reports/lean-proof-graph.json`
 - [ ] PROOFS.md 索引已更新

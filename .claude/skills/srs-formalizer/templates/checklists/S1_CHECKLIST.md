@@ -1,6 +1,6 @@
 # S1 预处理 — 验收清单
 
-- [ ] init 成功创建 `.srs_formalizer/` 及全部阶段目录
+- [ ] Bootstrap 成功创建 `.srs_formalizer/` 及全部阶段目录（Agent 手动创建工作目录，SKILL.md §Bootstrap）
 - [ ] manifest 成功生成索引化分片
 - [ ] `_ctx/shard_index.json` 存在且 `total_shards ≥ 1`
 - [ ] 每个 shard 含 `locator`（`{file_abspath}-{start}-{end}-{chunk_id}`）
