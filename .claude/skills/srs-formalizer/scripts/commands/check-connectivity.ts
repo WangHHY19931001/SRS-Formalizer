@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
-import { checkConnectivity } from '../lib/middle-end/connectivity-checker.js';
+import { checkConnectivity, analyzeAtomicTree } from '../lib/middle-end/connectivity-checker.js';
 import type { SRSIR } from '../types/srs-ir.js';
 
 export async function main(args: string[]): Promise<CliResult> {
@@ -24,8 +24,9 @@ export async function main(args: string[]): Promise<CliResult> {
   catch (err) { return { status: 'error', message: `Failed to parse IR: ${(err as Error).message}` }; }
 
   const report = checkConnectivity(ir);
+  const atomicTree = analyzeAtomicTree(ir);
 
-  return { status: 'ok', data: report };
+  return { status: 'ok', data: { ...report, atomicTree } };
 }
 
 import { refuseDirectInvocation } from '../lib/cli.js';

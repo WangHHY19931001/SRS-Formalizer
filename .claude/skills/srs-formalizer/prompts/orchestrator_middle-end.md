@@ -90,6 +90,8 @@ npx tsx index.ts check-connectivity --workdir .srs_formalizer
 
 检查内容：强连通分量、弱连通分量、跨 shard 连通性、桥接边建议、最大连通分量占比。产出 `3_graph/analysis/connectivity.json`。若存在多个独立连通分量，标记为需要人工审核的架构分裂风险。
 
+`check-connectivity` 输出还含 **`atomicTree`** 字段（原子操作树报告）：以顶层系统为根、沿 `contains` 逐层展开子系统、叶子挂载原子需求的建模完整性判据（`roots`/`unreachableArchitecture`/`cyclicContains`/`emptyLeafSubsystems`/`uncoveredRequirements`/`wellFormed`）。它比连通分量更强，专抓"连通但不成树"的病态建模（多根/成环/游离子系统/空壳叶子/游离需求），也是多层有限状态机抽象的静态骨架。R3 门禁的 `checkAtomicTree` 据此判定；`wellFormed: false` 时按下方失败模式表处理。移交 Backend 时，将 `atomicTree` 报告随 IR 一并注入 B2（BDD）/B3（TLA+）执行者，用于组织 Feature 边界与层次化 module 拆解（见 `executor-bdd.md`/`executor-tlaplus.md` 的「原子操作树」章节）。
+
 ### M5：冲突判决与合并
 
 子代理冲突判决流程：
@@ -134,6 +136,7 @@ npx tsx index.ts verify-gate --workdir .srs_formalizer --stage R3
 - 悬挂边数 = 0
 - NFR 标注覆盖率 ≥ 80%
 - 无结构性数据矛盾
+- 原子操作树良构（`checkAtomicTree`）：单根、无游离子系统、`contains` 无环、无空壳叶子、需求全覆盖（无 architecture 节点时跳过）
 
 通过 → 更新 STATE.md Middle-end = ✅，移交 Backend。
 
@@ -153,6 +156,7 @@ npx tsx index.ts verify-gate --workdir .srs_formalizer --stage R3
 | **结构性缺陷**（孤儿节点数 > 0 或悬挂边数 > 0） | 回退 Frontend，修正 JSONL 源文件后重新 `assemble-ir` | 连续 3 次回退未通过 → 标记 STATE.md `BLOCKED` + 列出未修复节点 + 暂停等人工 |
 | **NFR 覆盖率 < 80%** | M3 重新分类（检查 `nfr_category` 标注遗漏，参考 `references/nfr-threshold-extraction-guide.md`） | 仍 < 80% → 标记 warning 进 STATE.md，继续 Backend（不阻塞流水线；TLA+/Lean 触发决策可能降级） |
 | **连通性异常**（孤岛子图 ≥ 3） | 标记 error；检查是否 SRS 设计问题（多子系统本就独立）或提取遗漏（R1 漏边） | 编排者人工判定后选其一：标记为「合法独立子系统」进 STATE.md，或回退 F2 补 R3 关系边 |
+| **原子操作树不良构**（`atomicTree.wellFormed=false`：多根/`cyclicContains`/游离子系统/空壳叶子/游离需求） | 按 `atomicTree` 具体字段回退 Frontend 修 `contains`/`refines` 架构边（多根→确认唯一顶层；游离需求→补挂载边；空壳叶子→补原子需求或删子系统；成环→拆环） | 连续 3 次仍不良构 → 标记 STATE.md `BLOCKED` + 输出不良构字段明细给人工 |
 | **风险评分 > 0.7** | 在 STATE.md 记录高风险模块列表 + 输出 `meta.highRiskShards` | 触发 TLA+/Lean 4 强制生成（即使 nfrCategory 未触发）+ 收敛循环加严 |
 | **M5 子代理判决与 `semantic.json` 候选对数不一致** | 重新分派子代理判决遗漏的候选对（CONTRADICTS/同侧面/可合并） | 连续 2 次判决缺漏 → 标记 `BLOCKED` + 输出未判决候选对列表给人工 |
 | **`validate-semantics --strict` 失败** | 检查 IR Schema 字段类型与必填项；定位具体错误节点（`status.message`） | 连续 3 次失败 → 回退 F5 `assemble-ir` 重新装配 + 检查 JSONL 源 |

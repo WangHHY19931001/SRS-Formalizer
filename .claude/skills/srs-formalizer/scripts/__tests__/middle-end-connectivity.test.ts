@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { checkConnectivity } from '../lib/middle-end/connectivity-checker.js';
+import { checkConnectivity, analyzeAtomicTree } from '../lib/middle-end/connectivity-checker.js';
 import type { SRSIR } from '../types/srs-ir.js';
 
 function emptyIR(): SRSIR {
@@ -231,5 +231,117 @@ describe('checkConnectivity', () => {
     const report = checkConnectivity(ir);
     assert.strictEqual(report.totalShards, 1);
     assert.strictEqual(report.connectedComponents, 1);
+  });
+});
+
+function makeArch(id: string): SRSIR['nodes'][number] {
+  return {
+    id,
+    type: 'architecture',
+    module: 'm',
+    labels: ['Architecture'],
+    properties: { statement: id, archType: 'Module' },
+    source: { filePath: '/t', startLine: 1, endLine: 1, shardId: 's', chapter: '§1' },
+  };
+}
+
+function edge(id: string, source: string, target: string, type: SRSIR['edges'][number]['type']): SRSIR['edges'][number] {
+  return { id, source, target, type, properties: {} };
+}
+
+describe('analyzeAtomicTree', () => {
+  it('no architecture nodes → wellFormed (skipped)', () => {
+    const report = analyzeAtomicTree(emptyIR());
+    assert.strictEqual(report.architectureNodes, 0);
+    assert.strictEqual(report.wellFormed, true);
+  });
+
+  it('single-root tree with requirements attached → wellFormed', () => {
+    const ir: SRSIR = {
+      ...emptyIR(),
+      nodes: [
+        makeArch('A-SYS'),
+        makeArch('A-SUB1'),
+        makeArch('A-SUB2'),
+        makeNode('R1', 's', '原子操作一'),
+        makeNode('R2', 's', '原子操作二'),
+      ],
+      edges: [
+        edge('E1', 'A-SYS', 'A-SUB1', 'contains'),
+        edge('E2', 'A-SYS', 'A-SUB2', 'contains'),
+        edge('E3', 'A-SUB1', 'R1', 'contains'),
+        edge('E4', 'A-SUB2', 'R2', 'refines'),
+      ],
+    };
+    const report = analyzeAtomicTree(ir);
+    assert.deepStrictEqual(report.roots, ['A-SYS']);
+    assert.strictEqual(report.cyclicContains, false);
+    assert.strictEqual(report.unreachableArchitecture.length, 0);
+    assert.strictEqual(report.emptyLeafSubsystems.length, 0);
+    assert.strictEqual(report.uncoveredRequirements.length, 0);
+    assert.strictEqual(report.wellFormed, true);
+  });
+
+  it('multiple roots → not wellFormed', () => {
+    const ir: SRSIR = {
+      ...emptyIR(),
+      nodes: [makeArch('A-SYS1'), makeArch('A-SYS2'), makeNode('R1', 's', 'op')],
+      edges: [edge('E1', 'A-SYS1', 'R1', 'contains'), edge('E2', 'A-SYS2', 'R1', 'contains')],
+    };
+    const report = analyzeAtomicTree(ir);
+    assert.deepStrictEqual(report.roots.sort(), ['A-SYS1', 'A-SYS2']);
+    assert.strictEqual(report.wellFormed, false);
+  });
+
+  it('unreachable subsystem (floating) → detected', () => {
+    const ir: SRSIR = {
+      ...emptyIR(),
+      nodes: [makeArch('A-SYS'), makeArch('A-SUB'), makeArch('A-FLOAT'), makeNode('R1', 's', 'op'), makeNode('R2', 's', 'op2')],
+      edges: [
+        edge('E1', 'A-SYS', 'A-SUB', 'contains'),
+        edge('E2', 'A-SUB', 'R1', 'contains'),
+        edge('E3', 'A-FLOAT', 'R2', 'contains'),
+      ],
+    };
+    const report = analyzeAtomicTree(ir);
+    assert.ok(report.roots.includes('A-FLOAT'));
+    assert.strictEqual(report.wellFormed, false);
+  });
+
+  it('cyclic contains between subsystems → detected', () => {
+    const ir: SRSIR = {
+      ...emptyIR(),
+      nodes: [makeArch('A-SYS'), makeArch('A-SUB1'), makeArch('A-SUB2')],
+      edges: [
+        edge('E1', 'A-SYS', 'A-SUB1', 'contains'),
+        edge('E2', 'A-SUB1', 'A-SUB2', 'contains'),
+        edge('E3', 'A-SUB2', 'A-SUB1', 'contains'),
+      ],
+    };
+    const report = analyzeAtomicTree(ir);
+    assert.strictEqual(report.cyclicContains, true);
+    assert.strictEqual(report.wellFormed, false);
+  });
+
+  it('empty leaf subsystem (no atomic requirement) → detected', () => {
+    const ir: SRSIR = {
+      ...emptyIR(),
+      nodes: [makeArch('A-SYS'), makeArch('A-LEAF')],
+      edges: [edge('E1', 'A-SYS', 'A-LEAF', 'contains')],
+    };
+    const report = analyzeAtomicTree(ir);
+    assert.ok(report.emptyLeafSubsystems.includes('A-LEAF'));
+    assert.strictEqual(report.wellFormed, false);
+  });
+
+  it('uncovered requirement (not attached to any subsystem) → detected', () => {
+    const ir: SRSIR = {
+      ...emptyIR(),
+      nodes: [makeArch('A-SYS'), makeNode('R1', 's', 'attached'), makeNode('R2', 's', 'floating')],
+      edges: [edge('E1', 'A-SYS', 'R1', 'contains')],
+    };
+    const report = analyzeAtomicTree(ir);
+    assert.deepStrictEqual(report.uncoveredRequirements, ['R2']);
+    assert.strictEqual(report.wellFormed, false);
   });
 });

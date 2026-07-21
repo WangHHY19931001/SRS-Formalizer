@@ -14,7 +14,7 @@
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardCompleteness, checkShardCoverage, checkGlossaryExists, checkDataFlowFormat } from '../lib/verify-gate/checks-s1.js';
-import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1, checkOrphanRatio, checkHierarchyDepth, checkOrphanAdjudication } from '../lib/verify-gate/checks-r3.js';
+import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1, checkOrphanRatio, checkHierarchyDepth, checkOrphanAdjudication, checkAtomicTree } from '../lib/verify-gate/checks-r3.js';
 import { checkFormalArtifacts } from '../lib/verify-gate/checks-final.js';
 import { checkFidelityReport, checkSafetyCriticalCoverage } from '../lib/verify-gate/checks-fidelity.js';
 import { VALID_STAGES, checkChecklistComplete, type CheckResult, type VerifyOutput } from '../lib/verify-gate/shared.js';
@@ -86,6 +86,7 @@ export async function main(args: string[]): Promise<CliResult> {
     allChecks.push(checkNodeCountVsR1(workDir));
     allChecks.push(checkHierarchyDepth(workDir));
     allChecks.push(checkOrphanAdjudication(workDir));
+    allChecks.push(checkAtomicTree(workDir));
   }
 
   // === FINAL-only checks ===

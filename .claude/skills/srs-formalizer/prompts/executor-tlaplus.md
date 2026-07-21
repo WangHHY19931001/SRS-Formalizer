@@ -19,6 +19,7 @@
 1. **SRS-IR 知识图谱**：IR-NODE（需求）+ IR-EDGE（关系）
 2. **系统架构信息**：ARCH-SYS 架构节点、模块划分、交互关系、状态变量候选
 3. **NFR 标注**：IR-NODE 中带 `nfr_category` 的节点
+4. **原子操作树报告**（若有）：`check-connectivity` 输出的 `atomicTree` 字段（`roots`/`unreachableArchitecture`/`emptyLeafSubsystems`/`uncoveredRequirements`/`wellFormed`），提供层次拆解的现成骨架
 
 ## 覆盖要求
 
@@ -38,6 +39,21 @@
 | **L2** | 子系统级 | 拆解内部模块行为，明确同级模块间的消息传递与上下级调用契约 | 第二层 ARCH-SYS module |
 | **L3** | 原子级 | 细化到单一变量或单一队列的原子读写操作 | 叶节点 ARCH-SYS module |
 | **L4+** | 递归拆解 | 每个下级子系统均作为独立系统继续递归 | 深层子模块 |
+
+### 用原子操作树报告驱动层次拆解（若有 `atomicTree`）
+
+编排者可能注入 `check-connectivity` 的 `atomicTree` 报告。它把系统建模抽象为一棵以顶层系统为根、沿 `contains` 边逐层展开子系统、叶子挂载原子需求的树——**这正是多层有限状态机的静态骨架**：每个 architecture 节点对应一台（子）状态机，`contains` 是层次精化（refinement）关系，叶子子系统是执行原子操作的最底层状态机。逐层组装子状态机即构成顶层系统状态机。据此直接映射建模层级：
+
+| `atomicTree` 字段 | 对应 TLA+ 建模动作 |
+|-------------------|-------------------|
+| `roots`（应恰 1 个） | 唯一根 = **L1 系统级** module；多根意味顶层未收敛，须先向编排者确认哪个是真正顶层系统 |
+| `contains` 树的中间层 | 逐层对应 **L2 子系统级** module，父子 `contains` = module 间调用/精化契约（下级 module 是上级某状态的内部展开） |
+| 树的叶子 architecture | **L3 原子级** module，细化到单一变量/队列的原子读写 |
+| `uncoveredRequirements` | 该需求未挂进任何子系统 → **禁止**为其凭空造 module；回报编排者，建模前须先补 `contains`/`refines` 边入树 |
+| `emptyLeafSubsystems` | 叶子子系统无原子需求 → 空壳状态机，`Next` 无真实转换可写；回报编排者补原子需求或删除该子系统 |
+| `wellFormed: false` | 建模骨架不良构（多根/成环/游离/空壳）→ 层次拆解不可靠，优先请编排者修复 R3 原子操作树门禁再建模 |
+
+> 该报告为 warning 级辅助信息，不替代对 IR 的直接理解；但当它良构时，`contains` 树深度即建议的 module 嵌套层数，可直接指导「拆解数学判定」中的变量下沉边界。
 
 ### 拆解数学判定
 

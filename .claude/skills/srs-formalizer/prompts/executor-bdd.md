@@ -19,6 +19,7 @@
 1. **BDD 骨架文件**（.feature）：包含 Feature/Scenario/Given/When 定义，其中 Then 部分为 `<THEN_PLACEHOLDER>`
 2. **对应 SRS-IR 节点**：与 Feature 相关的 IR-NODE（需求）和 IR-EDGE（关系）
 3. **NFR 标注**：IR-NODE 中带 `nfr_category` 的节点，用于自动生成 NFR 场景
+4. **原子操作树报告**（若有）：`check-connectivity` 输出的 `atomicTree` 字段，提供子系统层次与需求归属，用于组织 Feature 边界与端到端功能链
 
 ## 四级严格校验体系
 
@@ -141,6 +142,19 @@ Feature: 审批治理
 ## 功能链 Feature（端到端行为验证）
 
 除按子系统平铺外，从 IR 的 `traces_to` / `depends_on` 边推导**跨模块行为链**（如 input→intent→plan→dispatch），在 `outputs/bdd/draft/chains/` 下生成端到端场景，补足单模块视角缺失的端到端行为验证。
+
+## 用原子操作树报告组织 Feature（若有 `atomicTree`）
+
+编排者可能注入 `check-connectivity` 的 `atomicTree` 报告——以顶层系统为根、沿 `contains` 逐层展开子系统、叶子挂载原子需求的树。它对 Feature 组织提供两条直接指导：
+
+| `atomicTree` 字段 | 对应 BDD 动作 |
+|-------------------|--------------|
+| 叶子 architecture + 其挂载的原子需求 | 每个叶子子系统 = 一个 **Feature 边界**，其原子需求 = 该 Feature 内的 Scenario（一原子需求一场景，天然满足场景原子性） |
+| `contains` 树的自顶向下路径 | 从根到叶的一条路径 = 一条**端到端功能链**（上级子系统的行为由下级逐层实现），据此在 `chains/` 下补端到端场景 |
+| `uncoveredRequirements` | 未挂进任何子系统的需求 → 归属不明，**禁止**臆断放进某 Feature；回报编排者先补 `contains`/`refines`/`traces_to` 边 |
+| `emptyLeafSubsystems` | 空壳叶子无原子需求可写场景 → 回报编排者，不为其编造场景 |
+
+> 该报告为 warning 级辅助信息。良构（`wellFormed: true`）时可放心按树的层次划 Feature；不良构时优先按现有 IR 边组织，并提示编排者修复 R3 原子操作树门禁。
 
 ## 零容忍红线
 

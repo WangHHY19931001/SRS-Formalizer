@@ -6,7 +6,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readJsonl, listJsonlFiles } from '../jsonl.js';
 import { Graph, type GraphData } from '../graph.js';
-import { checkConnectivity } from '../middle-end/connectivity-checker.js';
+import { checkConnectivity, analyzeAtomicTree } from '../middle-end/connectivity-checker.js';
 import type { SRSIR } from '../../types/srs-ir.js';
 import type { CheckResult } from './shared.js';
 
@@ -377,5 +377,61 @@ export function checkOrphanAdjudication(workDir: string): CheckResult {
     name: 'Orphan shard adjudication',
     passed: true,
     detail: `${orphans.length} orphan(s) all adjudicated (standalone or bridged)`,
+  };
+}
+
+/**
+ * R3 原子操作树闸门（建模完整性判据）。
+ *
+ * 以顶层系统为根，沿 `contains` 边逐层展开子系统、叶子挂载原子需求，必须构成
+ * 一棵良构树：恰单根、无游离子系统、contains 无环、无空壳叶子、需求全覆盖。
+ * 这比无向连通分量更强——它抓住"连通但不成树"的病态建模（多根、成环、
+ * 游离子系统），也是多层有限状态机抽象的静态骨架（arch 节点=子状态机，
+ * contains=层次精化，叶子=执行原子操作的最底层状态机）。
+ *
+ * 无 architecture 节点时跳过（判据不适用）。
+ */
+export function checkAtomicTree(workDir: string): CheckResult {
+  const ir = loadIR(workDir);
+  if (!ir) {
+    return { name: 'Atomic-operation tree well-formed', passed: true, detail: 'No srs-ir.json (skipped)' };
+  }
+  const report = analyzeAtomicTree(ir);
+  if (report.architectureNodes === 0) {
+    return { name: 'Atomic-operation tree well-formed', passed: true, detail: 'No architecture nodes (skipped)' };
+  }
+  if (report.wellFormed) {
+    return {
+      name: 'Atomic-operation tree well-formed',
+      passed: true,
+      detail: `single-root tree over ${report.architectureNodes} subsystem(s), ${report.requirementNodes} requirement(s) all attached`,
+    };
+  }
+
+  const problems: string[] = [];
+  if (report.roots.length !== 1) {
+    problems.push(
+      report.roots.length === 0
+        ? 'no top-level system (contains graph has no root — cyclic or empty)'
+        : `${report.roots.length} top-level roots (expected exactly 1): ${report.roots.slice(0, 5).join(', ')}`,
+    );
+  }
+  if (report.cyclicContains) {
+    problems.push('contains hierarchy has a cycle (not a tree)');
+  }
+  if (report.unreachableArchitecture.length > 0) {
+    problems.push(`${report.unreachableArchitecture.length} subsystem(s) unreachable from root: ${report.unreachableArchitecture.slice(0, 5).join(', ')}`);
+  }
+  if (report.emptyLeafSubsystems.length > 0) {
+    problems.push(`${report.emptyLeafSubsystems.length} leaf subsystem(s) carry no atomic requirement: ${report.emptyLeafSubsystems.slice(0, 5).join(', ')}`);
+  }
+  if (report.uncoveredRequirements.length > 0) {
+    problems.push(`${report.uncoveredRequirements.length} requirement(s) not attached to any subsystem: ${report.uncoveredRequirements.slice(0, 5).join(', ')}`);
+  }
+
+  return {
+    name: 'Atomic-operation tree well-formed',
+    passed: false,
+    detail: problems.join('; '),
   };
 }

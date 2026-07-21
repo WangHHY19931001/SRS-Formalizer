@@ -113,9 +113,10 @@ Frontend 采用**架构树版本化 × 需求提取交替演进**：F2 显式 R1
 
 `validate-jsonl` 硬校验 provenance 三态，`needs-clarification` 禁入 r*/architecture JSONL。唯一事实源 = 设计文档；跨子系统补全只从文档推导，`frozen/` 不是输入。
 
-**收敛双闸门（`verify-gate --stage R3`）**：
+**收敛三闸门（`verify-gate --stage R3`）**：
 - **层次性（分层深度闸门）**：架构树沿 `contains` 边最大链长 ≥2；≥3 架构节点且无层级（`flatTree`）即 FAIL。架构记录可带顶层 `arch_version`（1|2|3），`validate-architecture` 校验其与 id 前缀一致。
 - **连通性（孤儿裁决闸门）**：逼近单连通图谱；孤儿分片须在 `_ctx/orphan_adjudications.json` 显式裁决 standalone（附非空 reason）或有被接受桥接边，否则 FAIL。
+- **建模完整性（原子操作树闸门 `checkAtomicTree`）**：`check-connectivity` 输出 `atomicTree` 报告（`analyzeAtomicTree`）——以顶层系统为根、沿 `contains` 逐层展开子系统、叶子挂载原子需求，须构成单根可达生成树。多根 / `contains` 成环 / 游离子系统（`unreachableArchitecture`）/ 空壳叶子（`emptyLeafSubsystems`，无原子需求经 `contains`/`refines`/`traces_to`/`implements`/`derived_from` 挂载）/ 游离需求（`uncoveredRequirements`）任一出现即 FAIL；无 architecture 节点时跳过。此判据是多层有限状态机抽象的静态骨架（architecture 节点=子状态机、`contains`=层次精化、叶子=最底层原子操作状态机），良构树随 IR 注入 Backend B2/B3 辅助 BDD 划 Feature 与 TLA+ L1→L2→L3 层次化拆解。
 
 ## 数据流审视提示（SRS-IR v2.1.0，spec 2026-07-21 / ADR-0009）
 
