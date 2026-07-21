@@ -187,4 +187,29 @@ describe('assemble-ir module field (P0-2)', () => {
       fs.rmSync(path.dirname(wd), { recursive: true, force: true });
     }
   });
+
+  it('should fall back to record.id when shard_id is missing (P0-2)', async () => {
+    const wd = setupWorkdir();
+    try {
+      fs.writeFileSync(
+        path.join(wd, '2_extract', 'r1-explicit', 'test.jsonl'),
+        JSON.stringify({
+          id: 'R1-S005-0001', category: 'explicit', statement: 'test',
+          source_file: 'frozen/DESIGN.md', confidence: 'high',
+          metadata: { chapter: '5', start_line: 1, end_line: 10 }  // 无 shard_id
+        }) + '\n'
+      );
+      fs.writeFileSync(
+        path.join(wd, '_ctx', 'shard_index.json'),
+        JSON.stringify({ language: 'zh', shards: [], source_path: '', source_hash: '', total_chars: 0, total_shards: 0 })
+      );
+      const result = await main(['--workdir', wd]);
+      assert.equal(result.status, 'ok');
+      const ir = JSON.parse(fs.readFileSync(path.join(wd, 'srs-ir.json'), 'utf-8'));
+      const node = ir.nodes.find((n: { id: string }) => n.id === 'R1-S005-0001');
+      assert.equal(node.module, 'R1-S005-0001', 'module should fall back to record.id');
+    } finally {
+      fs.rmSync(path.dirname(wd), { recursive: true, force: true });
+    }
+  });
 });

@@ -62,7 +62,7 @@ function toIRNode(record: JsonlRecord): IRNode {
       filePath: record.source_file,
       startLine: toNum(meta?.['start_line'], 1),
       endLine: toNum(meta?.['end_line'], 1),
-      shardId: toStr(meta?.['shard_id'], record.id),
+      shardId,
       chapter: toStr(meta?.['chapter'], ''),
     },
   };
