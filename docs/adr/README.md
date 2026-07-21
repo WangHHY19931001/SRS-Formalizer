@@ -26,6 +26,10 @@ Each ADR follows the template in [0000-template.md](0000-template.md):
 | 0003 | Strict TypeScript Configuration | Accepted | 2026-07-13 |
 | 0004 | CLI Progress Reporting & Colored Output | Accepted | 2026-07-16 |
 | 0005 | One-Shot Pipeline with Session Persistence | Accepted | 2026-07-16 |
+| 0006 | File Splitting and Code Deduplication | Accepted | 2026-07-16 |
+| 0007 | Middle-end Passes Parallelization | Accepted | 2026-07-16 |
+| 0008 | Semantic Consistency Checker | Accepted | 2026-07-16 |
+| 0009 | Data-Flow Signals — Persisted in IR vs. Ephemeral Analysis | Proposed | 2026-07-21 |
 
 ## Adding a New ADR
 

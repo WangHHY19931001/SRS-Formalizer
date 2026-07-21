@@ -22,12 +22,12 @@ function runCli(args: string): { stdout: string; stderr: string; exitCode: numbe
   }
 }
 
-// DESIGN.md §3 — 17 命令清单（10 门禁 + 7 工具），与 index.ts COMMANDS 注册表一致
+// DESIGN.md §3 — 18 命令清单（10 门禁 + 8 工具），与 index.ts COMMANDS 注册表一致
 const EXPECTED_COMMANDS = [
   'validate-jsonl', 'validate-semantics', 'validate-architecture', 'validate-cypher',
   'validate-bdd', 'validate-tla', 'validate-lean', 'validate-glossary',
-  'validate-checklist', 'verify-gate',
-  'assemble-ir', 'check-connectivity', 'query-graph', 'hash-compute',
+  'validate-checklist', 'validate-dataflow', 'verify-gate',
+  'assemble-ir', 'check-connectivity', 'analyze-dataflow', 'query-graph', 'hash-compute',
   'tlc-trace-parse', 'verify-skill-integrity', 'pack-skill',
 ];
 
@@ -48,7 +48,7 @@ describe('CLI entry (index.ts)', () => {
     assert.ok(exitCode !== 0);
   });
 
-  it('registers exactly 17 commands in two groups (DESIGN.md §3)', () => {
+  it('registers all documented commands in two groups (DESIGN.md §3)', () => {
     const { stdout } = runCli('--help');
     // 每个命令名都应出现在帮助文本中
     for (const cmd of EXPECTED_COMMANDS) {

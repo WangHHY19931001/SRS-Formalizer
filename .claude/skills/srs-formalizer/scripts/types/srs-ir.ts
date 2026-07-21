@@ -21,7 +21,8 @@ export type IRNodeType =
   | 'tla_action'
   | 'tla_invariant'
   | 'lean_theorem'
-  | 'lean_lemma';
+  | 'lean_lemma'
+  | 'data_entity';
 
 /**
  * Selective-formalization priority (proposal §P1-3). Drives which requirements
@@ -103,7 +104,10 @@ export type IREdgeType =
   | 'verifies'
   | 'implements'
   | 'proves'
-  | 'traces_to';
+  | 'traces_to'
+  | 'produces'
+  | 'consumes'
+  | 'mutates';
 
 export interface IREdgeProperties {
   crossFileWeight?: number;
@@ -180,7 +184,7 @@ export interface IRGlossaryEntry {
 }
 
 export interface SRSIR {
-  version: '2.0.0';
+  version: '2.0.0' | '2.1.0';
   meta: IRMeta;
   nodes: IRNode[];
   edges: IREdge[];

@@ -158,6 +158,24 @@ Invariant1 == ...
 - ❌ 禁止遗漏 NFR 不变式（若对应 IR-NODE 含 nfr_category）
 - ❌ **严禁使用 `-deadlock` 标志禁用死锁检测**：所有系统不允许死锁，死锁必须修正根因。通过关闭死锁检测来"通过"验证等同于伪造结果，视为重大违规，`validate-tla --strict` 将拒绝此类验证报告。
 
+## 数据流审视清单（若有）
+
+编排者可能注入命中当前模块的**数据流审视提示**（来自 M1.5 `analyze-dataflow` 产出的 `3_graph/analysis/dataflow.json`，spec 2026-07-21）。
+
+> ⚠️ **注入门控（shadow 模式上线前提）**：这些提示**默认不注入**——只有 `_ctx/dataflow_injection_gate.json` 的 `injectionEnabled: true`（经 `analyze-dataflow --assess` 评估实体归一假阳性率达标并人工签署）后，编排者才注入本清单。门控关闭时本节为空，正常继续，不受影响。
+
+清单注入后是 warning 级提示，非硬门禁，但你**必须**按 `reviewActions` 落到规约：
+
+| finding 类型 | TLA+ 必须做什么 |
+|--------------|----------------|
+| `cycle`（循环数据依赖） | 该模块 `Next` **重点防死锁**——需求阶段已检出环，确认状态机有打破环的初始态/默认值，禁止用 `-deadlock` 绕过（呼应「所有系统严禁死锁」铁律） |
+| `gap`（数据被消费但无上游产生） | 为该变量在 `Init` 中补明确初值，不得默认其存在；若来自外部则建模为外部输入动作 |
+| `boundary`（外部输入/最终输出） | 入边界：建模信任边界与授权前置 guard；出边界：确认终态可达且有对应断言 |
+
+注入清单按 `relatedNodes` 与当前模块节点求交集过滤；清单为空表示当前模块无数据流提示，正常继续。
+
+> 特别提示：`cycle` finding 与 B3 阶段的死锁检查同源——需求阶段的循环数据依赖往往就是 TLC 死锁反例的根因。收到 `cycle` 提示的模块应在建模时优先审视状态机环路的收敛性。
+
 ## 完整人设参考
 
 专家人设见 [references/expert-persona-tlaplus.md](../references/expert-persona-tlaplus.md) 的「## 身份定位」段。`references/tlaplus-coding-guide.md` 提供完整的语法速查、命名约定、编码最佳实践、LLM 常见建模错误及对策、工业案例和外部资源链接，可按需加载。

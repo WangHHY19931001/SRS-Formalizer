@@ -5,6 +5,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { listJsonlFiles } from '../jsonl.js';
+import { validateDataFlowRecords } from '../dataflow-extract.js';
 import type { CheckResult } from './shared.js';
 
 export function checkStateMd(workDir: string): CheckResult {
@@ -168,4 +169,45 @@ export function checkGlossaryExists(workDir: string): CheckResult {
     };
   }
   return { name: 'GLOSSARY.md exists', passed: false, detail: 'Not found — run S1 step 4 glossary extraction' };
+}
+
+/**
+ * S1: data-flow extraction FORMAT gate (spec 2026-07-21 / ADR-0009).
+ * Non-blocking enhancement: downstream analysis is warning-only, but when F4e
+ * produces 2_extract/data-entities/*.jsonl the records' FORMAT must be well-formed
+ * so assemble-ir can consume them. Absent dir or zero records => PASS (optional).
+ */
+export function checkDataFlowFormat(workDir: string): CheckResult {
+  const name = 'data-entities format';
+  const dir = path.join(workDir, '2_extract', 'data-entities');
+  if (!fs.existsSync(dir)) {
+    return { name, passed: true, detail: 'No data-entities/ (data-flow extraction is optional)' };
+  }
+  let files: string[];
+  try { files = listJsonlFiles(dir, workDir); }
+  catch { return { name, passed: true, detail: 'data-entities/ unreadable - skipped (optional)' }; }
+  if (files.length === 0) {
+    return { name, passed: true, detail: 'data-entities/ empty (optional)' };
+  }
+  const records: unknown[] = [];
+  for (const file of files) {
+    const content = fs.readFileSync(file, 'utf-8');
+    for (const line of content.split('\n')) {
+      const t = line.trim();
+      if (t === '') continue;
+      try { records.push(JSON.parse(t)); }
+      catch { return { name, passed: false, detail: `Invalid JSON in ${path.basename(file)}` }; }
+    }
+  }
+  if (records.length === 0) {
+    return { name, passed: true, detail: 'data-entities/ has no records (optional)' };
+  }
+  const report = validateDataFlowRecords(records);
+  return {
+    name,
+    passed: report.valid,
+    detail: report.valid
+      ? `${report.entityCount} entity + ${report.flowCount} flow record(s) well-formed`
+      : `${report.errors.length} format error(s): ${report.errors.slice(0, 3).join('; ')}`,
+  };
 }

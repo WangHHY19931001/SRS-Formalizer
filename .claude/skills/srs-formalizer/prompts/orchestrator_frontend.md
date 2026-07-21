@@ -119,7 +119,8 @@ Agent 按 SKILL.md Bootstrap 段指令创建工作目录结构（无脚本，幂
 │   ├── r1-explicit/
 │   ├── r2-implicit/
 │   ├── r3-relational/
-│   └── architecture/
+│   ├── architecture/
+│   └── data-entities/     # F4e: 数据流抽取 JSONL (entity/flow)
 ├── 3_graph/               # Middle-end 分析输出
 ├── outputs/               # Backend 产物生命周期
 ├── backups/               # 技能加密备份
@@ -223,6 +224,21 @@ Agent 在 F4 直接从 SRS + 已提取需求中提取术语（不经 executor-gl
 npx tsx index.ts validate-glossary --file <path> --workdir .srs_formalizer
 ```
 
+#### 6.7 F4e — 数据流抽取（data_entity + 读写关系，spec 2026-07-21 / ADR-0009）
+
+需求提取全部完成后，Agent 加载 `prompts/executor-frontend-dataflow.md`，从[已提取需求 + glossary + 源文档]识别数据实体与读写关系，产出 `2_extract/data-entities/*.jsonl`：
+- `kind: "entity"`：数据实体（id `DE-<slug>`、canonical 归一名、aliases、source_shard）
+- `kind: "flow"`：读写关系（requirement_id → entity_id，action ∈ produces/consumes/mutates）
+
+> 🔴 **抽取铁律（守 Inversion）**：数据实体与读写关系必须能从设计文档 + 已提取需求逐字或强推导得出；臆造不得进 JSONL，存疑挂 `GAPS.md`。归一靠 canonical——同实体不同称法用同一 canonical，下游 `assemble-ir` 据此合并节点。
+
+每批次完成后校验：
+```bash
+npx tsx index.ts validate-dataflow --file 2_extract/data-entities/<name>.jsonl --workdir .srs_formalizer
+```
+
+**降级**：文档无明确数据实体/读写描述时，产出空目录或不产出文件均可——`assemble-ir` 对缺失 data-entities 降级为无数据流，Middle-end `analyze-dataflow` 返回空 findings，不阻断流水线。本抽取为**非阻塞增强**：其下游分析恒 warning，但产物本身的格式须通过 `validate-dataflow`。
+
 ### 阶段 7：F5 装配 IR
 
 ```bash
@@ -290,6 +306,7 @@ npx tsx index.ts validate-checklist --workdir .srs_formalizer
 | R2 隐式需求 | `2_extract/r2-implicit/*.jsonl` |
 | R3 关系 | `2_extract/r3-relational/*.jsonl` |
 | 架构 | `2_extract/architecture/arch-*.jsonl`（arch-1/2/3，带 arch_version） |
+| 数据流抽取 | `2_extract/data-entities/*.jsonl`（F4e: entity/flow，spec 2026-07-21） |
 | 孤儿裁决 | `_ctx/orphan_adjudications.json` |
 | SRS-IR | `srs-ir.json` + `3_graph/graph/graph.merged.json` |
 | 状态 | STATE.md / GAPS.md |

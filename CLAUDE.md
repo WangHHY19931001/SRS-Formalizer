@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 srs-formalizer — 将 SRS 文档转化为形式化产出（Cypher · Gherkin · TLA+ · Lean 4）的 AI Agent 技能。
 
-**架构**：编译器模型（Frontend → Middle-end → Backend）。所有产物从单一 SRS-IR (`srs-ir.json`) 派生。脚本只做门禁校验与专用算法，语义工作由 Agent 经 SKILL.md + prompts + references 完成。17 命令（10 门禁 + 7 工具）。
+**架构**：编译器模型（Frontend → Middle-end → Backend）。所有产物从单一 SRS-IR (`srs-ir.json`, v2.1.0) 派生。脚本只做门禁校验与专用算法，语义工作由 Agent 经 SKILL.md + prompts + references 完成。19 命令（11 门禁 + 8 工具）。
 
 ## 构建与测试
 
@@ -13,7 +13,7 @@ cd .claude/skills/srs-formalizer/scripts
 
 npm install                          # devDeps: typescript, @types/node, gherkin-lint, gherklin
 npm run typecheck                   # strict 模式, 0 errors 必须
-npm test                            # 287 tests, 0 fail 必须
+npm test                            # 325 tests, 0 fail 必须
 npm run evals                       # 工具链与生命周期确定性评估必须通过
 ```
 
@@ -31,12 +31,14 @@ npx tsx --test __tests__/srs-ir-types.test.ts
 
 ```
 scripts/
-├── index.ts             # CLI 入口（注册表模式, 全部 refuseDirectInvocation, 17 命令）
-├── commands/            # 17 命令（10 门禁校验器 + 7 工具，全部 ≤300 行）
+├── index.ts             # CLI 入口（注册表模式, 全部 refuseDirectInvocation, 19 命令）
+├── commands/            # 19 命令（11 门禁校验器 + 8 工具，全部 ≤300 行）
 ├── lib/
 │   ├── verify-gate/        # 三级门禁 (S1/R3/FINAL)
 │   ├── artifacts/          # 产物路径契约 + hash 绑定 + 提升
-│   ├── middle-end/         # connectivity-checker (图连通性)
+│   ├── middle-end/         # connectivity-checker (图连通性) + dataflow-analyzer (数据流四类检出)
+│   ├── dataflow-extract.ts # 数据流抽取契约（校验 + canonical 归一转 IR）
+│   ├── dataflow-gate.ts    # 数据流层次2注入门控（shadow 模式）
 │   ├── bdd-validator.ts    # BDD Phase 1+2 校验
 │   ├── bdd-tool-runner.ts  # BDD Phase 3+4 (gherkin-lint + Gherklin)
 │   ├── tla-validator.ts    # TLA+ SANY+TLC 校验
@@ -53,10 +55,10 @@ scripts/
 │   ├── skill-integrity.ts  # 技能完整性加解密
 │   └── checklists.ts       # 检查表工具
 ├── types/
-│   ├── srs-ir.ts         # ★ SRS-IR 强类型（18 类型：SRSIR、IRNode、IREdge、NFRCategory...）
+│   ├── srs-ir.ts         # ★ SRS-IR 强类型（SRSIR、IRNode、IREdge、NFRCategory、data_entity 节点/数据流边...）
 │   ├── skir.ts          # Skill IR（SkillIR、Constraint、Permission、CapabilityTier...）
 │   └── index.ts          # JsonlRecord, CliResult, ShardIndex, GlossaryEntry
-├── __tests__/            # 287 测试（28 文件）
+├── __tests__/            # 325 测试
 └── templates/            # 模板 + bdd-nfr-scenarios.json
 ```
 
@@ -115,6 +117,14 @@ Frontend 采用**架构树版本化 × 需求提取交替演进**：F2 显式 R1
 - **层次性（分层深度闸门）**：架构树沿 `contains` 边最大链长 ≥2；≥3 架构节点且无层级（`flatTree`）即 FAIL。架构记录可带顶层 `arch_version`（1|2|3），`validate-architecture` 校验其与 id 前缀一致。
 - **连通性（孤儿裁决闸门）**：逼近单连通图谱；孤儿分片须在 `_ctx/orphan_adjudications.json` 显式裁决 standalone（附非空 reason）或有被接受桥接边，否则 FAIL。
 
+## 数据流审视提示（SRS-IR v2.1.0，spec 2026-07-21 / ADR-0009）
+
+Middle-end 只读数据流分析旁路，从需求抽取数据实体与读写关系，四类检出以**强提示（warning，非硬门禁）**驱动下游加强审视：
+
+- **抽取侧（Frontend F4e）**：Agent 经 `executor-frontend-dataflow.md` 产出 `2_extract/data-entities/*.jsonl`（`entity` 声明数据实体 + `flow` 声明读写关系）。`assemble-ir` 按 `canonical` 归一为 `data_entity` 节点 + `produces`/`consumes`/`mutates` 边写入 IR。格式经 `validate-dataflow` 校验，并纳入 `verify-gate --stage S1`（`checkDataFlowFormat`；缺失 data-entities 目录 = PASS，抽取可选）。
+- **分析侧（Middle-end M1.5）**：`analyze-dataflow` 只读 IR，检出 **dead_data**（write-only）、**gap**（use-before-def）、**boundary**（外部输入/最终输出）、**cycle**（SCC，往往是 TLA+ 死锁根因），写 `3_graph/analysis/dataflow.json`。恒 warning、不 fail-closed；无 `data_entity` 的旧 IR 降级为空 findings。版本校验接受 `2.0.0` 与 `2.1.0`。
+- **注入门控（shadow 模式，硬性上线前提）**：层次 2（BDD/TLA+ executor 注入）**默认关闭**——仅当 `analyze-dataflow --assess --fp-rate <r> --sample-size <n> --assessed-by <name>` 评估实体归一假阳性率达标并人工签署（写 `_ctx/dataflow_injection_gate.json`）后放开，避免误报噪声让 agent 学会性无视。
+
 ## Lean 4 建模（条件触发）
 
 security/compliance 关键词命中 → 强制。四步拆分证明循环。
@@ -129,7 +139,7 @@ security/compliance 关键词命中 → 强制。四步拆分证明循环。
 - **错误处理**: `try/catch → { status, message }`，通过 CliResult 返回。
 - **CLI 输出**: JSON 到 stdout (`{ status, message?, data? }`)，成功 exit(0)。
 - Commit: Conventional Commits, `Co-Authored-By: Claude <noreply@anthropic.com>`
-- 提交前: `npm run typecheck` 0 errors + `npm test` 287 tests pass + `npm run evals` pass
+- 提交前: `npm run typecheck` 0 errors + `npm test` 325 tests pass + `npm run evals` pass
 - TLA+ 覆盖所有模块，6 类 NFR 不变式必生成
 
 <!-- superpowers-zh:begin (do not edit between these markers) -->

@@ -18,9 +18,11 @@ import {
   refuseDirectInvocation,
 } from '../lib/cli.js';
 import { listJsonlFiles, readJsonl } from '../lib/jsonl.js';
+import { toDataFlowGraph, validateDataFlowRecords, type DataFlowRecord } from '../lib/dataflow-extract.js';
 
 const REQUIREMENT_SUBDIRS = ['r1-explicit', 'r2-implicit', 'r3-relational'] as const;
 const ARCHITECTURE_SUBDIR = 'architecture';
+const DATA_ENTITIES_SUBDIR = 'data-entities';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -95,10 +97,22 @@ function toArchIRNode(record: JsonlRecord): IRNode {
   };
 }
 
+/** 读取 data-entities/*.jsonl 原始记录（每行一个 JSON 对象）。 */
+function readDataFlowRecords(filePath: string): unknown[] {
+  const out: unknown[] = [];
+  const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+  for (const line of lines) {
+    const t = line.trim();
+    if (t === '') continue;
+    out.push(JSON.parse(t));
+  }
+  return out;
+}
+
 /** 引用完整性校验：版本号 / buildTimestamp / 重复节点 ID / 悬挂边。 */
 function checkIntegrity(ir: SRSIR): string[] {
   const errors: string[] = [];
-  if (ir.version !== '2.0.0') errors.push(`版本号必须为 2.0.0，实际为 ${ir.version}`);
+  if (ir.version !== '2.0.0' && ir.version !== '2.1.0') errors.push(`版本号必须为 2.x（2.0.0 或 2.1.0），实际为 ${ir.version}`);
   if (!ir.meta.buildTimestamp) errors.push('buildTimestamp 不能为空');
   const nodeIds = new Set<string>();
   for (const n of ir.nodes) {
@@ -213,8 +227,34 @@ export async function main(args: string[]): Promise<CliResult> {
     const shardMeta = readShardIndexMeta(workDir);
 
     const edges: SRSIR['edges'] = [];
+
+    // Data-flow extraction (spec 2026-07-21): load data-entities/*.jsonl →
+    // data_entity nodes + produces/consumes/mutates edges. Frontend-written and
+    // optional; absent ⇒ IR stays free of data-flow (analyze-dataflow degrades).
+    const dataDir = path.join(workDir, '2_extract', DATA_ENTITIES_SUBDIR);
+    if (fs.existsSync(dataDir)) {
+      const dfRecords: unknown[] = [];
+      for (const file of listJsonlFiles(dataDir, workDir)) {
+        dfRecords.push(...readDataFlowRecords(file));
+      }
+      if (dfRecords.length > 0) {
+        const dfReport = validateDataFlowRecords(dfRecords);
+        if (!dfReport.valid) {
+          return { status: 'error', message: `数据流记录校验失败: ${dfReport.errors.join('; ')}` };
+        }
+        const dfGraph = toDataFlowGraph(dfRecords as DataFlowRecord[]);
+        for (const n of dfGraph.nodes) {
+          if (idSet.has(n.id)) {
+            return { status: 'error', message: `重复 ID: ${n.id}，数据实体与需求/架构节点冲突` };
+          }
+          idSet.add(n.id);
+          nodes.push(n);
+        }
+        edges.push(...dfGraph.edges);
+      }
+    }
     const ir: SRSIR = {
-      version: '2.0.0',
+      version: '2.1.0',
       meta: {
         sourcePath: shardMeta.sourcePath,
         sourceHash: shardMeta.sourceHash,

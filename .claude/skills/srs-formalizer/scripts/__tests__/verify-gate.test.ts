@@ -89,6 +89,37 @@ describe('verify-gate command', () => {
     assert.ok(checks['r1-explicit has JSONL files']!.passed);
   });
 
+  it('S1 stage: data-entities format gate PASSES on well-formed records', async () => {
+    const workDir = createWorkDir('s1-df-ok');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
+      { id: 'R1-REQ-0001', category: 'explicit', statement: 'create order', source_file: 'srs.md', confidence: 'high' },
+    ]);
+    writeJsonl(path.join(workDir, '2_extract', 'data-entities'), 'df.jsonl', [
+      { kind: 'entity', id: 'DE-order', canonical: 'Order', source_shard: 'S001' },
+      { kind: 'flow', requirement_id: 'R1-REQ-0001', entity_id: 'DE-order', action: 'produces', source_shard: 'S001' },
+    ]);
+    const { main } = await import('../commands/verify-gate.js');
+    const result = await main(['--workdir', workDir, '--stage', 'S1']);
+    const checks = (result.data as Record<string, unknown>).checks as Record<string, { passed: boolean }>;
+    assert.ok(checks['data-entities format']!.passed);
+  });
+
+  it('S1 stage: data-entities format gate FAILS on malformed records', async () => {
+    const workDir = createWorkDir('s1-df-bad');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
+      { id: 'R1-REQ-0001', category: 'explicit', statement: 'x', source_file: 'srs.md', confidence: 'high' },
+    ]);
+    writeJsonl(path.join(workDir, '2_extract', 'data-entities'), 'df.jsonl', [
+      { kind: 'flow', requirement_id: 'R1-REQ-0001', entity_id: 'DE-ghost', action: 'produces', source_shard: 'S001' },
+    ]);
+    const { main } = await import('../commands/verify-gate.js');
+    const result = await main(['--workdir', workDir, '--stage', 'S1']);
+    const data = result.data as Record<string, unknown>;
+    assert.equal(data.pass, false);
+    const checks = data.checks as Record<string, { passed: boolean }>;
+    assert.equal(checks['data-entities format']!.passed, false);
+  });
+
   it('S1 stage: reports failure when STATE.md is missing', async () => {
     const workDir = createWorkDir('s1-no-state');
     fs.rmSync(path.join(workDir, 'STATE.md')); // Remove STATE.md created by createWorkDir

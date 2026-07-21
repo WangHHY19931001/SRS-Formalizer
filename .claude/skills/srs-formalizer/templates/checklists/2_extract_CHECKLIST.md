@@ -38,3 +38,12 @@
 ## R3 关系-2 (S2.7)
 - [ ] 最终 R3 文件覆盖 `2_extract/r3-relational/`
 - [ ] validate-jsonl 全部 PASS
+
+## 数据流抽取 (S2.8, F4e — spec 2026-07-21 / ADR-0009, 非阻塞增强)
+- [ ] `2_extract/data-entities/` 存在（无数据实体可为空目录）
+- [ ] 每条 entity id 匹配 `^DE-[a-z0-9][a-z0-9_-]*$`
+- [ ] 每条 entity 的 canonical 非空；同实体不同称法用同一 canonical
+- [ ] 每条 flow 的 requirement_id 引用真实需求 id（R[123]-…）
+- [ ] 每条 flow 的 entity_id 指向已声明 entity（无悬挂）
+- [ ] 每条 flow 的 action ∈ {produces, consumes, mutates}
+- [ ] validate-dataflow 全部 PASS（格式门禁；分析恒 warning 不在此校验）

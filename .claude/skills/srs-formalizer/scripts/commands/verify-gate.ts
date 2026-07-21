@@ -13,7 +13,7 @@
 
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
-import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardCompleteness, checkShardCoverage, checkGlossaryExists } from '../lib/verify-gate/checks-s1.js';
+import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardCompleteness, checkShardCoverage, checkGlossaryExists, checkDataFlowFormat } from '../lib/verify-gate/checks-s1.js';
 import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1, checkOrphanRatio, checkHierarchyDepth, checkOrphanAdjudication } from '../lib/verify-gate/checks-r3.js';
 import { checkFormalArtifacts } from '../lib/verify-gate/checks-final.js';
 import { checkFidelityReport, checkSafetyCriticalCoverage } from '../lib/verify-gate/checks-fidelity.js';
@@ -64,6 +64,7 @@ export async function main(args: string[]): Promise<CliResult> {
   allChecks.push(checkShardCompleteness(workDir));
   allChecks.push(checkShardCoverage(workDir));
   allChecks.push(checkGlossaryExists(workDir));
+  allChecks.push(checkDataFlowFormat(workDir));
 
   // === Stage checklist gates (S1/R3/FINAL) ===
   if (stageArg === 'S1' || stageArg === 'R3' || stageArg === 'FINAL') {

@@ -4,14 +4,14 @@
 
 An AI agent skill that formalizes SRS documents into Cypher graphs, Gherkin BDD, TLA+ specs, and Lean 4 proofs. The actual code lives under `.claude/skills/srs-formalizer/scripts/`. The root is mostly docs and config.
 
-**Architecture**: Agent-driven (Agent 驱动 + 脚本门禁). Scripts only do deterministic gate validation + specialized algorithms; all semantic work (parsing/extraction/analysis/generation) is done by Agent via SKILL.md + prompts + references. 17 commands: 10 Gate Validators + 7 Independent Tools. All artifacts derive from a single SRS-IR (`srs-ir.json`).
+**Architecture**: Agent-driven (Agent 驱动 + 脚本门禁). Scripts only do deterministic gate validation + specialized algorithms; all semantic work (parsing/extraction/analysis/generation) is done by Agent via SKILL.md + prompts + references. 19 commands: 11 Gate Validators + 8 Independent Tools. All artifacts derive from a single SRS-IR (`srs-ir.json`, v2.1.0).
 
 ## Build & verify (run from `.claude/skills/srs-formalizer/scripts/`)
 
 ```bash
 npm install                         # devDeps: typescript, @types/node, gherkin-lint, gherklin
 npx tsc --noEmit                    # strict mode, must be 0 errors
-npx tsx --test __tests__/*.test.ts  # 287 tests, must be 0 failures
+npx tsx --test __tests__/*.test.ts  # 325 tests, must be 0 failures
 npm run evals                       # deterministic toolchain/lifecycle evaluation
 npm run typecheck && npm test       # shortcuts
 ```
@@ -47,12 +47,14 @@ Agent-driven: **Frontend** (Agent parses SRS → shards → extracts JSONL → a
 
 ```
 scripts/
-├── index.ts             # CLI entrypoint (registry pattern, 17 commands)
-├── commands/            # 17 commands (10 gate validators + 7 tools), all ≤300 lines
+├── index.ts             # CLI entrypoint (registry pattern, 19 commands)
+├── commands/            # 19 commands (11 gate validators + 8 tools), all ≤300 lines
 ├── lib/
 │   ├── verify-gate/     # 三级门禁 (S1/R3/FINAL)
 │   ├── artifacts/       # 产物路径契约 + hash 绑定 + 提升
-│   ├── middle-end/      # connectivity-checker (图连通性)
+│   ├── middle-end/      # connectivity-checker (图连通性), dataflow-analyzer (数据流四类检出)
+│   ├── dataflow-extract.ts # 数据流抽取契约 (校验 + canonical 归一转 IR)
+│   ├── dataflow-gate.ts # 数据流层次2注入门控 (shadow 模式)
 │   ├── bdd-validator.ts # BDD Phase 1+2 validation
 │   ├── bdd-tool-runner.ts # Phase 3+4 (gherkin-lint + Gherklin)
 │   ├── tla-validator.ts # TLA+ SANY+TLC validation
@@ -63,15 +65,15 @@ scripts/
 │   ├── srs-ir.ts        # SRS-IR type system (SRSIR, IRNode, IREdge, NFRCategory...)
 │   ├── skir.ts          # Skill IR (SkillIR, Constraint, Permission, CapabilityTier...)
 │   └── index.ts         # JsonlRecord, CliResult, ShardIndex, GlossaryEntry
-└── __tests__/           # 287 tests (28 files)
+└── __tests__/           # 325 tests
 ```
 
 ## Key CLI commands
 
 | Group | Commands |
 |------|------|
-| Gate Validators | `validate-jsonl`, `validate-semantics`, `validate-architecture`, `validate-cypher`, `validate-bdd --strict --promote`, `validate-tla --strict --promote`, `validate-lean --strict --promote`, `validate-glossary`, `validate-checklist`, `verify-gate` |
-| Independent Tools | `assemble-ir`, `check-connectivity`, `query-graph`, `hash-compute`, `tlc-trace-parse`, `verify-skill-integrity`, `pack-skill` |
+| Gate Validators | `validate-jsonl`, `validate-semantics`, `validate-architecture`, `validate-cypher`, `validate-bdd --strict --promote`, `validate-tla --strict --promote`, `validate-lean --strict --promote`, `validate-glossary`, `validate-checklist`, `validate-dataflow`, `verify-gate` |
+| Independent Tools | `assemble-ir`, `check-connectivity`, `analyze-dataflow`, `query-graph`, `hash-compute`, `tlc-trace-parse`, `verify-skill-integrity`, `pack-skill` |
 
 ## Gotchas
 
@@ -86,6 +88,7 @@ scripts/
 - `validate-cypher` accepts Neo4j 4+ batch syntax (`CALL { ... } IN TRANSACTIONS`) — bracket depth is tracked cumulatively across lines, not per-line.
 - Cross-platform: verified on both Windows and Linux (WSL2, Node 22, OpenJDK 21). TLA+ tests need the bundled JAR at `<skill>/tools/tla2tools-1.7.4.jar`; copy sibling `tools/` if running from a relocated `scripts/` dir.
 - Artifact format contracts (field names, enums, expected gate filenames) are centralized in `references/artifact-contract-cheatsheet.md`.
+- **Data-flow review hints** (SRS-IR v2.1.0, spec 2026-07-21 / ADR-0009): a read-only Middle-end bypass. Frontend F4e extracts `2_extract/data-entities/*.jsonl` (`entity`/`flow` records); `assemble-ir` normalizes by `canonical` into `data_entity` nodes + `produces`/`consumes`/`mutates` edges. `analyze-dataflow` (read-only) emits `3_graph/analysis/dataflow.json` with four finding types — dead_data (write-only), gap (use-before-def), boundary (external input/final output), cycle (SCC, often the root of TLA+ deadlock). **Always warning, never fail-closed**; old IR without `data_entity` degrades to empty findings. `validate-dataflow` gates record FORMAT and is wired into `verify-gate --stage S1` (`checkDataFlowFormat` — absent dir = PASS, extraction is optional). IR version check accepts `2.0.0` and `2.1.0`. **Layer-2 injection (BDD/TLA+ executor) is OFF by default (shadow mode)**: enable only after `analyze-dataflow --assess --fp-rate <r> --sample-size <n> --assessed-by <name>` signs off on normalization false-positive rate (writes `_ctx/dataflow_injection_gate.json`).
 
 ## Where to find detailed docs
 
@@ -93,6 +96,7 @@ scripts/
 |-------|----------|
 | Full design spec | `docs/DESIGN.md` (single source of truth) |
 | Compiler refactor design | `docs/superpowers/specs/2026-07-13-compiler-refactor-design.md` |
+| Data-flow review hints | `docs/superpowers/specs/2026-07-21-dataflow-review-hints-design.md` + `docs/adr/0009-dataflow-review-hints.md` |
 | Sub-project plans | `docs/superpowers/plans/` |
 | Coding standards | `rules/project/coding/standards.md` |
 | CLAUDE.md | `CLAUDE.md` (overlaps with this file for Claude sessions) |

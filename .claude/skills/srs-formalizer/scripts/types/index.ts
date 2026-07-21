@@ -28,7 +28,8 @@ export interface JsonlRecord {
 
 // === CLI 命令统一返回类型 ===
 export interface CliResult {
-  status: 'ok' | 'error';
+  /** 'warn' 表示非阻塞发现（如数据流审视提示）：index.ts 视为成功退出码，但语义上区别于纯 'ok'。 */
+  status: 'ok' | 'warn' | 'error';
   message?: string;
   data?: unknown;
 }

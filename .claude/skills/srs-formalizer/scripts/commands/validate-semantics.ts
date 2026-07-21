@@ -42,11 +42,13 @@ interface SemanticConsistencyReport {
 const VALID_NODE_TYPES: readonly IRNodeType[] = [
   'requirement', 'nfr', 'architecture', 'bdd_scenario',
   'tla_action', 'tla_invariant', 'lean_theorem', 'lean_lemma',
+  'data_entity',
 ];
 const VALID_EDGE_TYPES: readonly IREdgeType[] = [
   'depends_on', 'refines', 'conflicts_with', 'derived_from',
   'same_aspect', 'contains', 'nfr_impacts', 'nfr_constrains',
   'cross_file_depends', 'verifies', 'implements', 'proves', 'traces_to',
+  'produces', 'consumes', 'mutates',
 ];
 const VALID_NFR_CATEGORIES: readonly NFRCategory[] = [
   'performance', 'security', 'availability', 'compatibility', 'maintainability', 'compliance',

@@ -186,6 +186,22 @@ Feature: 用户登录
     Then 系统返回 423 状态码 # verification_method: api_check # nfr_category: security
 ```
 
+## 数据流审视清单（若有）
+
+编排者可能注入命中当前模块的**数据流审视提示**（来自 M1.5 `analyze-dataflow` 产出的 `3_graph/analysis/dataflow.json`，spec 2026-07-21）。
+
+> ⚠️ **注入门控（shadow 模式上线前提）**：这些提示**默认不注入**——只有 `_ctx/dataflow_injection_gate.json` 的 `injectionEnabled: true`（经 `analyze-dataflow --assess` 评估实体归一假阳性率达标并人工签署）后，编排者才注入本清单。门控关闭时本节为空，正常继续，不受影响。
+
+清单注入后是 warning 级提示，非硬门禁，但你**必须**按 `reviewActions` 转成具体场景：
+
+| finding 类型 | BDD 必须做什么 |
+|--------------|---------------|
+| `gap`（数据被消费但无上游产生） | 显式覆盖"该数据缺失/为空"的边界场景；若来自外部系统则在 Given 声明为外部输入并标注信任边界 |
+| `dead_data`（数据产生但无人消费） | 覆盖"该数据产生后是否真被使用"的场景；确认无消费者则在追溯中标记冗余候选 |
+| `boundary`（外部输入/最终输出） | 入边界：安全相关场景补鉴权 Given；出边界：覆盖持久化/审计断言 |
+
+注入清单按 `relatedNodes` 与当前 Feature 模块节点求交集过滤；清单为空表示当前模块无数据流提示，正常继续。
+
 ## 完整人设参考
 
 专家人设见 [references/expert-persona-bdd.md](../references/expert-persona-bdd.md) 的「## 身份定位」段。`references/bdd-coding-guide.md` 提供 Gherkin 语法参考、声明式 vs 过程式的对比示例、Scenario Outline 数据驱动模式和常用 BDD 框架对照表，可按需加载。
