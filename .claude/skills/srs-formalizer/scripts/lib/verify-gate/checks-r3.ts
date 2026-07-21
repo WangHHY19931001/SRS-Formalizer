@@ -435,3 +435,55 @@ export function checkAtomicTree(workDir: string): CheckResult {
     detail: problems.join('; '),
   };
 }
+
+/** 最大允许 contains 边占比。超过即判为 error——意味着 R3-relational 的
+ *  depends_on/refines/conflicts_with 关系未被 ingest 到 IR edges。 */
+export const MAX_CONTAINS_RATIO = 0.95;
+
+/**
+ * R3: 边类型多样性检查。
+ *
+ * 如果 contains 边占比超过 MAX_CONTAINS_RATIO（默认 95%），说明 IR edges
+ * 几乎全是架构包含关系，R3-relational JSONL 中的 depends_on/refines/
+ * conflicts_with 等语义关系未被 ingest。这是 assemble-ir toIREdges() 缺陷
+ * 的典型症状（根因报告 §4.2）。
+ *
+ * 空图（0 边）视为通过，交由其它检查处理。
+ */
+export function checkEdgeTypeDiversity(workDir: string): CheckResult {
+  try {
+    const graphPaths = [
+      path.join(workDir, '3_graph', 'graph', 'graph.merged.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.json'),
+    ];
+    let graphData: { edges: { type: string }[] } | null = null;
+    for (const gp of graphPaths) {
+      if (fs.existsSync(gp)) {
+        graphData = JSON.parse(fs.readFileSync(gp, 'utf-8')) as { edges: { type: string }[] };
+        break;
+      }
+    }
+    if (!graphData) return { name: 'Edge type diversity', passed: false, detail: 'No graph file found' };
+    const total = graphData.edges.length;
+    if (total === 0) return { name: 'Edge type diversity', passed: true, detail: 'No edges (skipped)' };
+
+    const typeCounts = new Map<string, number>();
+    for (const e of graphData.edges) {
+      typeCounts.set(e.type, (typeCounts.get(e.type) ?? 0) + 1);
+    }
+    const containsCount = typeCounts.get('contains') ?? 0;
+    const containsRatio = containsCount / total;
+    const passed = containsRatio <= MAX_CONTAINS_RATIO;
+    const typeBreakdown = [...typeCounts.entries()].map(([t, c]) => `${t}:${c}`).join(', ');
+    return {
+      name: 'Edge type diversity',
+      passed,
+      detail: passed
+        ? `edge types: ${typeBreakdown} (contains ${containsRatio.toFixed(2)} <= ${MAX_CONTAINS_RATIO})`
+        : `edge diversity too low: contains ${containsRatio.toFixed(2)} > ${MAX_CONTAINS_RATIO} (${containsCount}/${total}); R3-relational relations may not be ingested into IR edges`,
+    };
+  } catch {
+    return { name: 'Edge type diversity', passed: false, detail: 'Could not compute edge type diversity' };
+  }
+}
