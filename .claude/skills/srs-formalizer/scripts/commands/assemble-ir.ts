@@ -11,7 +11,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult, JsonlRecord } from '../types/index.js';
-import type { SRSIR, IRNode, FormalizationPriority } from '../types/srs-ir.js';
+import type { SRSIR, IRNode, IREdge, IREdgeType, FormalizationPriority } from '../types/srs-ir.js';
 import {
   safeParseArg,
   validateWorkDir,
@@ -20,7 +20,7 @@ import {
 import { listJsonlFiles, readJsonl } from '../lib/jsonl.js';
 import { toDataFlowGraph, validateDataFlowRecords, type DataFlowRecord } from '../lib/dataflow-extract.js';
 
-const REQUIREMENT_SUBDIRS = ['r1-explicit', 'r2-implicit', 'r3-relational'] as const;
+const REQUIREMENT_SUBDIRS = ['r1-explicit', 'r2-implicit', 'r3-relational', 'r3-cross', 'r4-nfr'] as const;
 const ARCHITECTURE_SUBDIR = 'architecture';
 const DATA_ENTITIES_SUBDIR = 'data-entities';
 
@@ -95,6 +95,55 @@ function toArchIRNode(record: JsonlRecord): IRNode {
       chapter: toStr(meta?.['chapter'], ''),
     },
   };
+}
+
+function edgeTypeFromString(s: string): IREdgeType | null {
+  const normalized = s.toLowerCase();
+  const valid: readonly string[] = [
+    'depends_on', 'refines', 'conflicts_with', 'derived_from',
+    'same_aspect', 'contains', 'nfr_impacts', 'nfr_constrains',
+    'cross_file_depends', 'verifies', 'implements', 'proves', 'traces_to',
+  ];
+  if (valid.includes(normalized)) return normalized as IREdgeType;
+  return null;
+}
+
+/** 从 R3-relational JSONL 记录的 metadata.relation 提取 IREdge。
+ *  仅处理 relation.type 为合法 IREdgeType 的记录；source_id/target_id 必须有效。
+ *  移植自归档 builder.ts:73-106，修复 edges 全为空的根因。 */
+function toIREdges(record: JsonlRecord): IREdge[] {
+  const edges: IREdge[] = [];
+  const meta = isRecord(record.metadata) ? record.metadata : null;
+  if (!meta) return edges;
+
+  const relation = meta['relation'];
+  if (!isRecord(relation)) return edges;
+
+  const relType = relation['type'];
+  if (typeof relType !== 'string') return edges;
+
+  const edgeType = edgeTypeFromString(relType);
+  if (!edgeType) return edges;
+
+  const source: string =
+    typeof meta['source_id'] === 'string' ? meta['source_id'] : record.id;
+  const target: string | undefined =
+    typeof meta['target_id'] === 'string'
+      ? meta['target_id']
+      : typeof relation['target'] === 'string'
+        ? relation['target']
+        : undefined;
+  if (!target) return edges;
+
+  edges.push({
+    id: `e-${source}-${target}-${edgeType}`,
+    source,
+    target,
+    type: edgeType,
+    properties: {},
+  });
+
+  return edges;
 }
 
 /** 读取 data-entities/*.jsonl 原始记录（每行一个 JSON 对象）。 */
@@ -226,7 +275,18 @@ export async function main(args: string[]): Promise<CliResult> {
     // from shard_index.json when present so these are no longer manual steps.
     const shardMeta = readShardIndexMeta(workDir);
 
+    // P0-1: 从 R3-relational JSONL 的 metadata.relation 提取关系边
+    // （移植自归档 builder.ts:73-106，修复 edges 全为空的根因）
     const edges: SRSIR['edges'] = [];
+    for (const sub of REQUIREMENT_SUBDIRS) {
+      const dir = path.join(workDir, '2_extract', sub);
+      if (!fs.existsSync(dir)) continue;
+      for (const file of listJsonlFiles(dir, workDir)) {
+        for (const r of readJsonl(file, workDir)) {
+          edges.push(...toIREdges(r));
+        }
+      }
+    }
 
     // Data-flow extraction (spec 2026-07-21): load data-entities/*.jsonl →
     // data_entity nodes + produces/consumes/mutates edges. Frontend-written and

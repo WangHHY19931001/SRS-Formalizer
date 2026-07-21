@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { test } from 'node:test';
+import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { main } from '../commands/assemble-ir.js';
 
@@ -97,4 +97,63 @@ test('assemble-ir 数据流记录非法 → 报错', async () => {
   const res = await main(['--workdir', wd]);
   assert.equal(res.status, 'error');
   assert.match(res.message ?? '', /数据流记录校验失败/);
+});
+
+describe('assemble-ir toIREdges (P0-1)', () => {
+  it('should extract depends_on/refines edges from r3-relational JSONL', async () => {
+    const wd = setupWorkdir();
+    try {
+      // 写入 R1 需求
+      fs.writeFileSync(
+        path.join(wd, '2_extract', 'r1-explicit', 'test.jsonl'),
+        JSON.stringify({
+          id: 'R1-S001-0001', category: 'explicit', statement: '系统必须支持用户登录',
+          source_file: 'frozen/DESIGN.md', confidence: 'high',
+          metadata: { shard_id: 'S001', chapter: '1', start_line: 1, end_line: 10, provenance: 'explicit-located' }
+        }) + '\n' +
+        JSON.stringify({
+          id: 'R1-S002-0001', category: 'explicit', statement: '系统必须支持权限管理',
+          source_file: 'frozen/DESIGN.md', confidence: 'high',
+          metadata: { shard_id: 'S002', chapter: '2', start_line: 11, end_line: 20, provenance: 'explicit-located' }
+        }) + '\n'
+      );
+
+      // 写入 R3 关系需求（DEPENDS_ON）
+      fs.writeFileSync(
+        path.join(wd, '2_extract', 'r3-relational', 'test.jsonl'),
+        JSON.stringify({
+          id: 'R3-S001-0001', category: 'relational', statement: '权限管理依赖于用户登录',
+          source_file: 'frozen/DESIGN.md', confidence: 'high',
+          metadata: {
+            shard_id: 'S001', chapter: '1', provenance: 'doc-derived',
+            relation: { type: 'DEPENDS_ON' },
+            source_id: 'R1-S002-0001',
+            target_id: 'R1-S001-0001'
+          }
+        }) + '\n'
+      );
+
+      // 写入空 shard_index
+      fs.writeFileSync(
+        path.join(wd, '_ctx', 'shard_index.json'),
+        JSON.stringify({ language: 'zh', shards: [], source_path: '', source_hash: '', total_chars: 0, total_shards: 0 })
+      );
+
+      // 运行 assemble-ir
+      const result = await main(['--workdir', wd]);
+
+      assert.equal(result.status, 'ok', `assemble-ir failed: ${result.message ?? ''}`);
+
+      // 读取生成的 IR
+      const ir = JSON.parse(fs.readFileSync(path.join(wd, 'srs-ir.json'), 'utf-8'));
+
+      // 验证 edges 包含 depends_on 关系边
+      const dependsOnEdges = ir.edges.filter((e: { type: string }) => e.type === 'depends_on');
+      assert.ok(dependsOnEdges.length > 0, 'IR should contain depends_on edges from r3-relational');
+      assert.equal(dependsOnEdges[0].source, 'R1-S002-0001');
+      assert.equal(dependsOnEdges[0].target, 'R1-S001-0001');
+    } finally {
+      fs.rmSync(path.dirname(wd), { recursive: true, force: true });
+    }
+  });
 });
