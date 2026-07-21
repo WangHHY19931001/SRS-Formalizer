@@ -49,9 +49,12 @@ function findDanglingEdges(nodes: IRNode[], edges: IREdge[]): string[] {
 function findConnectedComponents(nodes: IRNode[], edges: IREdge[]): string[][] {
   const adj = new Map<string, Set<string>>();
   for (const n of nodes) adj.set(n.id, new Set());
+  // 守卫：仅当 source 与 target 均为已知节点时才建立邻接，避免 dangling edge
+  // 端点（不在 nodes 列表中）被推入 BFS 队列从而污染连通分量。
   for (const e of edges) {
-    adj.get(e.source)?.add(e.target);
-    adj.get(e.target)?.add(e.source);
+    if (!adj.has(e.source) || !adj.has(e.target)) continue;
+    adj.get(e.source)!.add(e.target);
+    adj.get(e.target)!.add(e.source);
   }
   const visited = new Set<string>();
   const components: string[][] = [];
