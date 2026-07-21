@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { checkEdgeTypeDiversity } from '../lib/verify-gate/checks-r3.js';
+import { checkEdgeTypeDiversity, checkContainsEdgeDirection } from '../lib/verify-gate/checks-r3.js';
 
 describe('R3 edge type diversity (P1-2)', () => {
   it('should fail when 100% of edges are contains', () => {
@@ -123,6 +123,117 @@ describe('R3 edge type diversity (P1-2)', () => {
       );
       const result = checkEdgeTypeDiversity(tmpDir);
       assert.equal(result.passed, false, 'missing edges field should fail safely');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('R3 contains edge direction (P1-3)', () => {
+  it('should fail when contains edges go Requirement→Architecture (reversed)', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r3-edge-dir-'));
+    try {
+      const graphDir = path.join(tmpDir, '3_graph', 'graph');
+      fs.mkdirSync(graphDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(graphDir, 'graph.merged.json'),
+        JSON.stringify({
+          nodes: [
+            { id: 'ARCH-1', labels: [':Architecture'] },
+            { id: 'R1-S001-0001', labels: [':Requirement'] },
+          ],
+          edges: [
+            // 反向：Requirement → Architecture（错误）
+            { id: 'e1', source: 'R1-S001-0001', target: 'ARCH-1', type: 'contains' },
+          ],
+        })
+      );
+      const result = checkContainsEdgeDirection(tmpDir);
+      assert.equal(result.passed, false, 'reversed contains edges should fail');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should pass when contains edges go Architecture→Requirement', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r3-edge-dir-ok-'));
+    try {
+      const graphDir = path.join(tmpDir, '3_graph', 'graph');
+      fs.mkdirSync(graphDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(graphDir, 'graph.merged.json'),
+        JSON.stringify({
+          nodes: [
+            { id: 'ARCH-1', labels: [':Architecture'] },
+            { id: 'R1-S001-0001', labels: [':Requirement'] },
+          ],
+          edges: [
+            { id: 'e1', source: 'ARCH-1', target: 'R1-S001-0001', type: 'contains' },
+          ],
+        })
+      );
+      const result = checkContainsEdgeDirection(tmpDir);
+      assert.equal(result.passed, true);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  // 边界测试（从 Task 4 审查反馈学习）
+  it('should pass when there are no contains edges', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r3-edge-dir-nocontains-'));
+    try {
+      const graphDir = path.join(tmpDir, '3_graph', 'graph');
+      fs.mkdirSync(graphDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(graphDir, 'graph.merged.json'),
+        JSON.stringify({
+          nodes: [
+            { id: 'R1-S001-0001', labels: [':Requirement'] },
+            { id: 'R1-S002-0001', labels: [':Requirement'] },
+          ],
+          edges: [
+            { id: 'e1', source: 'R1-S002-0001', target: 'R1-S001-0001', type: 'depends_on' },
+          ],
+        })
+      );
+      const result = checkContainsEdgeDirection(tmpDir);
+      assert.equal(result.passed, true, 'no contains edges should pass (skip)');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should pass for Architecture→Architecture contains (subsystem nesting)', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r3-edge-dir-archarch-'));
+    try {
+      const graphDir = path.join(tmpDir, '3_graph', 'graph');
+      fs.mkdirSync(graphDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(graphDir, 'graph.merged.json'),
+        JSON.stringify({
+          nodes: [
+            { id: 'ARCH-1', labels: [':Architecture'] },
+            { id: 'ARCH-2', labels: [':Architecture'] },
+          ],
+          edges: [
+            { id: 'e1', source: 'ARCH-1', target: 'ARCH-2', type: 'contains' },
+          ],
+        })
+      );
+      const result = checkContainsEdgeDirection(tmpDir);
+      assert.equal(result.passed, true, 'Architecture→Architecture contains (subsystem nesting) should pass');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should fail when graph file is missing', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r3-edge-dir-nofile-'));
+    try {
+      const result = checkContainsEdgeDirection(tmpDir);
+      assert.equal(result.passed, false);
+      assert.match(result.detail ?? '', /No graph file/i);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

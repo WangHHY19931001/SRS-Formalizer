@@ -487,3 +487,69 @@ export function checkEdgeTypeDiversity(workDir: string): CheckResult {
     return { name: 'Edge type diversity', passed: false, detail: `Could not compute edge type diversity: ${(err as Error).message}` };
   }
 }
+
+/**
+ * R3: contains 边方向检查。
+ *
+ * contains 边语义为「架构包含需求」，方向必须为
+ * (Architecture)-[:contains]->(Requirement) 或
+ * (Architecture)-[:contains]->(Architecture)（子系统嵌套）。
+ *
+ * 根因报告 §4.3 发现 165 条边反向写成
+ * (Requirement)-[:contains]->(Architecture)，语义完全反转。
+ *
+ * 通过 node.labels 判断节点类型：含 ':Architecture' 为架构节点，
+ * 含 ':Requirement' 为需求节点。
+ */
+export function checkContainsEdgeDirection(workDir: string): CheckResult {
+  try {
+    const graphPaths = [
+      path.join(workDir, '3_graph', 'graph', 'graph.merged.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.json'),
+    ];
+    type EdgeDirGraph = {
+      nodes: { id: string; labels: string[] }[];
+      edges: { id: string; source: string; target: string; type: string }[];
+    };
+    let graphData: EdgeDirGraph | null = null;
+    for (const gp of graphPaths) {
+      if (fs.existsSync(gp)) { graphData = JSON.parse(fs.readFileSync(gp, 'utf-8')) as EdgeDirGraph; break; }
+    }
+    if (!graphData) return { name: 'Contains edge direction', passed: false, detail: 'No graph file found' };
+
+    const labelMap = new Map<string, string[]>();
+    for (const n of graphData.nodes) labelMap.set(n.id, n.labels ?? []);
+
+    const isArch = (id: string): boolean => {
+      const labels = labelMap.get(id) ?? [];
+      return labels.some(l => l.toLowerCase().includes('architecture'));
+    };
+    const isReq = (id: string): boolean => {
+      const labels = labelMap.get(id) ?? [];
+      return labels.some(l => l.toLowerCase().includes('requirement'));
+    };
+
+    const reversed: string[] = [];
+    let containsCount = 0;
+    for (const e of graphData.edges) {
+      if (e.type !== 'contains') continue;
+      containsCount++;
+      // 反向：source 是 Requirement，target 是 Architecture
+      if (isReq(e.source) && isArch(e.target)) {
+        reversed.push(`${e.id}: ${e.source}→${e.target}`);
+      }
+    }
+    if (containsCount === 0) return { name: 'Contains edge direction', passed: true, detail: 'No contains edges (skipped)' };
+    const passed = reversed.length === 0;
+    return {
+      name: 'Contains edge direction',
+      passed,
+      detail: passed
+        ? `All ${containsCount} contains edges have correct direction (Architecture→Requirement/Architecture)`
+        : `${reversed.length}/${containsCount} contains edges reversed (Requirement→Architecture): ${reversed.slice(0, 5).join(', ')}`,
+    };
+  } catch (err) {
+    return { name: 'Contains edge direction', passed: false, detail: `Could not check edge directions: ${(err as Error).message}` };
+  }
+}
