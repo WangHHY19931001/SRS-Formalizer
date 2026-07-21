@@ -483,7 +483,7 @@ export function checkEdgeTypeDiversity(workDir: string): CheckResult {
         ? `edge types: ${typeBreakdown} (contains ${containsRatio.toFixed(2)} <= ${MAX_CONTAINS_RATIO})`
         : `edge diversity too low: contains ${containsRatio.toFixed(2)} > ${MAX_CONTAINS_RATIO} (${containsCount}/${total}); R3-relational relations may not be ingested into IR edges`,
     };
-  } catch {
-    return { name: 'Edge type diversity', passed: false, detail: 'Could not compute edge type diversity' };
+  } catch (err) {
+    return { name: 'Edge type diversity', passed: false, detail: `Could not compute edge type diversity: ${(err as Error).message}` };
   }
 }
