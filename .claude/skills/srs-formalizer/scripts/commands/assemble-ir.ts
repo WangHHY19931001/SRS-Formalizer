@@ -42,10 +42,14 @@ function toIRNode(record: JsonlRecord): IRNode {
   const meta = isRecord(record.metadata) ? record.metadata : null;
   const rawPriority = toStr(meta?.['formalization_priority'], '');
   const ridRef = toStr(meta?.['rid_ref'], '');
+  const shardId = toStr(meta?.['shard_id'], record.id);
   return {
     id: record.id,
     type: 'requirement',
-    module: record.source_file,
+    // module 填 shard_id 作为初始归属；后续由 architecture contains 边
+    // 或 Middle-end M5 合并优化器确定精确子系统名。
+    // 不填 source_file（那是源路径，不是模块名）。
+    module: shardId,
     labels: [':Requirement'],
     properties: {
       statement: record.statement,
