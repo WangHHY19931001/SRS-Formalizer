@@ -30,9 +30,26 @@ export function hashText(text: string): string {
   return crypto.createHash('sha256').update(text).digest('hex');
 }
 
+/**
+ * Content-addressed hash of a file set (proposal §P0-3). Keyed on each file's
+ * basename + content, NOT its absolute path, so the same bytes hash identically
+ * whether they live in draft/ or verified/. The previous implementation folded
+ * the absolute path into the digest, which meant a report written from a draft
+ * path could never match the verified-path hash the FINAL gate recomputes —
+ * forcing manual hash rewrites. Basenames are deduplicated so a file collected
+ * twice (e.g. lakefile.lean via both extension and name scans) counts once.
+ */
 export function hashFiles(filePaths: string[]): string {
+  const byName = new Map<string, Buffer>();
+  for (const filePath of filePaths) {
+    const key = path.basename(filePath);
+    if (!byName.has(key)) byName.set(key, fs.readFileSync(filePath));
+  }
   const hash = crypto.createHash('sha256');
-  for (const filePath of [...filePaths].sort()) { hash.update(filePath); hash.update('\0'); hash.update(fs.readFileSync(filePath)); hash.update('\0'); }
+  for (const key of [...byName.keys()].sort()) {
+    hash.update(key); hash.update('\0');
+    hash.update(byName.get(key)!); hash.update('\0');
+  }
   return hash.digest('hex');
 }
 
@@ -77,6 +94,27 @@ function hasRealToolEvidence(report: Partial<ArtifactValidationReport>): boolean
   return evidence.every(entry =>
     typeof entry?.stdoutHash === 'string' && /^[0-9a-f]{64}$/.test(entry.stdoutHash) && entry.exitCode === 0,
   );
+}
+
+/**
+ * All verified+passed reports for a kind that carry real tool evidence when the
+ * kind requires it (proposal §P0-2). Used by the FINAL gate to reconstruct the
+ * set of modules that were actually validated, so a module whose report exists
+ * but whose files were dropped from verified/ can be detected — the exact
+ * failure the destructive promote used to hide.
+ */
+export function readPassingReports(reportDir: string, artifactKind: ArtifactValidationReport['artifactKind']): ArtifactValidationReport[] {
+  if (!fs.existsSync(reportDir)) return [];
+  const requireEvidence = artifactKind === 'tlaplus' || artifactKind === 'lean4';
+  const reports: ArtifactValidationReport[] = [];
+  for (const file of fs.readdirSync(reportDir).filter(name => name.endsWith('.json'))) {
+    try {
+      const report = JSON.parse(fs.readFileSync(path.join(reportDir, file), 'utf8')) as ArtifactValidationReport;
+      const base = report.artifactKind === artifactKind && report.lifecycle === 'verified' && report.passed === true;
+      if (base && (!requireEvidence || hasRealToolEvidence(report))) reports.push(report);
+    } catch { /* skip malformed report */ }
+  }
+  return reports;
 }
 
 export function readMatchingReport(reportDir: string, artifactKind: ArtifactValidationReport['artifactKind'], sourceHash: string): boolean {

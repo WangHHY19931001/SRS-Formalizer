@@ -1,4 +1,15 @@
 // === JSONL 基础记录类型 ===
+/**
+ * 三态 provenance（守 Inversion 铁律）：
+ * - `explicit-located`  源文档可逐字定位 → category: explicit
+ * - `doc-derived`       文档可推导但非逐字 → category: implicit + confidence medium/low
+ * - `needs-clarification` 文档推导不出的决策点 → 不进 IR，只能挂 GAPS.md
+ */
+export type Provenance = 'explicit-located' | 'doc-derived' | 'needs-clarification';
+
+/** 架构树版本：v1 基础树 / v2 reparent·merge / v3 依赖层 */
+export type ArchVersion = 1 | 2 | 3;
+
 export interface JsonlRecord {
   /** 格式: R[123]-[A-Za-z0-9_.]+-\d{4} */
   id: string;
@@ -6,6 +17,12 @@ export interface JsonlRecord {
   statement: string;
   source_file: string;
   confidence: 'high' | 'medium' | 'low';
+  /**
+   * 可选元数据。约定字段：
+   * - `provenance?: Provenance` 三态标记（validate-jsonl 校验；needs-clarification 禁入 r-star/architecture）
+   * - `arch_version?: ArchVersion` 架构记录所属架构树版本（validate-architecture 校验，与 id 前缀一致）
+   * - `source_shard?: string` 溯源分片号（SNNN）
+   */
   metadata?: Record<string, unknown>;
 }
 

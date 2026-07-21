@@ -22,14 +22,25 @@ SRS 文档
   │ ▼
 [F2 R1 提取] ── Agent 按 shard 提取 R1 显式需求 JSONL
   │ ▼
-[F3 架构分解] ── Agent Arch-1/2/3/4-NFR JSONL
+┌─ 架构树 × 需求提取 交替演进循环（多轮精细化）─────────────┐
+│ [F3a 架构树 v1] ── arch-1 基础树（带 source_shard，arch_version=1）│
+│ [F4a R2 隐含]   ── [文档+R1+v1] → 隐含需求（三态 provenance 裁决）│
+│ [F3b 架构树 v2] ── arch-2 reparent/merge（据 R1+R2+v1）           │
+│ [F4b 跨子系统补全]── 只从文档推导边界交互（三态裁决）             │
+│ [F3c 架构树 v3] ── arch-3 依赖层（据全需求+v2）                   │
+│ [F4c 精细化补全] ── 三态裁决                                      │
+└────────────────────────────────────────────────────────────────┘
   │ ▼
-[F4 R2/R3 提取] ── Agent 提取隐式/关系需求 + 术语表
+[F4d 术语表] ── Agent 提取术语 + 碰撞校验
   │ ▼
-[F5 装配 IR] ── assemble-ir 工具 + 完整性校验
+[F5 装配 IR] ── assemble-ir → srs-ir.json + graph.merged.json
+  │ ▼
+[G 收敛闸门] ── verify-gate R3：连通性(孤儿裁决)+层次性(分层深度)；未收敛回退对应 F 阶段
   │ ▼
 [verify-gate S1] ── 门禁通过 → 移交 Middle-end
 ```
+
+> **退化与收敛**：`total_shards < 50` 时循环退化为单版架构树（仅 F3a），不强制三版；相邻版本架构树 diff < 阈值即提前收敛；迭代上限 5 轮，超限标 `BLOCKED`。
 
 ## 执行流程
 
@@ -140,42 +151,68 @@ npx tsx index.ts validate-checklist --workdir .srs_formalizer
 
 Agent 按 shard 逐个提取 R1 显式需求为 JSONL（ID 格式 `R1-<shard_id>-NNNN`）。每个 shard 产出 `2_extract/r1-explicit/<shard_id>.jsonl`。
 
-校验者隔离：在**新会话**中加载 `prompts/verifier-frontend-ir.md` 审核；REJECTED → ≤3 次重试。
+> 🔴 **提取粒度铁律（§P0-0f，防第三层"分片内漏提"）**：
+> - **一条 R1 = 一条可独立测试的规范陈述**。禁止把一个小节里多条独立的 must/须/应/不得/禁止 折叠成"一条标题句"。若某小节含 N 条规范性情态动词句，就应产出接近 N 条 R1（可测子规则各自成条），而非 1 条聚合。
+> - **逐分片、非区间命名**：每个 shard 单独产出 `<shard_id>.jsonl`（如 `S005.jsonl`），**禁止** `S001_S003.jsonl` 这类区间文件名——区间命名会掩盖跳过的分片，且门禁按记录 id 的 shard 段统计覆盖率。
+> - **零规范分片须显式声明**：确无可提取规范的分片，不得静默留空；将其 shard id 追加到 `2_extract/r1-explicit/_empty_shards.json`（JSON 字符串数组），否则 S1 门禁的分片覆盖率核验判 FAIL。
+> - **全分片覆盖**：`shard_index.json` 的每个 shard 都必须要么有非空 R1 提取、要么在 `_empty_shards.json` 中显式声明。
+
+校验者隔离：在**新会话**中加载 `prompts/verifier-frontend-ir.md` 审核；REJECTED → ≤3 次重试。校验者须额外核验"分片内规范密度"：对高密度小节，比对源文本规范性情态动词出现数与 R1 条数，比值异常偏低（如源 15 条仅提 7 条）时判 REJECTED 并要求复提。
 
 每批次完成后校验：
 ```bash
 npx tsx index.ts validate-jsonl --file <path> --workdir .srs_formalizer
 ```
 
-### 阶段 5：F3 架构分解
+> S1 阶段收口时，`verify-gate --stage S1` 会执行"分片提取覆盖率"硬核验（§P0-0a）：遍历 `shard_index.json` 每个 shard，确认其在 R1 提取记录 id 中出现或已在 `_empty_shards.json` 声明；任一分片零提取即 FAIL 并列出缺失分片号与章节名。
 
-Agent 据动态轮次执行架构分解（Arch-1/2/3/4-NFR）为 JSONL。
+### 阶段 5：F3a 架构树 v1（基础树）
 
-**动态架构轮次**（据 `totalShards` 决定）：
-- `<50` → 3 轮
-- `50-99` → 4 轮
-- `≥100` → 5 轮
-- `crossRefCount > 50` → +1 轮
+Agent 构建**架构树 v1**（arch-1 基础树：module/actor/constraint），产出 `2_extract/architecture/arch-1*.jsonl`，每条记录顶层 `arch_version: 1`。这是交替演进循环的第一版架构树，为 F4a 隐含需求推导提供上下文。
 
-产出 `2_extract/architecture/arch-*.jsonl`。完成后校验：
+> 🔴 **架构溯源铁律（§P0-0d）**：每条 arch-1 记录（`ARCH-*`）必须带 `source_shard` 字段（格式 `SNNN`，如 `"S005"`），标注该架构元素来自哪个源分片。校验器对缺失或格式错误的 `source_shard` 判 FAIL。务必覆盖顶层分层架构（如 §5）与独立子系统章节（如 MCP §17、Skill §18），避免顶层结构与独立子系统被泛化模块吞并而丢失。
+
+> **分层要求**：架构树不得塌缩成平铺一层。用 `contains` 边表达子系统层级（父模块 contains 子需求/子模块）。R3 分层深度闸门要求架构树最大链长 ≥2，且 ≥3 个架构节点时不得全部无层级（`flatTree` 即 FAIL）。
+
+完成后校验：
 ```bash
 npx tsx index.ts validate-architecture --workdir .srs_formalizer
 ```
 
-### 阶段 6：F4 R2/R3 提取 + 术语表
+**退化**：`total_shards < 50` 时只做 F3a 单版架构树，跳过 F3b/F3c，直接进入 F4d。
 
-#### 6.1 R2 隐式需求推导
-基于 R1 + 架构，Agent 按 shard 提取 R2 隐式需求为 JSONL → `2_extract/r2-implicit/<shard_id>.jsonl`。校验循环：verifier-R2 → REJECTED → ≤3 次重试。
+### 阶段 6：F4 交替演进（R2 隐含 → v2 → 跨系统补全 → v3 → 精细化）+ 术语表
 
-#### 6.2 R3 关系需求推导
-基于 R1 + R2 + 架构，Agent 提取 R3 关系需求为 JSONL → `2_extract/r3-relational/<shard_id>.jsonl`。校验循环：verifier-R3。
+> 🔴 **三态 provenance 铁律（守 Inversion）**：F4 各步每条推导/补全需求必须落入且仅落入一态，写入 `metadata.provenance`：
+> - `explicit-located`：源文档可逐字定位 → `category: explicit`，带 `source_shard`+行号，进 IR；
+> - `doc-derived`：文档可推导但非逐字 → `category: implicit` + `confidence: medium|low`，进 IR；
+> - `needs-clarification`：文档推导不出的决策点 → **不进 IR**，写入 `GAPS.md`，走 HITL 单问题澄清。
+>
+> `validate-jsonl` 硬校验：provenance 非三态之一即 FAIL；`needs-clarification` 出现在 r*/architecture JSONL 即 FAIL。推导不出的需求绝不以 explicit/high 混入。
+
+> 🧭 **HITL 单问题格式（决策树拷问）**：需澄清的决策点每次只抛**一个**问题 + Agent 推荐答案 + 可选项，人类"同意/修改/否决"后写回；`GAPS.md` 记录问题、推荐答案与裁决结果。术语碰撞只对设计文档做，发现矛盾（如"部分退款"vs"整单退款"）强制中断并抛出。**唯一事实源 = 设计文档；`frozen/` 不是输入。**
+
+#### 6.1 F4a — R2 隐含需求推导
+基于[文档 + R1 + 架构树 v1]，Agent 按 shard 推导 R2 隐含需求 → `2_extract/r2-implicit/<shard_id>.jsonl`（三态裁决）。校验循环：verifier-R2 → REJECTED → ≤3 次重试。
+
+#### 6.2 F3b — 架构树 v2（reparent/merge）
+基于[文档 + R1 + R2 + v1]，Agent 重构**架构树 v2**（arch-2 reparent/merge）→ `2_extract/architecture/arch-2*.jsonl`，每条顶层 `arch_version: 2`。据新增隐含需求调整父子归属与合并冗余模块。校验：`validate-architecture`。
+
+#### 6.3 F4b — 跨子系统需求补全
+基于[文档 + R1 + R2 + v2]，Agent **只从设计文档推导**跨子系统边界交互需求 → `2_extract/r3-relational/<shard_id>.jsonl`（三态裁决）。校验循环：verifier-R3。
+
+#### 6.4 F3c — 架构树 v3（依赖层）
+基于[文档 + 全部需求 + v2]，Agent 构建**架构树 v3**（arch-3 依赖层）→ `2_extract/architecture/arch-3*.jsonl`，每条顶层 `arch_version: 3`。校验：`validate-architecture`。
+
+#### 6.5 F4c — 精细化跨系统补全
+基于[文档 + 全部需求 + v3]，Agent 精细化跨系统补全（三态裁决）。相邻版本架构树 diff < 阈值即提前收敛。
 
 每批次完成后校验：
 ```bash
 npx tsx index.ts validate-jsonl --file <path> --workdir .srs_formalizer
 ```
 
-#### 6.3 术语表构建（Agent 直接提取）
+#### 6.6 F4d — 术语表构建（Agent 直接提取）
 Agent 在 F4 直接从 SRS + 已提取需求中提取术语（不经 executor-glossary.md，已归档）：
 - 同义术语按置信度合并（high > medium > low）
 - 定义取最完整版本，按字母序排列
@@ -203,6 +240,15 @@ npx tsx index.ts validate-checklist --workdir .srs_formalizer
 - `srs-ir.json` 存在且通过 Schema 校验
 - 无孤立节点
 - 术语表含 ≥5 条高置信度术语
+
+#### 收敛闸门（步骤 G，多轮循环收口）
+
+`verify-gate --stage R3` 除既有检查外，执行**双闸门收敛判据**：
+
+- **层次性（分层深度闸门）**：架构树最大链长（沿 `contains` 边）≥2；≥3 个架构节点时不得全部无层级（`flatTree` 即 FAIL）。未通过 → 回退 F3a/F3b/F3c 修架构树（补 `contains` 层级、拆分被吞并的子系统）。
+- **连通性（孤儿裁决闸门）**：逼近单连通图谱。每个孤儿分片必须在 `_ctx/orphan_adjudications.json` 中显式裁决为 standalone（`{ "shardId": "S0xx", "standalone": true, "reason": "..." }`）或有被接受的桥接边，否则 FAIL。未通过 → 回退 F4a/F4b/F4c 补边/补需求，或对合法独立约束写裁决。
+
+未收敛时回退对应 F 阶段精细化；迭代上限 5 轮，超限在 STATE.md 标 `BLOCKED` 并 🛑 STOP 等待人类决策。
 
 通过 → 更新 STATE.md Frontend = ✅，移交 Middle-end。
 
@@ -243,6 +289,7 @@ npx tsx index.ts validate-checklist --workdir .srs_formalizer
 | R1 显式需求 | `2_extract/r1-explicit/*.jsonl` |
 | R2 隐式需求 | `2_extract/r2-implicit/*.jsonl` |
 | R3 关系 | `2_extract/r3-relational/*.jsonl` |
-| 架构 | `2_extract/architecture/arch-*.jsonl` |
-| SRS-IR | `srs-ir.json` |
+| 架构 | `2_extract/architecture/arch-*.jsonl`（arch-1/2/3，带 arch_version） |
+| 孤儿裁决 | `_ctx/orphan_adjudications.json` |
+| SRS-IR | `srs-ir.json` + `3_graph/graph/graph.merged.json` |
 | 状态 | STATE.md / GAPS.md |

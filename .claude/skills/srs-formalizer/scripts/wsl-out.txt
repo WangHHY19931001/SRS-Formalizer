@@ -1,0 +1,1594 @@
+TAP version 13
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058515:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/artifact-contracts.test.ts
+not ok 1 - __tests__/artifact-contracts.test.ts
+  ---
+  duration_ms: 932.694674
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/artifact-contracts.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058525:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/assemble-ir.test.ts
+not ok 2 - __tests__/assemble-ir.test.ts
+  ---
+  duration_ms: 872.982711
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/assemble-ir.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058514:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/assessment-fixes.test.ts
+not ok 3 - __tests__/assessment-fixes.test.ts
+  ---
+  duration_ms: 848.589229
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/assessment-fixes.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058529:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/bdd-tool-runner.test.ts
+not ok 4 - __tests__/bdd-tool-runner.test.ts
+  ---
+  duration_ms: 864.080682
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/bdd-tool-runner.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058514:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/bdd-validator.test.ts
+not ok 5 - __tests__/bdd-validator.test.ts
+  ---
+  duration_ms: 848.887836
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/bdd-validator.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058514:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/checks-fidelity.test.ts
+not ok 6 - __tests__/checks-fidelity.test.ts
+  ---
+  duration_ms: 849.930288
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/checks-fidelity.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058514:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/convergence-log.test.ts
+not ok 7 - __tests__/convergence-log.test.ts
+  ---
+  duration_ms: 851.158839
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/convergence-log.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058514:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/fidelity-analyzer.test.ts
+not ok 8 - __tests__/fidelity-analyzer.test.ts
+  ---
+  duration_ms: 852.121293
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/fidelity-analyzer.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058515:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/final-report-binding.test.ts
+not ok 9 - __tests__/final-report-binding.test.ts
+  ---
+  duration_ms: 853.112437
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/final-report-binding.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058516:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/hash-compute.test.ts
+not ok 10 - __tests__/hash-compute.test.ts
+  ---
+  duration_ms: 858.247773
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/hash-compute.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058533:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/index.test.ts
+not ok 11 - __tests__/index.test.ts
+  ---
+  duration_ms: 864.08416
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/index.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058527:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/jsonl.test.ts
+not ok 12 - __tests__/jsonl.test.ts
+  ---
+  duration_ms: 865.860197
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/jsonl.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058675:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/middle-end-connectivity.test.ts
+not ok 13 - __tests__/middle-end-connectivity.test.ts
+  ---
+  duration_ms: 1160.303186
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/middle-end-connectivity.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058722:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/pack-skill.test.ts
+not ok 14 - __tests__/pack-skill.test.ts
+  ---
+  duration_ms: 1064.995246
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/pack-skill.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600058675:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/query-graph.test.ts
+not ok 15 - __tests__/query-graph.test.ts
+  ---
+  duration_ms: 1097.915203
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/query-graph.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059376:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/rid-mapping.test.ts
+not ok 16 - __tests__/rid-mapping.test.ts
+  ---
+  duration_ms: 860.504346
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/rid-mapping.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059413:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/security.test.ts
+not ok 17 - __tests__/security.test.ts
+  ---
+  duration_ms: 903.367922
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/security.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059383:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/srs-ir-types.test.ts
+not ok 18 - __tests__/srs-ir-types.test.ts
+  ---
+  duration_ms: 906.100602
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/srs-ir-types.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059375:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/tla-validator.test.ts
+not ok 19 - __tests__/tla-validator.test.ts
+  ---
+  duration_ms: 858.043394
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/tla-validator.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059393:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/tlc-trace-parse.test.ts
+not ok 20 - __tests__/tlc-trace-parse.test.ts
+  ---
+  duration_ms: 935.434522
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/tlc-trace-parse.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059408:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/validate-architecture.test.ts
+not ok 21 - __tests__/validate-architecture.test.ts
+  ---
+  duration_ms: 948.79807
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/validate-architecture.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059424:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/validate-bdd.test.ts
+not ok 22 - __tests__/validate-bdd.test.ts
+  ---
+  duration_ms: 973.496294
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/validate-bdd.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059463:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/validate-checklist.test.ts
+not ok 23 - __tests__/validate-checklist.test.ts
+  ---
+  duration_ms: 970.88836
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/validate-checklist.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059560:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/validate-cypher.test.ts
+not ok 24 - __tests__/validate-cypher.test.ts
+  ---
+  duration_ms: 1039.726803
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/validate-cypher.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059463:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/validate-glossary.test.ts
+not ok 25 - __tests__/validate-glossary.test.ts
+  ---
+  duration_ms: 980.552377
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/validate-glossary.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059516:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/validate-jsonl.test.ts
+not ok 26 - __tests__/validate-jsonl.test.ts
+  ---
+  duration_ms: 987.141634
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/validate-jsonl.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059516:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/validate-lean.test.ts
+not ok 27 - __tests__/validate-lean.test.ts
+  ---
+  duration_ms: 937.648005
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/validate-lean.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059888:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/validate-tla-static.test.ts
+not ok 28 - __tests__/validate-tla-static.test.ts
+  ---
+  duration_ms: 946.604002
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/validate-tla-static.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059828:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/verify-gate-lean-source.test.ts
+not ok 29 - __tests__/verify-gate-lean-source.test.ts
+  ---
+  duration_ms: 903.317857
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/verify-gate-lean-source.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600059899:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/verify-gate-source-scan.test.ts
+not ok 30 - __tests__/verify-gate-source-scan.test.ts
+  ---
+  duration_ms: 930.503242
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/verify-gate-source-scan.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600060139:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/verify-gate-tla-source.test.ts
+not ok 31 - __tests__/verify-gate-tla-source.test.ts
+  ---
+  duration_ms: 597.085482
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/verify-gate-tla-source.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600060138:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/verify-gate.test.ts
+not ok 32 - __tests__/verify-gate.test.ts
+  ---
+  duration_ms: 593.186295
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/verify-gate.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/run_main:123
+#     triggerUncaughtException(
+#     ^
+# Error [TransformError]: 
+# You installed esbuild for another platform than the one you're currently using.
+# This won't work because esbuild is written with native code and needs to
+# install a platform-specific binary executable.
+# Specifically the "@esbuild/win32-x64" package is present but this platform
+# needs the "@esbuild/linux-x64" package instead. People often get into this
+# situation by installing esbuild on Windows or macOS and copying "node_modules"
+# into a Docker image that runs Linux, or by copying "node_modules" between
+# Windows and WSL environments.
+# If you are installing with npm, you can try not copying the "node_modules"
+# directory when you copy the files over, and running "npm ci" or "npm install"
+# on the destination platform after the copy. Or you could consider using yarn
+# instead of npm which has built-in support for installing a package on multiple
+# platforms simultaneously.
+# If you are installing with yarn, you can try listing both this platform and the
+# other platform in your ".yarnrc.yml" file using the "supportedArchitectures"
+# feature: https://yarnpkg.com/configuration/yarnrc/\#supportedArchitectures
+# Keep in mind that this means multiple copies of esbuild will be present.
+# Another alternative is to use the "esbuild-wasm" package instead, which works
+# the same way on all platforms. But it comes with a heavy performance cost and
+# can sometimes be 10x slower than the "esbuild" package, so you may also not
+# want to do that.
+#     at generateBinPath (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2029:17)
+#     at esbuildCommandAndArgs (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2110:33)
+#     at ensureServiceIsRunning (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2267:25)
+#     at transform (/mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/node_modules/esbuild/lib/main.js:2168:37)
+#     at file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2865
+#     at applyTransformers (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:1266)
+#     at transform (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/index-7AaEi15b.mjs:14:2812)
+#     at load (file:///mnt/c/Users/wangh/AppData/Local/nvm/v25.8.1/node_modules/tsx/dist/esm/index.mjs?1784600060232:2:2348)
+#     at async nextLoad (node:internal/modules/esm/hooks:748:22)
+#     at async Hooks.load (node:internal/modules/esm/hooks:385:20)
+# Node.js v22.23.1
+# Subtest: __tests__/verify-skill-integrity.test.ts
+not ok 33 - __tests__/verify-skill-integrity.test.ts
+  ---
+  duration_ms: 877.43582
+  type: 'test'
+  location: '/mnt/d/srs_formalizer_opt/SRS-Formalizer/.claude/skills/srs-formalizer/scripts/__tests__/verify-skill-integrity.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..33
+# tests 33
+# suites 0
+# pass 0
+# fail 33
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2690.854878

@@ -73,13 +73,19 @@ export function collectCurrentFiles(skillDir: string): Set<string> {
 export function collectFiles(skillDir: string): string[] {
   const files: string[] = [];
 
+  // Relative paths use forward slashes on ALL platforms so the manifest/backup
+  // keys are portable and match collectCurrentFiles + HIGH_RISK_PATTERNS (which
+  // are forward-slash). Using path.join here produced `prompts\file.md` on
+  // Windows, so every nested file appeared simultaneously missing (manifest key
+  // never matched) and extra (verify key never matched), and repair could not
+  // map files back to backup entries.
   function walk(dir: string, prefix: string): void {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) { if (!EXCLUDED_DIRS.has(entry.name)) walk(fullPath, path.join(prefix, entry.name)); }
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) { if (!EXCLUDED_DIRS.has(entry.name)) walk(fullPath, rel); }
       else if (entry.isFile()) {
-        const rel = path.join(prefix, entry.name);
         if (!rel.endsWith('.enc') && rel !== 'MANIFEST.json') files.push(rel);
       }
     }

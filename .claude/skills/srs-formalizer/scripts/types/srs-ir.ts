@@ -30,6 +30,18 @@ export type IRNodeType =
  */
 export type FormalizationPriority = 'safety-critical' | 'concurrency' | 'standard' | 'deferred';
 
+/**
+ * 三态 provenance（多轮提取精细化循环，守 Inversion 铁律）：
+ * - `explicit-located`   源文档可逐字定位 → category: explicit，正常进 IR
+ * - `doc-derived`        文档可推导但非逐字 → category: implicit + confidence medium/low
+ * - `needs-clarification` 文档推导不出的决策点 → 不进 IR（只能挂 GAPS.md）
+ * IR 节点只应出现前两态；`needs-clarification` 出现在 IR 视为缺陷。
+ */
+export type Provenance = 'explicit-located' | 'doc-derived' | 'needs-clarification';
+
+/** 架构树版本：v1 基础树 / v2 reparent·merge / v3 依赖层 */
+export type ArchVersion = 1 | 2 | 3;
+
 export interface IRProperties {
   statement?: string;
   category?: 'explicit' | 'implicit' | 'relational';
@@ -41,6 +53,10 @@ export interface IRProperties {
   formalizationPriority?: FormalizationPriority;
   /** Frozen-asset RID this node was derived from (proposal §P1-2), when known. */
   ridRef?: string;
+  /** 三态 provenance 标记（多轮提取循环）。IR 节点仅应为前两态。 */
+  provenance?: Provenance;
+  /** 架构节点所属架构树版本（v1/v2/v3）。 */
+  archVersion?: ArchVersion;
 }
 
 export interface IRSource {

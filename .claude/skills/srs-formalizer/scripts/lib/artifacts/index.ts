@@ -9,9 +9,10 @@ export {
   collectFiles,
   collectByExtension,
   readMatchingReport,
+  readPassingReports,
   writeValidationReport,
   type ArtifactValidationReport,
   type ValidationCheck,
   type ValidationTool,
 } from './validation-report.js';
-export { promoteFiles, promoteDirectory } from './promotion.js';
+export { promoteFiles, promoteFilesMerge, promoteDirectory } from './promotion.js';

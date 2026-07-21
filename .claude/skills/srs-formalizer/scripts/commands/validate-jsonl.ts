@@ -3,7 +3,7 @@
  *
  * CLI: npx tsx index.ts validate-jsonl --file <path> --workdir <path>
  *
- * 6 项检查：合法 JSON / 必填字段 / id 格式 / category 枚举 / 空 statement / 重复 id
+ * 7 项检查：合法 JSON / 必填字段 / id 格式 / category 枚举 / 空 statement / 重复 id / provenance 三态
  *
  * 复用 lib/jsonl.ts 的 readJsonl + validateJsonlRecord 函数
  * 复用 lib/security.ts 的 isPathSafe + validateWorkDir
@@ -114,6 +114,24 @@ export async function main(args: string[]): Promise<CliResult> {
       const top = record as unknown as Record<string,unknown>;
       if ((top.relation || top.source_id || top.target_id) && !meta) {
         errors.push(`${prefix}: relation/source_id/target_id must be inside metadata`);
+      }
+    }
+
+    // -- Provenance tri-state validation (Inversion guard) --
+    if (meta && meta.provenance !== undefined) {
+      const prov = meta.provenance;
+      if (prov !== 'explicit-located' && prov !== 'doc-derived' && prov !== 'needs-clarification') {
+        errors.push(`${prefix}: metadata.provenance must be explicit-located|doc-derived|needs-clarification`);
+      } else if (prov === 'needs-clarification') {
+        // needs-clarification records must never enter r*/architecture JSONL; only GAPS.md
+        errors.push(`${prefix}: provenance 'needs-clarification' is forbidden in r*/architecture JSONL (record it in GAPS.md, not the IR pipeline)`);
+      } else if (prov === 'doc-derived') {
+        if (record.category !== 'implicit') {
+          errors.push(`${prefix}: doc-derived provenance requires category 'implicit'`);
+        }
+        if (record.confidence !== 'medium' && record.confidence !== 'low') {
+          errors.push(`${prefix}: doc-derived provenance requires confidence 'medium' or 'low'`);
+        }
       }
     }
 

@@ -22,7 +22,7 @@ function report(workdir: string, kind: 'bdd' | 'tlaplus', files: string[], hash 
   const toolEvidence = kind === 'tlaplus'
     ? [{ tool: 'TLC', exitCode: 0, stdoutHash: hashText('model checking completed') }]
     : undefined;
-  writeValidationReport(path.join(workdir, 'outputs', kind === 'bdd' ? 'bdd' : 'tlaplus', 'validation', `${kind}.json`), { artifactKind: kind, lifecycle: 'verified', sourcePaths: files, sourceHash: hash, irHash: hash, tools: [], startedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T00:00:01.000Z', passed: true, checks: [], toolEvidence });
+  writeValidationReport(path.join(workdir, 'outputs', kind === 'bdd' ? 'bdd' : 'tlaplus', 'validation', `${kind}.json`), { artifactKind: kind, lifecycle: 'verified', sourcePaths: files, sourceHash: hash, irHash: hash, tools: [], startedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T00:00:01.000Z', passed: true, checks: [], ...(toolEvidence ? { toolEvidence } : {}) });
 }
 
 describe('FINAL report content binding', () => {

@@ -5,15 +5,16 @@
  *
  * 根据 --stage 执行不同阶段的验证检查：
  * - S1:   基础检查（STATE.md、index.json、r1-explicit JSONL 文件存在）
- * - R3:   S1 检查 + JSONL 存在性（全子目录）、ID 唯一性、图谱可加载、节点数 >= R1 数
+ * - R3:   S1 检查 + JSONL 存在性（全子目录）、ID 唯一性、图谱可加载、节点数 >= R1 数、
+ *         分层深度闸门（架构树非平铺、深度 >= 2）、孤儿裁决闸门（orphan_adjudications.json）
  * - FINAL: R3 检查 + BDD/TLA+/Lean verified 产物存在且匹配当前内容 sourceHash 的成功验证报告
  *         （Lean 仅在 IR 标记 security/compliance NFR 时必选）；详见 checkFormalArtifacts。
  */
 
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
-import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardCompleteness, checkGlossaryExists } from '../lib/verify-gate/checks-s1.js';
-import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1, checkOrphanRatio } from '../lib/verify-gate/checks-r3.js';
+import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardCompleteness, checkShardCoverage, checkGlossaryExists } from '../lib/verify-gate/checks-s1.js';
+import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1, checkOrphanRatio, checkHierarchyDepth, checkOrphanAdjudication } from '../lib/verify-gate/checks-r3.js';
 import { checkFormalArtifacts } from '../lib/verify-gate/checks-final.js';
 import { checkFidelityReport, checkSafetyCriticalCoverage } from '../lib/verify-gate/checks-fidelity.js';
 import { VALID_STAGES, checkChecklistComplete, type CheckResult, type VerifyOutput } from '../lib/verify-gate/shared.js';
@@ -61,6 +62,7 @@ export async function main(args: string[]): Promise<CliResult> {
   allChecks.push(checkShardIndex(workDir));
   allChecks.push(checkR1HasJsonlFiles(workDir));
   allChecks.push(checkShardCompleteness(workDir));
+  allChecks.push(checkShardCoverage(workDir));
   allChecks.push(checkGlossaryExists(workDir));
 
   // === Stage checklist gates (S1/R3/FINAL) ===
@@ -81,6 +83,8 @@ export async function main(args: string[]): Promise<CliResult> {
     allChecks.push(checkGraphEdgeIntegrity(workDir));
     allChecks.push(checkOrphanRatio(workDir));
     allChecks.push(checkNodeCountVsR1(workDir));
+    allChecks.push(checkHierarchyDepth(workDir));
+    allChecks.push(checkOrphanAdjudication(workDir));
   }
 
   // === FINAL-only checks ===

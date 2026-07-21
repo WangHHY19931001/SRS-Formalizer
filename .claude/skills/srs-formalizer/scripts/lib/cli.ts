@@ -114,9 +114,15 @@ function resolvePath(targetPath: string): string {
 }
 
 export function isPathSafe(targetPath: string, workDir: string): boolean {
-  const resolved = resolvePath(targetPath);
-  const workDirResolved = resolvePath(workDir);
-  return resolved.startsWith(workDirResolved + path.sep) || resolved === workDirResolved;
+  // Normalise separators to '/' for the containment comparison. resolvePath
+  // splits on path.sep, so on Windows a POSIX-style path (or vice-versa) would
+  // never split and the `+ path.sep` boundary check would mix separators,
+  // wrongly rejecting in-workdir paths. Comparing on a single canonical
+  // separator keeps the boundary check correct on every platform.
+  const toPosix = (p: string): string => p.split(path.sep).join('/').replace(/\\/g, '/');
+  const resolved = toPosix(resolvePath(targetPath));
+  const workDirResolved = toPosix(resolvePath(workDir));
+  return resolved === workDirResolved || resolved.startsWith(workDirResolved + '/');
 }
 
 export function assertSafePath(targetPath: string, workDir: string): void {

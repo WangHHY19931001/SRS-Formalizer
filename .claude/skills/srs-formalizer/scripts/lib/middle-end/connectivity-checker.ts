@@ -5,6 +5,66 @@ export interface ConnectivityReport {
   connectedComponents: number;
   bridges: ProposedBridge[];
   orphanShards: string[];
+  /** 架构树最大链长（沿 contains 边，含起止节点）。无架构节点时为 0，单层为 1。 */
+  hierarchyDepth: number;
+  /** 架构节点 ≥3 但相互间无 contains 层级（全部平铺，parent 皆空）时为 true。 */
+  flatTree: boolean;
+  /** 架构（子系统）节点总数。 */
+  architectureNodes: number;
+}
+
+/**
+ * 分层深度分析（多轮提取循环·层次性收敛判据）。
+ * 沿 architecture 节点间的 `contains` 边计算最大链长，并检测"架构塌缩成平铺一层"。
+ */
+export function analyzeHierarchy(ir: SRSIR): {
+  hierarchyDepth: number;
+  flatTree: boolean;
+  architectureNodes: number;
+} {
+  const archIds = new Set<string>();
+  for (const n of ir.nodes) {
+    if (n.type === 'architecture') archIds.add(n.id);
+  }
+  const architectureNodes = archIds.size;
+
+  // parent -> children，仅保留两端都是架构节点的 contains 边
+  const children = new Map<string, Set<string>>();
+  const hasParent = new Set<string>();
+  for (const e of ir.edges) {
+    if (e.type !== 'contains') continue;
+    if (!archIds.has(e.source) || !archIds.has(e.target)) continue;
+    let set = children.get(e.source);
+    if (!set) { set = new Set(); children.set(e.source, set); }
+    set.add(e.target);
+    hasParent.add(e.target);
+  }
+
+  const flatTree = architectureNodes >= 3 && hasParent.size === 0;
+
+  // 最长链（DFS + memo；环由 visiting 栈防护）
+  const memo = new Map<string, number>();
+  const visiting = new Set<string>();
+  function longest(id: string): number {
+    const cached = memo.get(id);
+    if (cached !== undefined) return cached;
+    if (visiting.has(id)) return 1;
+    visiting.add(id);
+    let best = 1;
+    for (const c of children.get(id) ?? []) {
+      best = Math.max(best, 1 + longest(c));
+    }
+    visiting.delete(id);
+    memo.set(id, best);
+    return best;
+  }
+
+  let hierarchyDepth = 0;
+  for (const id of archIds) {
+    hierarchyDepth = Math.max(hierarchyDepth, longest(id));
+  }
+
+  return { hierarchyDepth, flatTree, architectureNodes };
 }
 
 export interface ProposedBridge {
@@ -204,11 +264,15 @@ export function checkConnectivity(ir: SRSIR): ConnectivityReport {
   const totalShards = shardIds.size;
 
   if (totalShards === 0) {
+    const h0 = analyzeHierarchy(ir);
     return {
       totalShards: 0,
       connectedComponents: 0,
       bridges: [],
       orphanShards: [],
+      hierarchyDepth: h0.hierarchyDepth,
+      flatTree: h0.flatTree,
+      architectureNodes: h0.architectureNodes,
     };
   }
 
@@ -216,11 +280,15 @@ export function checkConnectivity(ir: SRSIR): ConnectivityReport {
   const { componentCount, componentMap } = findComponents(shardIds, adj);
   const orphanShards = totalShards > 1 ? findOrphans(shardIds, adj) : [];
   const bridges = proposeBridges(ir, componentMap, componentCount);
+  const hierarchy = analyzeHierarchy(ir);
 
   return {
     totalShards,
     connectedComponents: componentCount,
     bridges,
     orphanShards,
+    hierarchyDepth: hierarchy.hierarchyDepth,
+    flatTree: hierarchy.flatTree,
+    architectureNodes: hierarchy.architectureNodes,
   };
 }

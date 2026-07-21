@@ -40,6 +40,7 @@ describe('validate-architecture command', () => {
         name: '用户管理',
         parent: null,
         contains: ['R1-REQ-0001', 'R1-REQ-0002'],
+        source_shard: 'S001',
         reasoning: '用户管理模块包含登录和注册功能',
       }),
     ]);
@@ -239,6 +240,7 @@ describe('validate-architecture command', () => {
         name: '管理员',
         parent: null,
         contains: [],
+        source_shard: 'S001',
         reasoning: '系统管理员具有最高权限可以管理所有用户',
       }),
     ]);
@@ -249,5 +251,50 @@ describe('validate-architecture command', () => {
     assert.ok(Array.isArray((result.data as ValidationResultData).errors));
     assert.ok(Array.isArray((result.data as ValidationResultData).warnings));
     assert.equal((result.data as ValidationResultData).record_count, 1);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 12: arch-1 record missing source_shard is rejected (§P0-0d)
+  // ---------------------------------------------------------------------------
+  it('rejects arch-1 record without source_shard traceability field', async () => {
+    const fp = writeJsonl('no-source-shard.jsonl', [
+      JSON.stringify({
+        id: 'ARCH-S001-0060',
+        type: 'module',
+        name: '无溯源模块',
+        parent: null,
+        contains: [],
+        reasoning: '该模块缺少 source_shard 溯源字段应被拒绝',
+      }),
+    ]);
+    const { main } = await import('../commands/validate-architecture.js');
+    const result = await main(['--file', fp, '--workdir', WORKDIR]);
+    assert.equal(result.status, 'ok');
+    assert.equal((result.data as ValidationResultData).valid, false);
+    const errors = (result.data as ValidationResultData).errors;
+    assert.ok(errors.some((e: string) => e.includes('source_shard')));
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 13: arch-1 record with malformed source_shard is rejected (§P0-0d)
+  // ---------------------------------------------------------------------------
+  it('rejects arch-1 record with malformed source_shard', async () => {
+    const fp = writeJsonl('bad-source-shard.jsonl', [
+      JSON.stringify({
+        id: 'ARCH-S001-0070',
+        type: 'module',
+        name: '错误溯源模块',
+        parent: null,
+        contains: [],
+        source_shard: 'chapter-5',
+        reasoning: 'source_shard 格式错误应被拒绝，必须匹配 SNNN',
+      }),
+    ]);
+    const { main } = await import('../commands/validate-architecture.js');
+    const result = await main(['--file', fp, '--workdir', WORKDIR]);
+    assert.equal(result.status, 'ok');
+    assert.equal((result.data as ValidationResultData).valid, false);
+    const errors = (result.data as ValidationResultData).errors;
+    assert.ok(errors.some((e: string) => e.includes('source_shard')));
   });
 });

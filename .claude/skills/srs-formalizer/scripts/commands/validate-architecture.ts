@@ -21,6 +21,7 @@ const ARCH2_ID_RE = /^ARCH2-[A-Za-z0-9_.]+-\d{4}$/;
 const ARCH3_ID_RE = /^ARCH3-[A-Za-z0-9_.]+-\d{4}$/;
 const CONTAINS_ID_RE = /^R[12]-[A-Za-z0-9_.]+-\d{4}$/;
 const ASCII_ONLY_RE = /^[\x00-\x7F]*$/;
+const SOURCE_SHARD_RE = /^S\d{3}$/;
 const MIN_REASONING_LENGTH = 10;
 
 interface ArchRecord {
@@ -31,6 +32,8 @@ interface ArchRecord {
   parent?: unknown;
   contains?: unknown;
   reasoning?: unknown;
+  source_shard?: unknown;
+  arch_version?: unknown;
 }
 
 function isString(v: unknown): v is string { return typeof v === 'string'; }
@@ -53,6 +56,12 @@ function validateRecord(record: ArchRecord, index: number): string[] {
   if (archLevel === 1) {
     if (!isString(record.type) || !ARCH1_TYPES.has(record.type)) {
       errors.push(`${prefix}: type must be one of "module", "actor", or "constraint" for arch-1 record, got "${String(record.type)}"`);
+    }
+    // P0-0d: every arch-1 entry must record the source shard it derives from,
+    // so architecture coverage of the source document is traceable and gaps
+    // (e.g. an un-modelled top-level architecture chapter) are detectable.
+    if (!isString(record.source_shard) || !SOURCE_SHARD_RE.test(record.source_shard)) {
+      errors.push(`${prefix}: source_shard is required for arch-1 record and must match SNNN (e.g. "S005"), got "${String(record.source_shard)}"`);
     }
   } else if (archLevel === 2) {
     if (!isString(record.action) || !ARCH2_ACTIONS.has(record.action)) {
@@ -92,6 +101,17 @@ function validateRecord(record: ArchRecord, index: number): string[] {
 
   if (!isString(record.reasoning) || record.reasoning.trim().length < MIN_REASONING_LENGTH) {
     errors.push(`${prefix}: reasoning must be a string with at least ${MIN_REASONING_LENGTH} characters`);
+  }
+
+  // arch_version (multi-round refinement loop): if present, must be 1|2|3 and
+  // consistent with the id prefix (ARCH-→1, ARCH2-→2, ARCH3-→3).
+  const av = record.arch_version;
+  if (av !== undefined) {
+    if (av !== 1 && av !== 2 && av !== 3) {
+      errors.push(`${prefix}: arch_version must be 1, 2, or 3, got "${String(av)}"`);
+    } else if (archLevel !== null && av !== archLevel) {
+      errors.push(`${prefix}: arch_version ${av} is inconsistent with id-prefix level ${archLevel}`);
+    }
   }
 
   return errors;

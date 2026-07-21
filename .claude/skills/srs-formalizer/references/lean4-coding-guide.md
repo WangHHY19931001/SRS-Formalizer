@@ -53,6 +53,33 @@ lean --version    # Lean 4.x
 lake --version    # Lake 4.x
 ```
 
+### 0.3b lakefile 字段格式（§P2-8，避免类型错误）
+
+当前 Lake 版本要求 `lakefile.lean` 的 `package`/`lean_lib` **名称用标识符（identifier），不是字符串字面量**。旧示例里的 `package name := "字符串"` 会报类型错误。正确写法：
+
+```lean
+import Lake
+open Lake DSL
+
+package srs_proofs where
+  -- 选项用 leanOptions，不要在 name 处写字符串字面量
+
+@[default_target]
+lean_lib SrsProofs where
+```
+
+或改用 `lakefile.toml`（字段值才是字符串）：
+
+```toml
+name = "srs_proofs"
+defaultTargets = ["SrsProofs"]
+
+[[lean_lib]]
+name = "SrsProofs"
+```
+
+要点：`lakefile.lean` 里 `package <ident>` / `lean_lib <Ident>` 后跟标识符；仅 `lakefile.toml` 的 `name = "..."` 才用字符串。`lake init` 会生成符合当前版本的骨架，优先在其基础上修改而非手写字符串字面量。
+
 ### 0.4 平台限制
 
 | 平台 | 状态 | 说明 |

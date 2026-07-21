@@ -6,7 +6,19 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readJsonl, listJsonlFiles } from '../jsonl.js';
 import { Graph, type GraphData } from '../graph.js';
+import { checkConnectivity } from '../middle-end/connectivity-checker.js';
+import type { SRSIR } from '../../types/srs-ir.js';
 import type { CheckResult } from './shared.js';
+
+function loadIR(workDir: string): SRSIR | null {
+  const irPath = path.join(workDir, 'srs-ir.json');
+  if (!fs.existsSync(irPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(irPath, 'utf-8')) as SRSIR;
+  } catch {
+    return null;
+  }
+}
 
 export function checkAllJsonlDirsHaveFiles(workDir: string): CheckResult {
   const jsonlDirs = ['2_extract/r1-explicit', '2_extract/r2-implicit', '2_extract/r3-relational'];
@@ -258,4 +270,112 @@ export function checkGraphEdgeIntegrity(workDir: string): CheckResult {
   } catch {
     return { name: 'Graph edge integrity', passed: false, detail: 'Could not verify edges' };
   }
+}
+
+/** 分层深度收敛判据：架构树最大链长至少 2（即至少一层子系统嵌套）。 */
+export const MIN_HIERARCHY_DEPTH = 2;
+
+/**
+ * R3 分层深度闸门（多轮提取循环·层次性收敛判据）。
+ * 架构树塌缩成平铺一层（≥3 架构节点但无 contains 层级），或最大链长 < 2，即失败。
+ */
+export function checkHierarchyDepth(workDir: string): CheckResult {
+  const ir = loadIR(workDir);
+  if (!ir) {
+    return { name: 'Architecture hierarchy depth', passed: true, detail: 'No srs-ir.json (skipped)' };
+  }
+  const report = checkConnectivity(ir);
+  if (report.architectureNodes === 0) {
+    return { name: 'Architecture hierarchy depth', passed: true, detail: 'No architecture nodes (skipped)' };
+  }
+  if (report.flatTree) {
+    return {
+      name: 'Architecture hierarchy depth',
+      passed: false,
+      detail: `architecture tree is flat (${report.architectureNodes} nodes, no contains hierarchy); hierarchy collapsed`,
+    };
+  }
+  if (report.hierarchyDepth < MIN_HIERARCHY_DEPTH) {
+    return {
+      name: 'Architecture hierarchy depth',
+      passed: false,
+      detail: `no subsystem hierarchy detected (depth ${report.hierarchyDepth} < ${MIN_HIERARCHY_DEPTH})`,
+    };
+  }
+  return {
+    name: 'Architecture hierarchy depth',
+    passed: true,
+    detail: `hierarchy depth ${report.hierarchyDepth} over ${report.architectureNodes} architecture nodes`,
+  };
+}
+
+interface OrphanAdjudication {
+  shardId: string;
+  standalone: boolean;
+  reason: string;
+}
+
+function loadAdjudications(workDir: string): Map<string, OrphanAdjudication> {
+  const map = new Map<string, OrphanAdjudication>();
+  const p = path.join(workDir, '_ctx', 'orphan_adjudications.json');
+  if (!fs.existsSync(p)) return map;
+  try {
+    const raw = JSON.parse(fs.readFileSync(p, 'utf-8')) as unknown;
+    if (Array.isArray(raw)) {
+      for (const item of raw) {
+        const a = item as OrphanAdjudication;
+        if (
+          a && typeof a === 'object' &&
+          typeof a.shardId === 'string' &&
+          a.standalone === true &&
+          typeof a.reason === 'string' && a.reason.trim().length > 0
+        ) {
+          map.set(a.shardId, a);
+        }
+      }
+    }
+  } catch { /* malformed treated as empty */ }
+  return map;
+}
+
+/**
+ * R3 孤儿裁决闸门（多轮提取循环·连通性收敛判据）。
+ * 每个孤儿分片必须在 _ctx/orphan_adjudications.json 中被显式裁决为 standalone
+ * （附非空 reason），或有被接受的桥接边；否则失败。
+ */
+export function checkOrphanAdjudication(workDir: string): CheckResult {
+  const ir = loadIR(workDir);
+  if (!ir) {
+    return { name: 'Orphan shard adjudication', passed: true, detail: 'No srs-ir.json (skipped)' };
+  }
+  const report = checkConnectivity(ir);
+  const orphans = report.orphanShards;
+  if (orphans.length === 0) {
+    return {
+      name: 'Orphan shard adjudication',
+      passed: true,
+      detail: `connectedComponents=${report.connectedComponents}; no orphan shards`,
+    };
+  }
+  const adjudications = loadAdjudications(workDir);
+  const bridged = new Set<string>();
+  for (const b of report.bridges) {
+    const src = ir.nodes.find(n => n.id === b.sourceNode)?.source.shardId;
+    const tgt = ir.nodes.find(n => n.id === b.targetNode)?.source.shardId;
+    if (src) bridged.add(src);
+    if (tgt) bridged.add(tgt);
+  }
+  const unadjudicated = orphans.filter(o => !adjudications.has(o) && !bridged.has(o));
+  if (unadjudicated.length > 0) {
+    return {
+      name: 'Orphan shard adjudication',
+      passed: false,
+      detail: `${unadjudicated.length} orphan shard(s) unadjudicated: ${unadjudicated.slice(0, 5).join(', ')} (declare standalone+reason in _ctx/orphan_adjudications.json or add a bridge)`,
+    };
+  }
+  return {
+    name: 'Orphan shard adjudication',
+    passed: true,
+    detail: `${orphans.length} orphan(s) all adjudicated (standalone or bridged)`,
+  };
 }

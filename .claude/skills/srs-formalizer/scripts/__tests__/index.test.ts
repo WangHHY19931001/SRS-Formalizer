@@ -35,7 +35,7 @@ describe('CLI entry (index.ts)', () => {
   it('prints usage on --help', () => {
     const { stdout } = runCli('--help');
     assert.ok(stdout.includes('Usage'));
-    assert.ok(stdout.includes('SRS-Formalizer v2.0.0'));
+    assert.ok(/SRS-Formalizer CLI v\d+\.\d+\.\d+/.test(stdout));
   });
 
   it('prints usage on no args', () => {

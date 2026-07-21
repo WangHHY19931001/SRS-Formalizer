@@ -11,7 +11,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CliResult, JsonlRecord } from '../types/index.js';
-import type { SRSIR, IRNode } from '../types/srs-ir.js';
+import type { SRSIR, IRNode, FormalizationPriority } from '../types/srs-ir.js';
 import {
   safeParseArg,
   validateWorkDir,
@@ -49,7 +49,7 @@ function toIRNode(record: JsonlRecord): IRNode {
       statement: record.statement,
       category: record.category,
       confidence: record.confidence,
-      ...(FORMALIZATION_PRIORITIES.has(rawPriority) ? { formalizationPriority: rawPriority as IRNode['properties']['formalizationPriority'] } : {}),
+      ...(FORMALIZATION_PRIORITIES.has(rawPriority) ? { formalizationPriority: rawPriority as FormalizationPriority } : {}),
       ...(ridRef ? { ridRef } : {}),
     },
     source: {
@@ -112,6 +112,50 @@ function checkIntegrity(ir: SRSIR): string[] {
   return errors;
 }
 
+interface ShardIndexMeta {
+  sourcePath: string;
+  sourceHash: string;
+  language: 'zh' | 'en';
+  totalChars: number;
+  totalShards: number;
+}
+
+/** P1-5: pull IR meta from `_ctx/shard_index.json`, falling back to safe defaults. */
+function readShardIndexMeta(workDir: string): ShardIndexMeta {
+  const fallback: ShardIndexMeta = { sourcePath: '', sourceHash: '', language: 'zh', totalChars: 0, totalShards: 0 };
+  try {
+    const indexPath = path.join(workDir, '_ctx', 'shard_index.json');
+    if (!fs.existsSync(indexPath)) return fallback;
+    const raw = JSON.parse(fs.readFileSync(indexPath, 'utf-8')) as Record<string, unknown>;
+    const language = raw['language'] === 'en' ? 'en' : 'zh';
+    return {
+      sourcePath: toStr(raw['source_path'], ''),
+      sourceHash: toStr(raw['source_hash'], ''),
+      language,
+      totalChars: toNum(raw['total_chars'], 0),
+      totalShards: toNum(raw['total_shards'], Array.isArray(raw['shards']) ? (raw['shards'] as unknown[]).length : 0),
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * P1-5: emit `3_graph/graph/graph.merged.json` directly from the assembled IR so
+ * the R3 gate no longer requires a separate manual graph export.
+ */
+function writeMergedGraph(workDir: string, ir: SRSIR): string {
+  const graphData = {
+    nodes: ir.nodes.map(node => ({ id: node.id, labels: node.labels, properties: { ...node.properties } })),
+    edges: ir.edges.map(edge => ({ id: edge.id, source: edge.source, target: edge.target, type: edge.type, properties: edge.properties })),
+  };
+  const graphDir = path.join(workDir, '3_graph', 'graph');
+  fs.mkdirSync(graphDir, { recursive: true });
+  const graphPath = path.join(graphDir, 'graph.merged.json');
+  fs.writeFileSync(graphPath, JSON.stringify(graphData, null, 2), 'utf-8');
+  return graphPath;
+}
+
 export async function main(args: string[]): Promise<CliResult> {
   let workDirArg: string | null;
   try {
@@ -164,20 +208,27 @@ export async function main(args: string[]): Promise<CliResult> {
       }
     }
 
+    // P1-5: derive meta.{sourcePath,sourceHash,language,totalChars,totalShards}
+    // from shard_index.json when present so these are no longer manual steps.
+    const shardMeta = readShardIndexMeta(workDir);
+
+    const edges: SRSIR['edges'] = [];
     const ir: SRSIR = {
       version: '2.0.0',
       meta: {
-        sourcePath: '',
-        sourceHash: '',
-        language: 'zh',
-        totalChars: 0,
-        totalShards: 0,
+        sourcePath: shardMeta.sourcePath,
+        sourceHash: shardMeta.sourceHash,
+        language: shardMeta.language,
+        totalChars: shardMeta.totalChars,
+        totalShards: shardMeta.totalShards,
+        // P1-5: totalNodes/totalEdges are always computed from the assembled
+        // collections, never left for a human to fill in (§P1-5,阻塞点 #6).
         totalNodes: nodes.length,
-        totalEdges: 0,
+        totalEdges: edges.length,
         buildTimestamp: new Date().toISOString(),
       },
       nodes,
-      edges: [],
+      edges,
       crossRefs: [],
       nfrProfile: {
         detectedCategories: [],
@@ -197,9 +248,13 @@ export async function main(args: string[]): Promise<CliResult> {
     const irPath = path.join(workDir, 'srs-ir.json');
     fs.writeFileSync(irPath, JSON.stringify(ir, null, 2), 'utf-8');
 
+    // P1-5: also emit graph/graph.merged.json so the R3 gate's "graph file
+    // found" check no longer needs a manual export step (阻塞点 #8).
+    const graphPath = writeMergedGraph(workDir, ir);
+
     return {
       status: 'ok',
-      data: { nodes: ir.meta.totalNodes, edges: ir.meta.totalEdges, ir_path: irPath },
+      data: { nodes: ir.meta.totalNodes, edges: ir.meta.totalEdges, ir_path: irPath, graph_path: graphPath },
     };
   } catch (err) {
     return { status: 'error', message: `IR assembly failed: ${(err as Error).message}` };

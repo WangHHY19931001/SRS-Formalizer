@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5+-3178C6?logo=typescript)](.claude/skills/srs-formalizer/scripts/tsconfig.json)
-[![Tests](https://img.shields.io/badge/Tests-200%2B-brightgreen)]()
+[![Tests](https://img.shields.io/badge/Tests-287-brightgreen)]()
 
 ## Agent 驱动架构 / Agent-Driven Architecture
 
@@ -60,6 +60,7 @@ SRS → Frontend (Parse→Shard→Extract→IR) → Middle-end (6 passes) → Ba
 - Node.js ≥ 20
 - Java JRE/JDK ≥ 11 (用于 TLA+ 验证)
 - Lean 4 (可选，用于定理证明)
+- 平台：Windows 与 Linux/WSL2 均已验证（跨平台路径与 hash 一致）
 
 ```bash
 git clone https://github.com/WangHHY19931001/SRS-Formalizer.git
@@ -119,7 +120,23 @@ outputs/lean4/draft    → outputs/lean4/verified
 outputs/graphs, fixtures, reports — 确定性产物，无需验证
 ```
 
-使用各自的 `validate-… --strict --promote` 命令完成审计、工具链验证、报告写入与原子提升。
+使用各自的 `validate-… --strict --promote` 命令完成审计、工具链验证、报告写入与原子提升。多模块 TLA+ 采用累加式提升（`promoteFilesMerge`，不清空其他模块），`verify-gate --stage FINAL` 按**模块集合**核验覆盖而非文件数。`hashFiles` 按 basename+内容寻址（与绝对路径无关），draft/verified 路径切换不影响报告匹配。
+
+## 上游覆盖率门禁 / Upstream Coverage Gates
+
+为防止"上游需求丢失但门禁全绿"的假通过：
+
+- **S1 分片覆盖率硬核验**：`verify-gate --stage S1` 确认 `shard_index.json` 中每个分片都有非空 R1 提取（按 `R1-<shard>-NNNN` id 的分片段统计，区间命名文件无法掩盖缺口）；确无规范的分片须在 `2_extract/r1-explicit/_empty_shards.json` 显式声明。
+- **架构溯源**：每条 arch-1 记录必须带 `source_shard`（`SNNN`）字段；可选顶层 `arch_version`（1|2|3）须与 id 前缀一致。
+- 产物格式契约速查：`references/artifact-contract-cheatsheet.md`。
+
+## 多轮需求提取精细化循环 / Multi-Round Refinement Loop
+
+Frontend 采用**架构树版本化 × 需求提取交替演进**：显式 R1 → 架构树 v1 → 隐含 R2 → 架构树 v2（reparent/merge）→ 跨子系统补全 → 架构树 v3（依赖层）→ 精细化补全 → 装配 IR → 收敛闸门。`total_shards < 50` 退化为单版架构树；相邻版本 diff < 阈值提前收敛；迭代上限 5 轮，超限 `BLOCKED`。
+
+**三态 provenance（守 Inversion 铁律）**：每条推导/补全需求写 `metadata.provenance`——`explicit-located`（逐字可定位 → 进 IR）、`doc-derived`（文档可推导，implicit + medium/low → 进 IR）、`needs-clarification`（推导不出 → **不进 IR**，挂 `GAPS.md`，走 HITL 单问题+推荐答案澄清）。`validate-jsonl` 硬校验三态，`needs-clarification` 禁入 r*/architecture JSONL。唯一事实源 = 设计文档；跨子系统补全只从文档推导。
+
+**收敛双闸门（`verify-gate --stage R3`）**：连通性（孤儿逐个裁决，写 `_ctx/orphan_adjudications.json` 或补桥接边）+ 层次性（架构树 `contains` 链深度 ≥2，塌缩成平铺即 FAIL）。
 
 ## 示例 / Examples
 
@@ -133,7 +150,7 @@ See [.claude/skills/srs-formalizer/examples/](.claude/skills/srs-formalizer/exam
 # Run all checks before committing
 cd .claude/skills/srs-formalizer/scripts
 npm run typecheck    # TypeScript strict mode, 0 errors
-npm test             # 200+ tests, 0 failures
+npm test             # 270 tests, 0 failures
 npm run evals        # Deterministic toolchain evaluation
 ```
 
@@ -146,7 +163,7 @@ npm run evals        # Deterministic toolchain evaluation
 - **TypeScript 5.5+** strict mode
 - **Node.js ≥20** ESM
 - **零运行时 npm 依赖** — devDeps only: typescript, @types/node, gherkin-lint, gherklin
-- 测试：Node.js 原生 `node:test`（200+ 用例, 0 fail）
+- 测试：Node.js 原生 `node:test`（287 用例, 0 fail；Windows 与 Linux/WSL2 双平台验证）
 - IR：SRS-IR v2.0.0（强类型中间表示）
 - 形式化工具：内置 TLA+ Tools + Lean 4 + gherkin-lint + Gherklin
 

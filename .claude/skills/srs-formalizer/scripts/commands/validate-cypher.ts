@@ -99,6 +99,14 @@ function validateCypher(content: string): string[] {
   let inStatement = false;
   let statementStartLine = 0;
 
+  // P2-7: bracket depth is tracked CUMULATIVELY across lines, not per-line.
+  // Neo4j 4+ batch syntax (`CALL { ... } IN TRANSACTIONS`) legitimately opens a
+  // brace on one line and closes it several lines later; the old per-line check
+  // flagged the closing `}` line as an "unmatched closing bracket". We only flag
+  // a genuine error when the running depth drops below zero (a close with no
+  // matching open).
+  let runningDepth = 0;
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
     const trimmed = line.trim();
@@ -106,9 +114,9 @@ function validateCypher(content: string): string[] {
     // Skip empty lines and comments
     if (trimmed === '' || trimmed.startsWith('//')) continue;
 
-    // Detect start of a CREATE/MATCH statement
-    // Only start tracking when not already inside a statement
-    if (!inStatement && /^\s*(CREATE|MATCH)\b/.test(line)) {
+    // Detect start of a top-level statement. CALL is a valid entry point for
+    // Neo4j subquery/batch statements alongside CREATE/MATCH.
+    if (!inStatement && /^\s*(CREATE|MATCH|CALL|MERGE|UNWIND)\b/.test(line)) {
       inStatement = true;
       statementStartLine = i + 1;
     }
@@ -136,18 +144,20 @@ function validateCypher(content: string): string[] {
       }
     }
 
-    // Brackets check per line (only when not inside quotes)
+    // Cumulative bracket check (only when not inside quotes). A negative running
+    // depth means a closing bracket with no matching opener.
     if (!inSingleQuote && !inDoubleQuote) {
-      const bracketDepth = checkBrackets(line);
-      if (bracketDepth < 0) {
+      runningDepth += checkBrackets(line);
+      if (runningDepth < 0) {
         errors.push(`Line ${i + 1}: unmatched closing bracket`);
+        runningDepth = 0; // recover so a single stray close does not cascade
       }
     }
   }
 
   // After processing all lines, check for unclosed statements
   if (inStatement) {
-    errors.push(`Line ${statementStartLine}: CREATE/MATCH statement is not terminated with ";"`);
+    errors.push(`Line ${statementStartLine}: statement is not terminated with ";"`);
   }
 
   // After processing all lines, check for unclosed quotes
@@ -158,15 +168,9 @@ function validateCypher(content: string): string[] {
     errors.push('Unclosed double quote at end of file');
   }
 
-  // Check for unbalanced brackets across the whole file
-  let totalDepth = 0;
-  for (const line of lines) {
-    totalDepth += checkBrackets(line);
-  }
-  if (totalDepth > 0) {
+  // Any leftover positive depth means an opener never closed.
+  if (runningDepth > 0) {
     errors.push('Unmatched opening bracket(s) at end of file');
-  } else if (totalDepth < 0) {
-    errors.push('Unmatched closing bracket(s)');
   }
 
   return errors;

@@ -4,7 +4,7 @@ import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 import { ARTIFACT_PATHS, artifactPath } from '../lib/artifacts/paths.js';
 import { hashFiles, hashText, writeValidationReport } from '../lib/artifacts/validation-report.js';
-import { promoteFiles } from '../lib/artifacts/promotion.js';
+import { promoteFilesMerge } from '../lib/artifacts/promotion.js';
 import { validateTla } from '../lib/tla-validator.js';
 
 const PLACEHOLDER = /LLM_FILL|TODO|FIXME|TBD|\bGAP\b|待定|未定义|待实现/i;
@@ -181,7 +181,7 @@ export async function main(args: string[]): Promise<CliResult> {
   // Promote first, then hash the FINAL file locations (verified/ when --promote, draft/ otherwise)
   // so that checks-final.ts (which hashes the verified/ paths) can match the report's sourceHash.
   // Earlier versions hashed draft paths which never matched verified paths.
-  const files = promote ? promoteFiles(sourceDir, artifactPath(workDir, ARTIFACT_PATHS.tlaVerified), [`${name}.tla`, `${name}.cfg`]) : [tlaFile, cfgFile];
+  const files = promote ? promoteFilesMerge(sourceDir, artifactPath(workDir, ARTIFACT_PATHS.tlaVerified), [`${name}.tla`, `${name}.cfg`]) : [tlaFile, cfgFile];
   const sourceHash = hashFiles(files);
   const reportPath = path.join(artifactPath(workDir, ARTIFACT_PATHS.tlaValidation), `${sourceHash}.json`);
   writeValidationReport(reportPath, {

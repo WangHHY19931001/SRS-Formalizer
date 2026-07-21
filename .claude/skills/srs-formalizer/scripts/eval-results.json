@@ -3,8 +3,8 @@
   "total": 3,
   "passed": 0,
   "failed": 3,
-  "durationMs": 12,
-  "gitCommit": "f9c866e21d66feab0e1bcbdd84ebff7d6e95a616",
+  "durationMs": 10,
+  "gitCommit": "b80995cf9956c43f973521d1c81239b717e6452e",
   "results": [
     {
       "name": "lifecycle-and-report-binding",
@@ -21,7 +21,7 @@
     {
       "name": "artifact-contracts",
       "passed": false,
-      "durationMs": 5,
+      "durationMs": 3,
       "output": "\n"
     }
   ]
