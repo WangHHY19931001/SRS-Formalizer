@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { checkEdgeTypeDiversity, checkContainsEdgeDirection } from '../lib/verify-gate/checks-r3.js';
+import { checkEdgeTypeDiversity, checkContainsEdgeDirection, checkR2R3Ingest } from '../lib/verify-gate/checks-r3.js';
 
 describe('R3 edge type diversity (P1-2)', () => {
   it('should fail when 100% of edges are contains', () => {
@@ -234,6 +234,101 @@ describe('R3 contains edge direction (P1-3)', () => {
       const result = checkContainsEdgeDirection(tmpDir);
       assert.equal(result.passed, false);
       assert.match(result.detail ?? '', /No graph file/i);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('R3 R2/R3 ingest check (P1-4)', () => {
+  it('should fail when R2 JSONL records are not in IR', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r3-r2r3-ingest-'));
+    try {
+      // 创建 R2 JSONL（有 2 条记录）
+      fs.mkdirSync(path.join(tmpDir, '2_extract', 'r2-implicit'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmpDir, '2_extract', 'r2-implicit', 'test.jsonl'),
+        JSON.stringify({ id: 'R2-S001-0001', category: 'implicit', statement: 'implicit req 1', source_file: 'test.md', confidence: 'medium', metadata: { derived_from: 'R1-S001-0001', provenance: 'doc-derived' } }) + '\n' +
+        JSON.stringify({ id: 'R2-S001-0002', category: 'implicit', statement: 'implicit req 2', source_file: 'test.md', confidence: 'medium', metadata: { derived_from: 'R1-S001-0001', provenance: 'doc-derived' } }) + '\n'
+      );
+      // IR 中没有 R2 节点
+      fs.mkdirSync(path.join(tmpDir, '3_graph', 'graph'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmpDir, '3_graph', 'graph', 'graph.merged.json'),
+        JSON.stringify({ nodes: [{ id: 'R1-S001-0001', labels: [':Requirement'] }], edges: [] })
+      );
+      const result = checkR2R3Ingest(tmpDir);
+      assert.equal(result.passed, false, 'R2 records missing from IR should fail');
+      assert.match(result.detail ?? '', /R2/i);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should pass when all R2/R3 records are in IR', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r3-r2r3-ingest-ok-'));
+    try {
+      fs.mkdirSync(path.join(tmpDir, '2_extract', 'r2-implicit'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmpDir, '2_extract', 'r2-implicit', 'test.jsonl'),
+        JSON.stringify({ id: 'R2-S001-0001', category: 'implicit', statement: 'implicit req 1', source_file: 'test.md', confidence: 'medium', metadata: { provenance: 'doc-derived' } }) + '\n'
+      );
+      // IR 中包含 R2 节点
+      fs.mkdirSync(path.join(tmpDir, '3_graph', 'graph'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmpDir, '3_graph', 'graph', 'graph.merged.json'),
+        JSON.stringify({ nodes: [{ id: 'R2-S001-0001', labels: [':Requirement'] }], edges: [] })
+      );
+      const result = checkR2R3Ingest(tmpDir);
+      assert.equal(result.passed, true);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should skip needs-clarification records (not expected in IR)', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r3-r2r3-ingest-skip-'));
+    try {
+      fs.mkdirSync(path.join(tmpDir, '2_extract', 'r2-implicit'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmpDir, '2_extract', 'r2-implicit', 'test.jsonl'),
+        JSON.stringify({ id: 'R2-S001-0001', category: 'implicit', statement: 'needs clarification', source_file: 'test.md', confidence: 'low', metadata: { provenance: 'needs-clarification' } }) + '\n'
+      );
+      // IR 中没有该节点（因为是 needs-clarification，不进 IR 是正常的）
+      fs.mkdirSync(path.join(tmpDir, '3_graph', 'graph'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmpDir, '3_graph', 'graph', 'graph.merged.json'),
+        JSON.stringify({ nodes: [{ id: 'R1-S001-0001', labels: [':Requirement'] }], edges: [] })
+      );
+      const result = checkR2R3Ingest(tmpDir);
+      assert.equal(result.passed, true, 'needs-clarification records should be skipped');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should fail when graph file is missing', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r3-r2r3-ingest-nofile-'));
+    try {
+      const result = checkR2R3Ingest(tmpDir);
+      assert.equal(result.passed, false);
+      assert.match(result.detail ?? '', /No graph file/i);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should pass when R2/R3 directories do not exist', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'r3-r2r3-ingest-nodir-'));
+    try {
+      // 只有 graph 文件，无 2_extract/r2-implicit 和 r3-relational
+      fs.mkdirSync(path.join(tmpDir, '3_graph', 'graph'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmpDir, '3_graph', 'graph', 'graph.merged.json'),
+        JSON.stringify({ nodes: [{ id: 'R1-S001-0001', labels: [':Requirement'] }], edges: [] })
+      );
+      const result = checkR2R3Ingest(tmpDir);
+      assert.equal(result.passed, true, 'no R2/R3 dirs should pass');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
