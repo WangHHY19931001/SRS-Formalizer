@@ -4,7 +4,7 @@
 
 An AI agent skill that formalizes SRS documents into Cypher graphs, Gherkin BDD, TLA+ specs, and Lean 4 proofs. The actual code lives under `.claude/skills/srs-formalizer/scripts/`. The root is mostly docs and config.
 
-**Architecture**: Agent-driven (Agent 驱动 + 脚本门禁). Scripts only do deterministic gate validation + specialized algorithms; all semantic work (parsing/extraction/analysis/generation) is done by Agent via SKILL.md + prompts + references. 19 commands: 11 Gate Validators + 8 Independent Tools. All artifacts derive from a single SRS-IR (`srs-ir.json`, v2.1.0).
+**Architecture**: Agent-driven (Agent 驱动 + 脚本门禁). Scripts only do deterministic gate validation + specialized algorithms; all semantic work (parsing/extraction/analysis/generation) is done by Agent via SKILL.md + prompts + references. 22 commands: 11 Gate Validators + 11 Independent Tools. All artifacts derive from a single SRS-IR (`srs-ir.json`, v2.1.0).
 
 ## Build & verify (run from `.claude/skills/srs-formalizer/scripts/`)
 
@@ -47,8 +47,8 @@ Agent-driven: **Frontend** (Agent parses SRS → shards → extracts JSONL → a
 
 ```
 scripts/
-├── index.ts             # CLI entrypoint (registry pattern, 19 commands)
-├── commands/            # 19 commands (11 gate validators + 8 tools), all ≤300 lines
+├── index.ts             # CLI entrypoint (registry pattern, 22 commands)
+├── commands/            # 22 commands (11 gate validators + 11 tools), all ≤300 lines
 ├── lib/
 │   ├── verify-gate/     # 三级门禁 (S1/R3/FINAL)
 │   ├── artifacts/       # 产物路径契约 + hash 绑定 + 提升
@@ -73,7 +73,7 @@ scripts/
 | Group | Commands |
 |------|------|
 | Gate Validators | `validate-jsonl`, `validate-semantics`, `validate-architecture`, `validate-cypher`, `validate-bdd --strict --promote`, `validate-tla --strict --promote`, `validate-lean --strict --promote`, `validate-glossary`, `validate-checklist`, `validate-dataflow`, `verify-gate` |
-| Independent Tools | `assemble-ir`, `check-connectivity`, `analyze-dataflow`, `query-graph`, `hash-compute`, `tlc-trace-parse`, `verify-skill-integrity`, `pack-skill` |
+| Independent Tools | `assemble-ir`, `check-connectivity`, `analyze-dataflow`, `build-rid-mapping`, `analyze-fidelity`, `validate-convergence-log`, `query-graph`, `hash-compute`, `tlc-trace-parse`, `verify-skill-integrity`, `pack-skill` |
 
 ## Gotchas
 

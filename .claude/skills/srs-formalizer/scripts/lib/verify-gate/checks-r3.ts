@@ -435,3 +435,185 @@ export function checkAtomicTree(workDir: string): CheckResult {
     detail: problems.join('; '),
   };
 }
+
+/** 最大允许 contains 边占比。超过即判为 error——意味着 R3-relational 的
+ *  depends_on/refines/conflicts_with 关系未被 ingest 到 IR edges。 */
+export const MAX_CONTAINS_RATIO = 0.95;
+
+/**
+ * R3: 边类型多样性检查。
+ *
+ * 如果 contains 边占比超过 MAX_CONTAINS_RATIO（默认 95%），说明 IR edges
+ * 几乎全是架构包含关系，R3-relational JSONL 中的 depends_on/refines/
+ * conflicts_with 等语义关系未被 ingest。这是 assemble-ir toIREdges() 缺陷
+ * 的典型症状（根因报告 §4.2）。
+ *
+ * 空图（0 边）视为通过，交由其它检查处理。
+ */
+export function checkEdgeTypeDiversity(workDir: string): CheckResult {
+  try {
+    const graphPaths = [
+      path.join(workDir, '3_graph', 'graph', 'graph.merged.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.json'),
+    ];
+    let graphData: { edges: { type: string }[] } | null = null;
+    for (const gp of graphPaths) {
+      if (fs.existsSync(gp)) {
+        graphData = JSON.parse(fs.readFileSync(gp, 'utf-8')) as { edges: { type: string }[] };
+        break;
+      }
+    }
+    if (!graphData) return { name: 'Edge type diversity', passed: false, detail: 'No graph file found' };
+    const total = graphData.edges.length;
+    if (total === 0) return { name: 'Edge type diversity', passed: true, detail: 'No edges (skipped)' };
+
+    const typeCounts = new Map<string, number>();
+    for (const e of graphData.edges) {
+      typeCounts.set(e.type, (typeCounts.get(e.type) ?? 0) + 1);
+    }
+    const containsCount = typeCounts.get('contains') ?? 0;
+    const containsRatio = containsCount / total;
+    const passed = containsRatio <= MAX_CONTAINS_RATIO;
+    const typeBreakdown = [...typeCounts.entries()].map(([t, c]) => `${t}:${c}`).join(', ');
+    return {
+      name: 'Edge type diversity',
+      passed,
+      detail: passed
+        ? `edge types: ${typeBreakdown} (contains ${containsRatio.toFixed(2)} <= ${MAX_CONTAINS_RATIO})`
+        : `edge diversity too low: contains ${containsRatio.toFixed(2)} > ${MAX_CONTAINS_RATIO} (${containsCount}/${total}); R3-relational relations may not be ingested into IR edges`,
+    };
+  } catch (err) {
+    return { name: 'Edge type diversity', passed: false, detail: `Could not compute edge type diversity: ${(err as Error).message}` };
+  }
+}
+
+/**
+ * R3: contains 边方向检查。
+ *
+ * contains 边语义为「架构包含需求」，方向必须为
+ * (Architecture)-[:contains]->(Requirement) 或
+ * (Architecture)-[:contains]->(Architecture)（子系统嵌套）。
+ *
+ * 根因报告 §4.3 发现 165 条边反向写成
+ * (Requirement)-[:contains]->(Architecture)，语义完全反转。
+ *
+ * 通过 node.labels 判断节点类型：含 ':Architecture' 为架构节点，
+ * 含 ':Requirement' 为需求节点。
+ */
+export function checkContainsEdgeDirection(workDir: string): CheckResult {
+  try {
+    const graphPaths = [
+      path.join(workDir, '3_graph', 'graph', 'graph.merged.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.json'),
+    ];
+    type EdgeDirGraph = {
+      nodes: { id: string; labels: string[] }[];
+      edges: { id: string; source: string; target: string; type: string }[];
+    };
+    let graphData: EdgeDirGraph | null = null;
+    for (const gp of graphPaths) {
+      if (fs.existsSync(gp)) { graphData = JSON.parse(fs.readFileSync(gp, 'utf-8')) as EdgeDirGraph; break; }
+    }
+    if (!graphData) return { name: 'Contains edge direction', passed: false, detail: 'No graph file found' };
+
+    const labelMap = new Map<string, string[]>();
+    for (const n of graphData.nodes) labelMap.set(n.id, n.labels ?? []);
+
+    const isArch = (id: string): boolean => {
+      const labels = labelMap.get(id) ?? [];
+      return labels.some(l => l.toLowerCase().includes('architecture'));
+    };
+    const isReq = (id: string): boolean => {
+      const labels = labelMap.get(id) ?? [];
+      return labels.some(l => l.toLowerCase().includes('requirement'));
+    };
+
+    const reversed: string[] = [];
+    let containsCount = 0;
+    for (const e of graphData.edges) {
+      if (e.type !== 'contains') continue;
+      containsCount++;
+      // 反向：source 是 Requirement，target 是 Architecture
+      if (isReq(e.source) && isArch(e.target)) {
+        reversed.push(`${e.id}: ${e.source}→${e.target}`);
+      }
+    }
+    if (containsCount === 0) return { name: 'Contains edge direction', passed: true, detail: 'No contains edges (skipped)' };
+    const passed = reversed.length === 0;
+    return {
+      name: 'Contains edge direction',
+      passed,
+      detail: passed
+        ? `All ${containsCount} contains edges have correct direction (Architecture→Requirement/Architecture)`
+        : `${reversed.length}/${containsCount} contains edges reversed (Requirement→Architecture): ${reversed.slice(0, 5).join(', ')}`,
+    };
+  } catch (err) {
+    return { name: 'Contains edge direction', passed: false, detail: `Could not check edge directions: ${(err as Error).message}` };
+  }
+}
+
+/**
+ * R3: R2/R3 节点入 IR 检查。
+ *
+ * 统计 r2-implicit 和 r3-relational JSONL 中的记录数，与 IR/graph 中的
+ * R2 / R3 节点数比对。如果 JSONL 有记录但 IR 中无对应节点，说明
+ * assemble-ir 未将 R2/R3 ingest 到 IR（根因报告 §4.1：83 条丢失）。
+ *
+ * 容忍率：允许 IR 中 R2/R3 节点数 >= JSONL 记录数的 90%（provenance
+ * 为 needs-clarification 的记录不进 IR，属正常）。
+ */
+export function checkR2R3Ingest(workDir: string): CheckResult {
+  try {
+    const subdirs = ['2_extract/r2-implicit', '2_extract/r3-relational'];
+    const issues: string[] = [];
+
+    // 加载 graph 节点 ID 集合
+    const graphPaths = [
+      path.join(workDir, '3_graph', 'graph', 'graph.merged.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json'),
+      path.join(workDir, '3_graph', 'graph', 'graph.json'),
+    ];
+    let irNodeIds: Set<string> | null = null;
+    for (const gp of graphPaths) {
+      if (fs.existsSync(gp)) {
+        const data = JSON.parse(fs.readFileSync(gp, 'utf-8')) as { nodes: { id: string }[] };
+        irNodeIds = new Set(data.nodes.map(n => n.id));
+        break;
+      }
+    }
+    if (!irNodeIds) return { name: 'R2/R3 ingest into IR', passed: false, detail: 'No graph file found' };
+
+    for (const subdir of subdirs) {
+      const dirPath = path.join(workDir, subdir);
+      if (!fs.existsSync(dirPath)) continue;
+      const files = listJsonlFiles(dirPath, workDir);
+      let jsonlCount = 0;
+      let missingCount = 0;
+      const prefix = subdir.includes('r2-implicit') ? 'R2' : 'R3';
+      for (const file of files) {
+        const records = readJsonl(file, workDir);
+        for (const r of records) {
+          // 跳过 needs-clarification（不进 IR 是正常的）
+          const provenance = r.metadata?.['provenance'];
+          if (typeof provenance === 'string' && provenance === 'needs-clarification') continue;
+          jsonlCount++;
+          if (!irNodeIds.has(r.id)) missingCount++;
+        }
+      }
+      if (jsonlCount > 0 && missingCount === jsonlCount) {
+        issues.push(`${prefix}: ${missingCount}/${jsonlCount} records missing from IR (all lost)`);
+      } else if (missingCount > jsonlCount * 0.1) {
+        issues.push(`${prefix}: ${missingCount}/${jsonlCount} records missing from IR (>10% loss)`);
+      }
+    }
+    return {
+      name: 'R2/R3 ingest into IR',
+      passed: issues.length === 0,
+      detail: issues.length === 0 ? 'All R2/R3 records ingested into IR' : issues.join('; '),
+    };
+  } catch (err) {
+    return { name: 'R2/R3 ingest into IR', passed: false, detail: `Could not check R2/R3 ingest: ${(err as Error).message}` };
+  }
+}

@@ -115,6 +115,25 @@ theorem mainTheorem (n : Nat) : ... := by
   ...
 ```
 
+## Lean 4 构建流程（必须按顺序执行）
+
+> ⚠️ **跳过 `lake exe cache get` 会导致从源码编译整个 Mathlib（数小时），
+> 这是 lake build 卡住的最常见原因。**
+
+1. `lake update` — 拉取 mathlib4 依赖
+2. `lake exe cache get` — **下载预编译 `.olean` 缓存（关键步骤！）**
+3. `lake build` — 只编译用户自己的 .lean 文件（秒级到分钟级）
+
+### lean-toolchain 版本一致性
+- `lean-toolchain` 文件指定的版本必须与系统安装的 Lean 版本一致
+- 如系统为 v4.32.0，`lean-toolchain` 应写 `leanprover/lean4:v4.32.0`
+- 版本不匹配会导致 lake 重新下载工具链，叠加缓存缺失使构建更慢
+
+### import 规则
+- ✅ `import Mathlib.Data.Nat.Basic` — 细分模块
+- ✅ `import Mathlib.Tactic.Linarith`
+- ❌ `import Mathlib` — 全量导入（validate-lean 会拒绝）
+
 ## 质量门禁（交付前自检）
 
 - [ ] 所有 `sorry` 已消除（执行 `grep -r "sorry" *.lean` 返回空）
@@ -122,6 +141,7 @@ theorem mainTheorem (n : Nat) : ... := by
 - [ ] 每个定理/引理含完整 `proof`
 - [ ] 每个 Lemma 独立文件（≤100 行）
 - [ ] 无 `#eval` 替代 proof
+- [ ] 构建前已执行 `lake exe cache get`（避免从源码编译 Mathlib 数小时）
 - [ ] 无 `import Mathlib`（全量；`validate-lean` 拒绝，仅能力探测简化——按需 `import Mathlib.Data.*` 子模块允许）
 
 ## 五项红线（绝对禁止）
