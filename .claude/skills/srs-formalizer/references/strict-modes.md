@@ -64,7 +64,7 @@ TLA+ 使用内置 `tla2tools-1.7.4.jar`（`tools/` 目录）。仅需 Java（不
 
 命令只从 `outputs/tlaplus/draft` 读取指定模块及其 matching `.cfg`。静态审计通过后，验证器只使用内置 `tools/tla2tools-1.7.4.jar` 依次运行 SANY 与 TLC；不会联网下载 JAR、不会创建缺失 cfg 或改写候选输入。两者均通过后，模块和带 `sourceHash` 的验证报告才会进入 verified 生命周期。
 
-- **禁止死锁（黑洞）**：`-deadlock` 标志
+- **禁止死锁（黑洞）**：所有系统必须无死锁，TLC deadlock freedom 检查强制开启。**严禁**传入 `-deadlock` 标志——该标志会关闭死锁检测，使用它等同于掩盖缺陷，`validate-tla --strict` 将拒绝此类验证报告。死锁必须修正根因（补全缺失的状态转换），不得以禁用检测代替修复。
 - **禁止无限状态**：状态空间必须有限
 - **禁止奇迹**：不允许不可能的状态转换
 - **禁止未定义**：TypeOK 不变式强制执行

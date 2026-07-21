@@ -8,7 +8,7 @@
 - [ ] 工具链就绪：`java -version` 通过（不限 OS，仅需 Java 11+）
 - [ ] SANY 语法检查通过（`validate-tla --file <file>.tla`）
 - [ ] **TLC 严格模式全部通过**：
-  - [ ] 无死锁（黑洞）— `-deadlock` 通过
+  - [ ] 无死锁（黑洞）— TLC deadlock freedom 通过且根因已修正（`-deadlock` 标志永久禁用，不得以禁用检测代替修复）
   - [ ] 无无限状态 — 状态空间有界
   - [ ] 无奇迹 — 不允许不可能的状态转换
   - [ ] 未定义检查 — TypeOK 不变式未违反

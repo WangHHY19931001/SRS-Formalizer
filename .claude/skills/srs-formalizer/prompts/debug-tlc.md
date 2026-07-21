@@ -43,7 +43,7 @@ TLC 输出的反例轨迹是一个状态序列：`s0 → s1 → s2 → ... → s
 | 错误类型 | 现象 | 典型根因 | 修复方向 |
 |----------|------|----------|----------|
 | Invariant violation | 反例轨迹中某状态不满足 Invariant | 规约的 Next 缺少前置条件 | 在 action 的 guard 中添加条件 |
-| Deadlock | 某状态下所有 action 的 guard 均为 false | 状态转移覆盖不全 | 添加新 action 或扩展 guard |
+| Deadlock | 某状态下所有 action 的 guard 均为 false | 状态转移覆盖不全 | 添加新 action 或扩展 guard。**严禁**通过 `-deadlock` 标志关闭死锁检测来"修复"此错误——所有系统必须真正无死锁，禁用检测等同于掩盖缺陷。 |
 | Stuttering violation | TLC 报告 "Stuttering" 违规 | Spec 中未允许 stuttering step | 添加 `[][Next]_vars` 到 Spec |
 | State explosion | TLC 超出内存或状态上限 | 状态空间过大 | 加入 symmetry set、减少变量、使用模型缩减 |
 | Undefined behavior | TLC 报 "Undefined" 或 "Null" | TLA+ 表达式访问了未定义值 | 检查 `EXCEPT` 或 `CHOOSE` 使用，添加防御判断 |
