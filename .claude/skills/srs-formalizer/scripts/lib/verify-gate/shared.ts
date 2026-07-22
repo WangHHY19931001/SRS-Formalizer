@@ -30,7 +30,7 @@ export interface VerifyOutput {
 // Constants
 // ---------------------------------------------------------------------------
 
-export const VALID_STAGES = ['S1', 'R3', 'FINAL'] as const;
+export const VALID_STAGES = ['S1', 'R3', 'B2', 'B3', 'B4', 'FINAL'] as const;
 
 // ---------------------------------------------------------------------------
 // Shared check functions

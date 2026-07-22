@@ -4,7 +4,7 @@ import { scanLeanSourceForPlaceholders, scanTlaSourceForPlaceholders, type Check
 import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
 import { collectByExtension, collectFiles, hashFiles, readMatchingReport, readPassingReports } from '../artifacts/validation-report.js';
 
-function verifiedArtifactCheck(workDir: string, kind: 'bdd' | 'lean4', required: boolean): CheckResult {
+export function verifiedArtifactCheck(workDir: string, kind: 'bdd' | 'lean4', required: boolean): CheckResult {
   const config = {
     bdd: { verified: ARTIFACT_PATHS.bddVerified, validation: ARTIFACT_PATHS.bddValidation, files: (root: string) => collectByExtension(root, '.feature') },
     lean4: { verified: ARTIFACT_PATHS.leanVerified, validation: ARTIFACT_PATHS.leanValidation, files: (root: string) => [...collectByExtension(root, '.lean'), ...collectFiles(root, ['lakefile.lean', 'lakefile.toml', 'lean-toolchain'])] },
@@ -37,7 +37,7 @@ function tlaModulesInVerified(root: string): Map<string, string[]> {
  * a passing report. Any validated module missing from verified/ (the drop the
  * destructive promote caused) fails the gate with the missing module named.
  */
-function tlaVerifiedCheck(workDir: string): CheckResult {
+export function tlaVerifiedCheck(workDir: string): CheckResult {
   const name = 'tlaplus verified artifacts';
   const verifiedRoot = artifactPath(workDir, ARTIFACT_PATHS.tlaVerified);
   const validationDir = artifactPath(workDir, ARTIFACT_PATHS.tlaValidation);
@@ -83,11 +83,22 @@ function tlaVerifiedCheck(workDir: string): CheckResult {
   return { name, passed: true, detail: `${modules.size} TLA+ module(s) verified and matched: ${[...modules.keys()].sort().join(', ')}` };
 }
 
-export function checkFormalArtifacts(workDir: string): CheckResult[] {
+/** B4/FINAL: Lean4 verified artifacts — required only when IR has security/compliance NFR */
+export function leanVerifiedCheck(workDir: string): CheckResult {
   try {
     const ir = JSON.parse(fs.readFileSync(path.join(workDir, 'srs-ir.json'), 'utf8')) as { nfrProfile?: { detectedCategories?: Array<{ category: string }> } };
     const leanRequired = ir.nfrProfile?.detectedCategories?.some(entry => entry.category === 'security' || entry.category === 'compliance') ?? false;
-    return [verifiedArtifactCheck(workDir, 'bdd', true), tlaVerifiedCheck(workDir), verifiedArtifactCheck(workDir, 'lean4', leanRequired)];
+    return verifiedArtifactCheck(workDir, 'lean4', leanRequired);
+  } catch {
+    return { name: 'lean4 verified artifacts', passed: false, detail: 'srs-ir.json cannot be read' };
+  }
+}
+
+export function checkFormalArtifacts(workDir: string): CheckResult[] {
+  try {
+    // Read IR to determine lean requirement; if IR unreadable, fail.
+    JSON.parse(fs.readFileSync(path.join(workDir, 'srs-ir.json'), 'utf8'));
+    return [verifiedArtifactCheck(workDir, 'bdd', true), tlaVerifiedCheck(workDir), leanVerifiedCheck(workDir)];
   } catch { return [{ name: 'SRS IR available for artifact requirements', passed: false, detail: 'srs-ir.json cannot be read' }]; }
 }
 
