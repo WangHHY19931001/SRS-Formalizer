@@ -16,7 +16,8 @@ export interface JsonlRecord {
   category: 'explicit' | 'implicit' | 'relational';
   statement: string;
   source_file: string;
-  confidence: 'high' | 'medium' | 'low';
+  /** P1-4: confidence 接受字符串枚举或 0~1 数值 */
+  confidence: 'high' | 'medium' | 'low' | number;
   /**
    * 可选元数据。约定字段：
    * - `provenance?: Provenance` 三态标记（validate-jsonl 校验；needs-clarification 禁入 r-star/architecture）

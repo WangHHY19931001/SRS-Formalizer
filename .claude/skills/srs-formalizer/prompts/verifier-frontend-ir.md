@@ -32,7 +32,7 @@
   - implicit: metadata.derived_from 存在且为 string 或 string[]，引用真实 R1/R2 IR-NODE id
   - relational: 见 Part B
   - 任一 category 含 NFR 信号时：metadata.nfr_category ∈ {performance, security, availability, compatibility, maintainability, compliance}（可选，不强制）
-- [ ] **confidence 有效**：____/____ 条的 confidence ∈ {high, medium, low}？
+- [ ] **confidence 有效**：____/____ 条的 confidence ∈ {high, medium, low} 或为 [0, 1] 区间数值？（≥0.8 视为 high，0.5-0.79 视为 medium，<0.5 视为 low；字符串枚举与数值两种表达均合法）
 
 ### 隐式需求专项（逐条 implicit 记录）
 
@@ -55,9 +55,9 @@
 
 - [ ] **id 格式**：____/____ 条匹配 `^R3-[A-Za-z0-9_.]+-\d{4}$`？（R3 前缀强制）
 - [ ] **category 枚举**：____/____ 条的 category == `relational`？（无 `cross_shard` 枚举；跨 shard 关系也是 `relational`，由 `metadata.cross_shard: true` 标识）
-- [ ] **metadata.relation 有效**：____/____ 条的 `metadata.relation` ∈ {DEPENDS_ON, REFINES, CONFLICTS_WITH}？（仅此 3 项，无 `SAMENESS_AS`；`same_aspect` 是 IR 图的 edge type，不是 JSONL metadata.relation 值）
-- [ ] **metadata.source_id 存在**：____/____ 条的 `metadata.source_id` 真实存在于 R1/R2 IR-NODE 中？
-- [ ] **metadata.target_id 存在**：____/____ 条的 `metadata.target_id` 真实存在于 R1/R2 IR-NODE 中？
+- [ ] **metadata.relation 强制**：____/____ 条的 `metadata.relation` ∈ {DEPENDS_ON, REFINES, CONFLICTS_WITH}？**缺失即 FAIL**（validate-jsonl 对 R3 记录强制校验此字段）
+- [ ] **metadata.source_id 强制**：____/____ 条的 `metadata.source_id` 真实存在于 R1/R2 IR-NODE 中？**缺失即 FAIL**
+- [ ] **metadata.target_id 强制**：____/____ 条的 `metadata.target_id` 真实存在于 R1/R2 IR-NODE 中？**缺失即 FAIL**
 - [ ] **字段在 metadata 内**：relation/source_id/target_id/source_module/target_module 有被误放到顶层吗？
 - [ ] **source_module/target_module 有效**：引用的模块名在架构中存在吗？
 
