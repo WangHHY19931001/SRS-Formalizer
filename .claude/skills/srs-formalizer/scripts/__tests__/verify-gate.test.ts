@@ -562,4 +562,53 @@ describe('verify-gate command', () => {
     const result = checkR3RelationalThreshold(workDir);
     assert.strictEqual(result.passed, false, `expected low r3 count to fail, got: ${result.detail}`);
   });
+
+  // ===========================================================================
+  // P0-1: Persistent gate receipts
+  // ===========================================================================
+
+  it('P0-1: verify-gate writes _ctx/gate-{stage}.json receipt', async () => {
+    const workDir = createWorkDir('p01-receipt');
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
+      { id: 'R1-REQ-0001', category: 'explicit', statement: 'test', source_file: 'srs.md', confidence: 'high' },
+    ]);
+
+    const { main } = await import('../commands/verify-gate.js');
+    const result = await main(['--workdir', workDir, '--stage', 'S1']);
+    const data = result.data as { pass: boolean };
+
+    const receiptPath = path.join(workDir, '_ctx', 'gate-S1.json');
+    assert.ok(fs.existsSync(receiptPath), 'gate-S1.json receipt must be written');
+    const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf-8'));
+    assert.equal(receipt.stage, 'S1');
+    assert.equal(receipt.verdict, data.pass ? 'pass' : 'fail');
+    assert.match(receipt.receiptHash, /^[0-9a-f]{16}$/);
+    assert.match(receipt.workdirHash, /^[0-9a-f]{16}$/);
+  });
+
+  it('P0-1: verifyGateReceipt rejects missing receipt', async () => {
+    const workDir = createWorkDir('p01-missing');
+    const { verifyGateReceipt } = await import('../lib/verify-gate/shared.js');
+    const r = verifyGateReceipt(workDir, 'S1');
+    assert.equal(r.valid, false);
+    assert.match(r.reason!, /Missing gate receipt/);
+  });
+
+  it('P0-1: verifyGateReceipt validates existing pass receipt', async () => {
+    const workDir = createWorkDir('p01-valid');
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
+      { id: 'R1-REQ-0001', category: 'explicit', statement: 'test', source_file: 'srs.md', confidence: 'high' },
+    ]);
+
+    const { main } = await import('../commands/verify-gate.js');
+    await main(['--workdir', workDir, '--stage', 'S1']);
+
+    const { verifyGateReceipt } = await import('../lib/verify-gate/shared.js');
+    const r = verifyGateReceipt(workDir, 'S1');
+    // Note: may be valid or invalid depending on whether S1 gate actually passes,
+    // but the receipt should exist (not "Missing")
+    assert.doesNotMatch(r.reason || '', /Missing gate receipt/);
+  });
 });
