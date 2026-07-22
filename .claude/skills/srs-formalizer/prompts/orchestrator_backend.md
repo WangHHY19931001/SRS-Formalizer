@@ -377,6 +377,38 @@ Read references/collaboration-contract.md
 | 收敛日志 | `outputs/reports/convergence-log.jsonl` | 编排者维护 + `validate-convergence-log`（§P2-2） |
 | 交付清单 | `outputs/reports/deliverables.md` | 编排者维护 |
 
+## Backend 专属 HITL 规则（P2-13）
+
+> **原则**：Backend 阶段涉及形式化产物生成与验证，任何"跳过"、"降级"、"工具不可用"都必须经人类确认。以下场景必须 🛑 **STOP · 等待人类确认**后方可继续。
+
+### 必须 HITL 的场景
+
+| 场景 | 触发条件 | Agent 动作 | 禁止行为 |
+|------|---------|-----------|---------|
+| **模块跳过** | 用户或 Agent 提议跳过某 arch-1 子系统的 TLA+/Lean4 生成 | ① 在 STATE.md 记录：跳过模块名、跳过理由、残余风险、责任人；② 🛑 STOP 等待人类确认；③ 确认后 FINAL 标记 `partial_convergence` | 自行跳过、静默忽略、伪造 verified |
+| **工具崩溃** | `validate-*` / `lake build` / `tla2tools.jar` 非零退出且非已知失败模式 | ① 立即 🛑 STOP；② 收集错误日志、stack trace、工作目录快照；③ 报告人类 | 重试超过 3 次、降级为"环境限制"、绕过门禁 |
+| **Lean4 平台不支持** | `validate-lean` 在 Windows 上返回 `platform_unsupported` | ① 生成 `S5_SKIP_REPORT.md`，标记受影响需求、替代验证、残余风险；② 🛑 STOP 等待人类确认是否在 Linux 环境重做或接受跳过 | 将跳过宣称为 Lean verified、不生成 SKIP_REPORT |
+| **收敛循环超限** | B7 超过 `max_iterations`（≤50→3, 51-100→5, >100→8） | ① 检查 high-confidence 比例与 NFR 覆盖率；② 若 ≥7/13 且 NFR≥60% → 允许 `partial_convergence`；否则苏格拉底拷问；③ 仍无法收敛 → 🛑 STOP | 自行加轮、伪造收敛、跳过 13 问 |
+| **SRS 补丁应用** | 形式化符合 SRS 但发现 SRS 本身有问题 → 写入 `SRS_PATCHES.md` | ① 记录矛盾描述 + SRS 引用 + 可选项 A/B/C + 事实依据；② 🛑 STOP 等待人类确认；③ 涉及安全关键需求时 `security_level` 提升至 `critical` | 直接修改代码绕过、不记录补丁、未经确认应用 |
+| **二级语义验证 REJECTED** | `semantic-gate` 返回 REJECTED | ① 携带具体 issue 回退对应 executor 重做；② 连续 3 次 REJECTED → 🛑 STOP 等待人类确认是否调整评分标准或接受降级 | 跳过语义闸门直接 promote、忽略 REJECTED |
+
+### HITL 记录规范
+
+每次 HITL 确认必须在 STATE.md 的「决策记录」和对应章节记录：
+
+```
+## 决策记录
+| ID | 时间 | 决策 | 原因 |
+|----|------|------|------|
+| D001 | 2026-07-22T10:30:00Z | 跳过 PaymentService 的 TLA+ 生成 | 用户裁剪，仅需 AuthService 形式化 |
+```
+
+如果涉及模块跳过，还需在「跳过模块记录」章节填写完整信息（模块名/理由/残余风险/责任人/人类确认时间）。
+
+### Backend 失败计数
+
+全管线统一失败计数 **N=3**（见 SKILL.md 失败模式表）。Backend 各 stage（B2/B3/B4/FINAL）连续 3 次修复失败 → 🛑 STOP。收敛循环的 `max_iterations` 不属于"修复失败"计数。
+
 
 
 
