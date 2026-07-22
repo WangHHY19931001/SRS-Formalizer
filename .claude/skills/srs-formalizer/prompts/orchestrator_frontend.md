@@ -70,10 +70,7 @@ SRS 文档
 - [ ] 金融核心 / 复杂调度 / 自定义数据结构
 - [ ] 检测结果：触发 / 不触发
 
-> 触发条件最终以 Middle-end M3 NFR 分类结果为准（见 SKILL.md）：
-> - `performance` 关键词 ≥5 且 `total_shards ≥100` → **强制 TLA+**，必须 `--promote`
-> - `security`/`compliance` 关键词 ≥1 → **强制 Lean 4**，必须 `--promote`
-> - `availability` 关键词 ≥3 → 生成 TLA+ 草稿；若 `total_shards ≥50` 或 `performance ≥5` → **强制 `--promote`**；仅当 `total_shards < 50` 且 `performance < 5` 时可跳过 `--promote`，但须在 STATE.md 记录跳过理由、风险与责任人，且须经 🛑 **STOP** 人类确认
+> **注意**：以上关键词扫描仅是 Frontend 阶段的**预测**，不是最终裁决。TLA+/Lean4 的最终触发裁决由 SKILL.md 中的「TLA+/Lean4 触发真值表」统一裁定。Frontend 阶段不自行声明阈值，最终裁决在 M3 NFR 分类完成后据实际数据执行，并回写 STATE.md。
 
 #### 1.4 自动快速退出判定
 - [ ] TLA+ 检测 = **不触发** → 标记 `skip formal:tla`，写入 STATE.md `TLA_TRIGGER: no`
