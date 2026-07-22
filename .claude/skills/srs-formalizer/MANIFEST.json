@@ -1,6 +1,6 @@
 {
   "skill_name": "srs-formalizer",
-  "packed_at": "2026-07-22T06:33:02.211Z",
+  "packed_at": "2026-07-22T06:39:41.569Z",
   "total_files": 238,
   "files": {
     "BASELINE.md": "1f018d8132545154850fc6fc68c017f7ade8f41e99b23073b4867c5d59871888",
@@ -222,10 +222,10 @@
     "templates/SPECS.md.template": "a746c02fb3ee3a7c23608d609bb9e7cc0fe793f66afffab611ac42ff687527bb",
     "templates/STATE.md.template": "f59aeea09b53ca383c30c21d14a558dba345c9462b6b0ea6a004a7d44e279111",
     "templates/checklists/2_extract_CHECKLIST.md": "fecfd0a4002f50415ae2e87692e4544c27f2fb130847d5389bebc41029128289",
-    "templates/checklists/3_graph_CHECKLIST.md": "b590b2e1db0d8523158b55affbd9cddde3cd5058651f74b296437fde77d377c2",
-    "templates/checklists/4_bdd_CHECKLIST.md": "984f06c7256797999fb584f6d150a58cf2c1b185c39ee56a8672a8782d4152e9",
+    "templates/checklists/3_graph_CHECKLIST.md": "cdb3a6210a9dad58058afe75fbfa0e6f27c67dc45b783f6a30b8eefd41feae37",
+    "templates/checklists/4_bdd_CHECKLIST.md": "fc61d733c8eab4bc889f3003a9edf363c356f3f4bd580a2fc8a42e1f8cdfd13b",
     "templates/checklists/5_formal_CHECKLIST.md": "bf5b549aab2e1d6d10795e23aca227570ec0cda002218094a9b03e8c9e18269b",
-    "templates/checklists/6_outputs_CHECKLIST.md": "ae32c0a48a26abdee9750c50cfd63ed97528c879afe65824f8e8fae81f20ce76",
+    "templates/checklists/6_outputs_CHECKLIST.md": "421120cff1450a903e61818ca63841730e235ab1e2ec80841ca1b5f9ce8404d5",
     "templates/checklists/S0_CHECKLIST.md": "21b5390ac7fbbf839b227e83be98d98e06bdfd178423895627bbd19c728121d1",
     "templates/checklists/S1_CHECKLIST.md": "3b89fd0543e4a326cedde978f7b8a1bdf538d8a2c850ef9f51979b3238249fec",
     "test-prompts.json": "be8389514e734dc7b141c1d35bf4525685144bce7f9ac50d4f06c3fa12ffbe90",
