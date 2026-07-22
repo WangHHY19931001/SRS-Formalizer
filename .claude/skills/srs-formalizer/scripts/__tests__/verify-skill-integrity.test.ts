@@ -307,6 +307,26 @@ describe('verify-skill-integrity command', () => {
     assert.ok(result.message?.includes('MANIFEST.json'));
   });
 
+  it('9. CRLF normalization — pack with LF, verify with CRLF => valid=true', async () => {
+    // 防止 Windows autocrlf 导致 MANIFEST 漂移：哈希应基于 LF 归一化内容
+    const testDir = path.join(TMP, 'test-crlf');
+    fs.mkdirSync(testDir, { recursive: true });
+    fs.writeFileSync(path.join(testDir, 'SKILL.md'), 'line1\nline2\n', 'utf-8');
+
+    const { main: packMain } = await import('../commands/pack-skill.js');
+    const packResult = await packMain(['--skill-dir', testDir, '--force']);
+    assert.equal(packResult.status, 'ok');
+
+    // 将文件改为 CRLF（模拟 git autocrlf=true 的 checkout）
+    fs.writeFileSync(path.join(testDir, 'SKILL.md'), 'line1\r\nline2\r\n', 'utf-8');
+
+    const { main: verifyMain } = await import('../commands/verify-skill-integrity.js');
+    const verifyResult = await verifyMain(['--skill-dir', testDir]);
+    assert.equal(verifyResult.status, 'ok');
+    const data = verifyResult.data as { valid: boolean; mismatched: unknown[] };
+    assert.strictEqual(data.valid, true, `CRLF normalization failed: mismatched=${data.mismatched.length}`);
+  });
+
   it('MANIFEST.json matches actual skill directory (smoke test)', () => {
     // 防止 MANIFEST.json 漂移：pack-skill 后应与磁盘一致
     const skillDir = path.resolve(import.meta.dirname!, '../..');

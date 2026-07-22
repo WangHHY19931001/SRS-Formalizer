@@ -19,6 +19,29 @@ export const EXCLUDED_DIRS = new Set(['node_modules', '.srs_formalizer', 'dist']
 /** High-risk file patterns. */
 export const HIGH_RISK_PATTERNS = [/^SKILL\.md$/, /^prompts\/.*\.md$/, /^templates\/.*/, /^references\/.*/];
 
+/** Text file extensions — CRLF→LF normalization applied before hashing. */
+const TEXT_EXTENSIONS = new Set([
+  '.ts', '.md', '.json', '.txt', '.yaml', '.yml', '.template', '.tsv',
+]);
+
+/** Files without extension that are still text. */
+const TEXT_NO_EXT = new Set(['.gitkeep', '.gherkin-lintrc', '.gherkin-lintrc-strict']);
+
+/** Returns true for text files where CRLF→LF normalization is safe. */
+function isTextFile(filePath: string): boolean {
+  const ext = path.extname(filePath).toLowerCase();
+  if (TEXT_EXTENSIONS.has(ext)) return true;
+  const base = path.basename(filePath).toLowerCase();
+  return TEXT_NO_EXT.has(base);
+}
+
+/** Reads file content and normalizes CRLF→LF for text files (platform-independent hashing). */
+function readForHashing(filePath: string): Buffer {
+  const buf = fs.readFileSync(filePath);
+  if (!isTextFile(filePath)) return buf;
+  return Buffer.from(buf.toString('utf-8').replace(/\r\n/g, '\n'), 'utf-8');
+}
+
 export interface Manifest { skill_name: string; packed_at: string; total_files: number; files: Record<string, string>; }
 
 export interface VerifyResult {
@@ -36,12 +59,12 @@ export function classifyRisk(relPath: string): 'high' | 'low' {
 export function sha256Of(filePath: string): string | null {
   try {
     if (!fs.existsSync(filePath)) return null;
-    return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+    return crypto.createHash('sha256').update(readForHashing(filePath)).digest('hex');
   } catch { return null; }
 }
 
 export function sha256OfFile(filePath: string): string {
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+  return crypto.createHash('sha256').update(readForHashing(filePath)).digest('hex');
 }
 
 export function readManifest(skillDir: string): Manifest {
