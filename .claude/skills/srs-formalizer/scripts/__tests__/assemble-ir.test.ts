@@ -298,3 +298,17 @@ describe('assemble-ir R1 precheck (P0-2 filename + coverage)', () => {
     }
   });
 });
+
+test('P0-3: assemble-ir output does not contain M3/M6 fields', async () => {
+  const wd = setupWorkdir();
+  fs.writeFileSync(
+    path.join(wd, '2_extract', 'r1-explicit', 'a.jsonl'),
+    JSON.stringify({ id: 'R1-S001-0001', category: 'explicit', statement: 'x', source_file: 'srs.md', confidence: 'high', metadata: { shard_id: 'S001', chapter: '1', start_line: 1, end_line: 2 } }) + '\n',
+  );
+  const res = await main(['--workdir', wd]);
+  assert.equal(res.status, 'ok');
+  const ir = JSON.parse(fs.readFileSync(path.join(wd, 'srs-ir.json'), 'utf-8'));
+  // assemble-ir should NOT fill Middle-end fields
+  assert.deepStrictEqual(ir.nfrProfile.detectedCategories, []);
+  assert.strictEqual(ir.meta.riskScore, undefined);
+});

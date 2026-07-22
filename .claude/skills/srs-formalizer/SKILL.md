@@ -256,6 +256,16 @@ metadata:
 4. `verify-gate --stage FINAL` 只消费 `verified`、`passed: true` 且 `sourceHash` 匹配当前内容的报告。
 5. 工具不可用时写入 `S5_SKIP_REPORT.md`，记录受影响需求、替代验证和残余风险；不得伪造 `verified`。
 6. 所有写入限定在 `.srs_formalizer/`，并使用原子临时文件加 rename。
+7. **IR 字段写权限表**（Frontend/Middle-end/Backend 各阶段只能写自己字段）：
+
+| 字段 | Frontend (F1-F5) | Middle-end (M1-M6) | Backend (B1-B7) |
+|------|:---:|:---:|:---:|
+| `version` / `meta.buildTimestamp` / `meta.sourcePath` / `meta.sourceHash` / `meta.language` / `meta.totalChars` / `meta.totalShards` / `meta.totalNodes` / `meta.totalEdges` | ✅ assemble-ir | ❌ | ❌ |
+| `nodes` / `edges` / `crossRefs` / `gaps` / `glossary` | ✅ assemble-ir | ⚠️ M5 mutate edges | ❌ |
+| `nfrProfile` | ❌ | ✅ M3 | ❌ |
+| `meta.riskScore` / `meta.highRiskShards` | ❌ | ✅ M6 | ❌ |
+
+`assemble-ir` 装配时若检测到 Middle-end 专属字段已填入（如 `nfrProfile.detectedCategories` 非空或 `meta.riskScore` 已定义），exit(1) 拒绝装配。
 
 ## 概述
 

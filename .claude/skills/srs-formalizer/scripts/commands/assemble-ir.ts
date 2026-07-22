@@ -236,6 +236,23 @@ function checkIntegrity(ir: SRSIR): string[] {
   return errors;
 }
 
+/**
+ * P0-3: Frontend 阶段（无 R3 凭证）禁止写入 Middle-end 专属字段。
+ * riskScore / highRiskShards 由 M6 写回；nfrProfile 由 M3 写回。
+ * assemble-ir 自己产出的 IR 不应含这些字段——若含则说明代码有 bug
+ * 或编排者通过其他方式注入了 Middle-end 字段。
+ */
+function checkFieldWriteAuthority(ir: SRSIR): string[] {
+  const errors: string[] = [];
+  if (ir.nfrProfile.detectedCategories.length > 0) {
+    errors.push('assemble-ir 不应填入 nfrProfile.detectedCategories（M3 专属字段）');
+  }
+  if (ir.meta.riskScore !== undefined) {
+    errors.push('assemble-ir 不应填入 meta.riskScore（M6 专属字段）');
+  }
+  return errors;
+}
+
 interface ShardIndexMeta {
   sourcePath: string;
   sourceHash: string;
@@ -431,7 +448,7 @@ export async function main(args: string[]): Promise<CliResult> {
       glossary: [],
     };
 
-    const errors = checkIntegrity(ir);
+    const errors = [...checkIntegrity(ir), ...checkFieldWriteAuthority(ir)];
     if (errors.length > 0) {
       return { status: 'error', message: `IR 完整性校验失败: ${errors.join('; ')}` };
     }
