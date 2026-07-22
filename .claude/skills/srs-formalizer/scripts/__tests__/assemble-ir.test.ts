@@ -213,3 +213,88 @@ describe('assemble-ir module field (P0-2)', () => {
     }
   });
 });
+
+describe('assemble-ir R1 precheck (P0-2 filename + coverage)', () => {
+  test('P0-2: rejects R1 interval filename S006-007.jsonl when shard_index has SNNN IDs', async () => {
+    const wd = setupWorkdir();
+    try {
+      fs.writeFileSync(
+        path.join(wd, '_ctx', 'shard_index.json'),
+        JSON.stringify({ shards: [{ id: 'S001' }, { id: 'S006' }, { id: 'S007' }], total_shards: 3 }),
+      );
+      fs.writeFileSync(
+        path.join(wd, '2_extract', 'r1-explicit', 'S006-007.jsonl'),
+        JSON.stringify({ id: 'R1-S006-0001', category: 'explicit', statement: 'x', source_file: 'srs.md', confidence: 'high', metadata: { shard_id: 'S006' } }) + '\n',
+      );
+      fs.writeFileSync(
+        path.join(wd, '2_extract', 'r1-explicit', 'S001.jsonl'),
+        JSON.stringify({ id: 'R1-S001-0001', category: 'explicit', statement: 'x', source_file: 'srs.md', confidence: 'high', metadata: { shard_id: 'S001' } }) + '\n',
+      );
+      fs.writeFileSync(
+        path.join(wd, '2_extract', 'r1-explicit', 'S007.jsonl'),
+        JSON.stringify({ id: 'R1-S007-0001', category: 'explicit', statement: 'x', source_file: 'srs.md', confidence: 'high', metadata: { shard_id: 'S007' } }) + '\n',
+      );
+      const res = await main(['--workdir', wd]);
+      assert.equal(res.status, 'error');
+      assert.match(res.message ?? '', /R1 文件名违规.*S006-007/);
+    } finally {
+      fs.rmSync(path.dirname(wd), { recursive: true, force: true });
+    }
+  });
+
+  test('P0-2: rejects R1 shard coverage gap (3 shards in index, only 1 has R1)', async () => {
+    const wd = setupWorkdir();
+    try {
+      fs.writeFileSync(
+        path.join(wd, '_ctx', 'shard_index.json'),
+        JSON.stringify({ shards: [{ id: 'S001' }, { id: 'S002' }, { id: 'S003' }], total_shards: 3 }),
+      );
+      fs.writeFileSync(
+        path.join(wd, '2_extract', 'r1-explicit', 'S001.jsonl'),
+        JSON.stringify({ id: 'R1-S001-0001', category: 'explicit', statement: 'x', source_file: 'srs.md', confidence: 'high', metadata: { shard_id: 'S001' } }) + '\n',
+      );
+      const res = await main(['--workdir', wd]);
+      assert.equal(res.status, 'error');
+      assert.match(res.message ?? '', /R1 分片覆盖率不足.*S002.*S003/);
+    } finally {
+      fs.rmSync(path.dirname(wd), { recursive: true, force: true });
+    }
+  });
+
+  test('P0-2: accepts _empty_shards.json as coverage declaration', async () => {
+    const wd = setupWorkdir();
+    try {
+      fs.writeFileSync(
+        path.join(wd, '_ctx', 'shard_index.json'),
+        JSON.stringify({ shards: [{ id: 'S001' }, { id: 'S002' }], total_shards: 2 }),
+      );
+      fs.writeFileSync(
+        path.join(wd, '2_extract', 'r1-explicit', 'S001.jsonl'),
+        JSON.stringify({ id: 'R1-S001-0001', category: 'explicit', statement: 'x', source_file: 'srs.md', confidence: 'high', metadata: { shard_id: 'S001' } }) + '\n',
+      );
+      fs.writeFileSync(
+        path.join(wd, '2_extract', 'r1-explicit', '_empty_shards.json'),
+        JSON.stringify(['S002']),
+      );
+      const res = await main(['--workdir', wd]);
+      assert.equal(res.status, 'ok');
+    } finally {
+      fs.rmSync(path.dirname(wd), { recursive: true, force: true });
+    }
+  });
+
+  test('P0-2: backward compatible — no shard_index means no filename/coverage check', async () => {
+    // Existing tests use a.jsonl without shard_index.json — must still work
+    const wd = setupWorkdir();
+    try {
+      fs.writeFileSync(
+        path.join(wd, '2_extract', 'r1-explicit', 'a.jsonl'),
+        JSON.stringify({ id: 'R1-S001-0001', category: 'explicit', statement: 'x', source_file: 'srs.md', confidence: 'high', metadata: { shard_id: 'S001', chapter: '1', start_line: 1, end_line: 2 } }) + '\n',
+      );
+      const res = await main(['--workdir', wd]);
+      assert.equal(res.status, 'ok');
+    } finally {
+      fs.rmSync(path.dirname(wd), { recursive: true, force: true });
+    }
+  });
+});
