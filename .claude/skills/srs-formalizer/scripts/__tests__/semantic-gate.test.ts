@@ -25,8 +25,9 @@ describe('semantic-gate command', () => {
     const { main } = await import('../commands/semantic-gate.js');
     const result = await main(['--workdir', workDir, '--kind', 'bdd', '--generate-template']);
     assert.strictEqual(result.status, 'ok');
-    assert.ok(result.data?.templatePath, 'should return template path');
-    assert.ok(fs.existsSync(result.data.templatePath), 'template file should exist');
+    const data = result.data as { templatePath: string } | undefined;
+    assert.ok(data?.templatePath, 'should return template path');
+    assert.ok(fs.existsSync(data.templatePath), 'template file should exist');
   });
 
   it('passes when APPROVED report exists', async () => {

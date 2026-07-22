@@ -62,14 +62,14 @@ export async function main(args: string[]): Promise<CliResult> {
   }
   if (!workDirArg) return { status: 'error', message: 'Missing required argument: --workdir' };
   if (!kindArg) return { status: 'error', message: 'Missing required argument: --kind' };
-  if (!(kindArg in KIND_CONFIG)) {
+
+  const config = KIND_CONFIG[kindArg];
+  if (!config) {
     return { status: 'error', message: `Invalid --kind: "${kindArg}". Valid: ${Object.keys(KIND_CONFIG).join(', ')}` };
   }
 
   let workDir: string;
   try { workDir = validateWorkDir(workDirArg); } catch (err) { return { status: 'error', message: (err as Error).message }; }
-
-  const config = KIND_CONFIG[kindArg];
   const generateTemplate = args.includes('--generate-template');
   const draftDir = artifactPath(workDir, ARTIFACT_PATHS[config.draftPath]);
   const reportDir = path.join(workDir, 'outputs', 'semantic-reports');
