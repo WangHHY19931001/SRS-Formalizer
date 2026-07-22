@@ -106,6 +106,8 @@
 - **`source_path` vs `source_file`**：`shard_index.json` 的分片用 `source_path`（源文件绝对路径）；JSONL 需求记录用 `source_file`。
 - **GLOSSARY**：门禁要 `GLOSSARY.md`，不认 `glossary-B01.json` 批次文件——需先合并为 `.md`。
 - **sourceHash 与路径无关**（§P0-3）：`hashFiles` 按 basename+内容哈希，draft/verified 路径切换不影响 hash，无需手工重算报告 hash。
+- **`startLine`/`endLine` 应为行级精度**——指向 SRS 源文件中该需求所在的**具体行号**（如 `startLine: 42, endLine: 45`），不是整个 shard 的行范围（如 `startLine: 1, endLine: 200`）。整分片范围会使多个需求共享同一 source，无法精确定位。
+- **IR 节点 `module` 字段应为子系统名**——填写 arch-1 子系统名（如 `AuthService`、`PaymentService`），不是源文件路径（如 `srs.md`）或 shard id（如 `S005`）。子系统名来源：architecture JSONL 的 `contains` 关系或 shard_index 的 module 映射。`assemble-ir` 在无 architecture 信息时用 `shard_id` 作为占位，Middle-end M5 应替换为真实子系统名。
 
 ---
 
