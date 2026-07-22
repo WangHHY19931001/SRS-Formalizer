@@ -148,7 +148,7 @@ describe('verify-gate command', () => {
     const workDir = createWorkDir('r3-pass');
 
     // S1 artifacts
-    fs.writeFileSync(path.join(workDir, 'STATE.md'), '# State\n', 'utf-8');
+    fs.writeFileSync(path.join(workDir, 'STATE.md'), '# State\n| last_verify_gate | S1:pass |\n| skipped_modules | (none) |\n| tool_failures | 0 |\n', 'utf-8');
     fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
     fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
 
@@ -416,5 +416,45 @@ describe('verify-gate command', () => {
     const result = await main(['--workdir', workDir, '--stage', 'B4']);
     // B4 with no security/compliance → Lean not required → should not error on invalid stage
     assert.notStrictEqual(result.status, 'error');
+  });
+
+  // ===========================================================================
+  // STATE.md cross-validation (P1-11)
+  // ===========================================================================
+
+  it('checkChecklistComplete warns when STATE.md says stage complete but CHECKLIST unchecked', async () => {
+    const workDir = createWorkDir('state-cross-fail');
+    // STATE.md says S1 is done
+    fs.writeFileSync(path.join(workDir, 'STATE.md'),
+      '# State\n| 当前阶段 | R3 |\n| S1 预处理 | ✅ |\n', 'utf-8');
+    // But S0 CHECKLIST has unchecked items
+    fs.writeFileSync(path.join(workDir, 'S0', 'CHECKLIST.md'),
+      '# S0 checklist\n\n- [ ] Not done yet\n', 'utf-8');
+
+    const { checkChecklistComplete } = await import('../lib/verify-gate/shared.js');
+    const result = checkChecklistComplete('S0', workDir);
+    assert.ok(!result.passed, 'should fail when CHECKLIST unchecked');
+    assert.ok(result.detail?.includes('unchecked'), `detail should mention unchecked: ${result.detail}`);
+  });
+
+  it('checkStateMdCrossCheck detects STATE.md missing last_verify_gate', async () => {
+    const workDir = createWorkDir('state-missing-gate');
+    fs.writeFileSync(path.join(workDir, 'STATE.md'),
+      '# State\n| 当前阶段 | S1 |\n', 'utf-8');
+
+    const { checkStateMdCrossCheck } = await import('../lib/verify-gate/shared.js');
+    const result = checkStateMdCrossCheck(workDir);
+    assert.ok(!result.passed, 'should warn when last_verify_gate missing');
+    assert.ok(result.detail?.includes('last_verify_gate'), `detail should mention last_verify_gate: ${result.detail}`);
+  });
+
+  it('checkStateMdCrossCheck passes when STATE.md has all required fields', async () => {
+    const workDir = createWorkDir('state-complete');
+    fs.writeFileSync(path.join(workDir, 'STATE.md'),
+      '# State\n| 当前阶段 | FINAL |\n| last_verify_gate | FINAL:pass |\n| skipped_modules | (none) |\n| tool_failures | 0 |\n', 'utf-8');
+
+    const { checkStateMdCrossCheck } = await import('../lib/verify-gate/shared.js');
+    const result = checkStateMdCrossCheck(workDir);
+    assert.ok(result.passed, `should pass with all fields: ${result.detail}`);
   });
 });

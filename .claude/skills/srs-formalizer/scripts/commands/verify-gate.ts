@@ -17,7 +17,7 @@ import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardComplete
 import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1, checkOrphanRatio, checkHierarchyDepth, checkOrphanAdjudication, checkAtomicTree, checkEdgeTypeDiversity, checkContainsEdgeDirection, checkR2R3Ingest } from '../lib/verify-gate/checks-r3.js';
 import { checkFormalArtifacts, verifiedArtifactCheck, tlaVerifiedCheck, leanVerifiedCheck } from '../lib/verify-gate/checks-final.js';
 import { checkFidelityReport, checkSafetyCriticalCoverage } from '../lib/verify-gate/checks-fidelity.js';
-import { VALID_STAGES, checkChecklistComplete, type CheckResult, type VerifyOutput } from '../lib/verify-gate/shared.js';
+import { VALID_STAGES, checkChecklistComplete, checkStateMdCrossCheck, type CheckResult, type VerifyOutput } from '../lib/verify-gate/shared.js';
 
 // ---------------------------------------------------------------------------
 // Main entry point
@@ -73,6 +73,8 @@ export async function main(args: string[]): Promise<CliResult> {
   if (stageArg === 'R3' || stageArg === 'FINAL') {
     allChecks.push(checkChecklistComplete('2_extract', workDir));
     allChecks.push(checkChecklistComplete('3_graph', workDir));
+    // P1-11: STATE.md cross-validation (R3/FINAL only — S1 is initial stage, fields not yet populated)
+    allChecks.push(checkStateMdCrossCheck(workDir));
   }
 
   // === R3 / FINAL additional checks ===
