@@ -107,6 +107,69 @@
 4. 不得删除或修改已有 Given/When 步骤。
 5. 同一 Feature 文件内所有 Scenario 必须覆盖完整。
 
+## 状态转换建模（P2-15）
+
+BDD 不只是需求复述——每个 Scenario 应描述一个**状态转换**：从初始状态（Given）经触发事件（When）到达终态（Then）。
+
+### 建模规则
+
+1. **Given 枚举影响当前场景的全部系统状态变量**——不仅是前置条件，还包括相关数据实体的初始值、权限状态、并发状态
+2. **When 绑定具体触发事件**——不是"用户操作"而是"用户点击提交按钮"或"系统收到外部回调"
+3. **Then 断言终态**——转换后的系统状态，而非需求原文复述
+4. **跨 Scenario 的状态延续**——若 Scenario B 依赖 Scenario A 的副作用，用 `# TRACE: depends-on <ScenarioA>` 标注
+
+### 状态机视角
+
+每个 arch-1 子系统应有一组 Scenario 覆盖其状态机的：
+- 正常转换（happy path）
+- 守卫失败（precondition 不满足）
+- 状态不变（idempotent 操作）
+- 异常转换（错误恢复）
+
+## @RID 追溯标签规范（P2-15）
+
+每个 Scenario 必须标注 @RID 标签，建立 BDD → IR 需求的双向追溯。
+
+### 标签格式
+
+```
+@RID-BDD-<子系统名>-<需求编号>-<场景序号>
+```
+
+示例：
+- `@RID-BDD-AuthService-REQ-0001-001`（AuthService 子系统 REQ-0001 的第 1 个场景）
+- `@RID-BDD-PaymentService-REQ-0003-002`（PaymentService 子系统 REQ-0003 的第 2 个场景）
+
+### 标注规则
+
+1. **每个 Scenario 至少一个 @RID 标签**——对应其覆盖的 IR 需求节点 id
+2. **一个 Scenario 覆盖多个需求时**——用多个 @RID 标签
+3. **否定场景（边界/异常）**——标注其验证的需求编号 + `-NEG` 后缀
+4. **Feature 文件头部**——用 `# TRACE: <IR-NODE id>` 标注该 Feature 覆盖的 arch-1 子系统
+
+### 生成时机
+
+@RID 标签在 B2 executor 生成 .feature 文件时写入，不是事后补录。`validate-bdd --strict` 会检查 @RID 标签存在性。
+
+## NFR 阈值设计事实溯源（P2-15）
+
+NFR 场景中的数值阈值**必须可追溯到 SRS 原始设计事实**，禁止凭空发明具体数字。
+
+### 规则
+
+1. **阈值来源优先级**：
+   - SRS 原文显式数值（如"响应时间 ≤ 200ms"）→ 直接引用
+   - IR-NODE statement 中的数值 → 引用并标注 `# SOURCE: IR-NODE <id>`
+   - SRS 未定义阈值 → 用 `<THRESHOLD>` 标记待补，**禁止自行编造数字**
+
+2. **禁止的凭空数字**（反例）：
+   - ❌ `Then 响应时间 ≤ 2000ms`（SRS 未提及 2000ms，Agent 编造）
+   - ❌ `Then 超时时间为 30000ms`（SRS 未提及 30000ms，Agent 编造）
+   - ✅ `Then 响应时间 ≤ 200ms`（SRS 原文有此数值）
+   - ✅ `Then 响应时间 ≤ <THRESHOLD>ms`（SRS 未定义，标记待补）
+
+3. **反向验证**：当 IR-NODE statement 中已含某数字时，executor 必须验证该数字是否真有 SRS 设计依据。若该数字来自 LLM 推测而非 SRS 原文，用 `<THRESHOLD>` 标记并记录在 GAPS.md。
+
 ## When 步骤绑定具体触发事件（禁止万能占位）
 
 `When` 必须绑定**具体触发事件**，从 IR-NODE 的 `module` + `statement` 推导真实动作与发起者。

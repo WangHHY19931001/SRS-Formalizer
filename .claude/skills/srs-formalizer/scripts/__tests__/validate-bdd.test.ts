@@ -9,6 +9,7 @@ const TMP = path.join(os.tmpdir(), `srs-formalizer-validate-bdd-test-${Date.now(
 function createWorkDir(name: string): string {
   const workDir = path.join(TMP, name, '.srs_formalizer');
   fs.mkdirSync(path.join(workDir, 'outputs', 'bdd', 'verified'), { recursive: true });
+  fs.writeFileSync(path.join(workDir, 'srs-ir.json'), '{}', 'utf-8');
   return workDir;
 }
 

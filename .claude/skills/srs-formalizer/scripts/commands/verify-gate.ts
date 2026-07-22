@@ -14,7 +14,7 @@
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardCompleteness, checkShardCoverage, checkGlossaryExists, checkDataFlowFormat } from '../lib/verify-gate/checks-s1.js';
-import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1, checkOrphanRatio, checkHierarchyDepth, checkOrphanAdjudication, checkAtomicTree, checkEdgeTypeDiversity, checkContainsEdgeDirection, checkR2R3Ingest } from '../lib/verify-gate/checks-r3.js';
+import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1, checkOrphanRatio, checkHierarchyDepth, checkOrphanAdjudication, checkAtomicTree, checkEdgeTypeDiversity, checkContainsEdgeDirection, checkR2R3Ingest, checkR3RelationIngest, checkR3RelationalThreshold } from '../lib/verify-gate/checks-r3.js';
 import { checkFormalArtifacts, verifiedArtifactCheck, tlaVerifiedCheck, leanVerifiedCheck } from '../lib/verify-gate/checks-final.js';
 import { checkFidelityReport, checkSafetyCriticalCoverage } from '../lib/verify-gate/checks-fidelity.js';
 import { VALID_STAGES, checkChecklistComplete, checkStateMdCrossCheck, type CheckResult, type VerifyOutput } from '../lib/verify-gate/shared.js';
@@ -92,6 +92,9 @@ export async function main(args: string[]): Promise<CliResult> {
     allChecks.push(checkEdgeTypeDiversity(workDir));
     allChecks.push(checkContainsEdgeDirection(workDir));
     allChecks.push(checkR2R3Ingest(workDir));
+    // P1: R3 relation ingest + r3-relational minimum threshold
+    allChecks.push(checkR3RelationIngest(workDir));
+    allChecks.push(checkR3RelationalThreshold(workDir));
   }
 
   // === Backend stage gates (B2/B3/B4) — P0-1 ===

@@ -198,3 +198,66 @@ Feature: 订单结算
 ## 总结
 
 编写优秀的 BDD 用例，核心在于**用业务语言沟通、关注行为而非细节、保持场景简洁且单一**。它不仅是测试，更是团队协作和需求澄清的工具。
+
+## 语义质量指导（SRS-Formalizer 专属）
+
+本节是 SRS-Formalizer 技能在标准 Gherkin 语法之上增加的语义质量要求。`validate-bdd --strict` 会检查这些规则。
+
+### @RID 追溯标签
+
+SRS-Formalizer 要求每个 Scenario 标注 @RID 标签，建立 BDD → IR 需求的双向追溯。
+
+**格式**：`@RID-BDD-<子系统名>-<需求编号>-<场景序号>`
+
+```gherkin
+@RID-BDD-AuthService-REQ-0001-001
+Scenario: 用户使用有效凭证登录
+  Given 用户在登录页面
+  When 用户输入有效的用户名和密码并点击登录
+  Then 系统显示用户主页
+```
+
+**规则**：
+- 每个 Scenario 至少一个 @RID 标签
+- 否定场景用 `-NEG` 后缀：`@RID-BDD-AuthService-REQ-0001-NEG-001`
+- Feature 文件头部用 `# TRACE: <IR-NODE id>` 标注覆盖的子系统
+
+### 状态转换建模
+
+每个 Scenario 应描述一个状态转换：初始状态（Given）→ 触发事件（When）→ 终态（Then）。
+
+**规则**：
+- Given 枚举影响当前场景的全部系统状态变量
+- When 绑定具体触发事件（不是"用户操作"而是"点击提交按钮"）
+- Then 断言转换后的系统状态（不是需求原文复述）
+- 跨 Scenario 依赖用 `# TRACE: depends-on <ScenarioA>` 标注
+
+### 复述检测（Then 铁律）
+
+`validate-bdd --strict` 会检测 Then 步骤是否复述需求原文。
+
+**禁止**：
+```gherkin
+# ❌ 复述——Then 含「必须/应当/shall/must」且无否定
+Then 系统必须支持用户登录
+```
+
+**正确**：
+```gherkin
+# ✅ 可观测断言——描述转换后的系统状态
+Then 系统显示用户主页
+And 用户会话已创建
+```
+
+**转换规则**：
+- 「必须 X」/「shall X」→ `Then <X 发生后可观测的结果/状态/输出>`
+- 「不得 Y」/「must not Y」→ `Then the system does not <Y>`
+- 数值约束 → 精确数值断言（阈值必须来自 SRS 设计事实，禁止编造）
+
+### NFR 阈值溯源
+
+NFR 场景中的数值阈值必须可追溯到 SRS 原始设计事实：
+
+- ✅ `Then 响应时间 ≤ 200ms`（SRS 原文有此数值）
+- ✅ `Then 响应时间 ≤ <THRESHOLD>ms`（SRS 未定义，标记待补）
+- ❌ `Then 响应时间 ≤ 2000ms`（SRS 未提及 2000ms，Agent 编造）

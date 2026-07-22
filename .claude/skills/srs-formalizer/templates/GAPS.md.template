@@ -11,3 +11,26 @@
 | P1 | 关键缺失 |
 | P2 | 一般缺失 |
 | P3 | 优化建议 |
+
+## Backend 缺口（形式化阶段专属）
+
+Backend 阶段的缺口类型与 Frontend 不同——前者关注形式化产物的完整性与一致性。
+
+| 类型 | 描述 | 检测时机 |
+|------|------|---------|
+| `lean-unverified` | security/compliance 需求触发了 Lean4 但 `lake build` 失败或平台不支持 | B4 `validate-lean` |
+| `tla-coverage-gap` | arch-1 子系统缺少同名 TLA+ 模块 | B3 `verify-gate --stage B3` |
+| `convergence-log-missing` | B7 收敛循环未记录日志或日志不完整 | B7 `validate-convergence-log` |
+| `semantic-rejected` | `semantic-gate` 返回 REJECTED 但未修复 | B2/B3/B4 `semantic-gate` |
+| `fidelity-weak` | `analyze-fidelity` 检测到跨产物弱化（需求→BDD→TLA→Lean 链路断裂） | B6 `analyze-fidelity --strict` |
+| `partial-convergence` | 收敛循环超限后标记部分收敛 | B7 收敛循环 |
+
+### 记录规范
+
+Backend 缺口记录时必须包含：
+- 受影响的 arch-1 子系统名
+- 受影响的 IR 需求节点 id 列表
+- 缺口类型（上表枚举）
+- 残余风险描述
+- 替代验证方案（如有）
+- 责任人与确认时间

@@ -17,6 +17,26 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { execSync } from 'node:child_process';
+
+const SCRIPTS_DIR = path.resolve(import.meta.dirname!, '..');
+
+function runCli(args: string): { stdout: string; stderr: string; exitCode: number } {
+  try {
+    const stdout = execSync(`npx tsx index.ts ${args}`, {
+      cwd: SCRIPTS_DIR,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return { stdout: stdout.trim(), stderr: '', exitCode: 0 };
+  } catch (err: any) {
+    return {
+      stdout: err.stdout?.trim() || '',
+      stderr: err.stderr?.trim() || '',
+      exitCode: err.status || 1,
+    };
+  }
+}
 
 const FIXTURE_SRC = path.resolve(
   import.meta.dirname!, 'fixtures', 'test-skill',
@@ -285,5 +305,15 @@ describe('verify-skill-integrity command', () => {
 
     assert.equal(result.status, 'error');
     assert.ok(result.message?.includes('MANIFEST.json'));
+  });
+
+  it('MANIFEST.json matches actual skill directory (smoke test)', () => {
+    // 防止 MANIFEST.json 漂移：pack-skill 后应与磁盘一致
+    const skillDir = path.resolve(import.meta.dirname!, '../..');
+    const { stdout } = runCli(`verify-skill-integrity --skill-dir "${skillDir}"`);
+    const result = JSON.parse(stdout);
+    assert.strictEqual(result.status, 'ok', `verify-skill-integrity failed: ${result.message || ''}`);
+    const data = result.data as { valid: boolean; missing: unknown[]; mismatched: unknown[]; extra: unknown[] };
+    assert.strictEqual(data.valid, true, `MANIFEST drift detected: missing=${data.missing.length}, mismatched=${data.mismatched.length}, extra=${data.extra.length}. Run pack-skill --force to rebuild.`);
   });
 });

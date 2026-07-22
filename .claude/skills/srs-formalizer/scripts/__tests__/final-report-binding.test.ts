@@ -22,7 +22,8 @@ function report(workdir: string, kind: 'bdd' | 'tlaplus', files: string[], hash 
   const toolEvidence = kind === 'tlaplus'
     ? [{ tool: 'TLC', exitCode: 0, stdoutHash: hashText('model checking completed') }]
     : undefined;
-  writeValidationReport(path.join(workdir, 'outputs', kind === 'bdd' ? 'bdd' : 'tlaplus', 'validation', `${kind}.json`), { artifactKind: kind, lifecycle: 'verified', sourcePaths: files, sourceHash: hash, irHash: hash, tools: [], startedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T00:00:01.000Z', passed: true, checks: [], ...(toolEvidence ? { toolEvidence } : {}) });
+  const irHash = hashText(fs.readFileSync(path.join(workdir, 'srs-ir.json'), 'utf-8'));
+  writeValidationReport(path.join(workdir, 'outputs', kind === 'bdd' ? 'bdd' : 'tlaplus', 'validation', `${kind}.json`), { artifactKind: kind, lifecycle: 'verified', sourcePaths: files, sourceHash: hash, irHash, tools: [], startedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T00:00:01.000Z', passed: true, checks: [], ...(toolEvidence ? { toolEvidence } : {}) });
 }
 
 describe('FINAL report content binding', () => {
@@ -40,7 +41,7 @@ describe('FINAL report content binding', () => {
     const tlaFiles = [path.join(workdir, 'outputs/tlaplus/verified/Spec.tla'), path.join(workdir, 'outputs/tlaplus/verified/Spec.cfg')];
     const hash = hashFiles(tlaFiles);
     // Forged report: passed:true, correct sourceHash, but no toolEvidence.
-    writeValidationReport(path.join(workdir, 'outputs/tlaplus/validation', 'forged.json'), { artifactKind: 'tlaplus', lifecycle: 'verified', sourcePaths: tlaFiles, sourceHash: hash, irHash: hash, tools: [], startedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T00:00:01.000Z', passed: true, checks: [] });
+    writeValidationReport(path.join(workdir, 'outputs/tlaplus/validation', 'forged.json'), { artifactKind: 'tlaplus', lifecycle: 'verified', sourcePaths: tlaFiles, sourceHash: hash, irHash: hashText(fs.readFileSync(path.join(workdir, 'srs-ir.json'), 'utf-8')), tools: [], startedAt: '2026-01-01T00:00:00.000Z', completedAt: '2026-01-01T00:00:01.000Z', passed: true, checks: [] });
     assert.equal(checkFormalArtifacts(workdir).find(check => check.name === 'tlaplus verified artifacts')?.passed, false);
     fs.rmSync(workdir, { recursive: true, force: true });
   });

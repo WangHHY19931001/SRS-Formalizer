@@ -457,4 +457,109 @@ describe('verify-gate command', () => {
     const result = checkStateMdCrossCheck(workDir);
     assert.ok(result.passed, `should pass with all fields: ${result.detail}`);
   });
+
+  // ===========================================================================
+  // P1: R3 relation ingest + r3-relational threshold
+  // ===========================================================================
+
+  it('flags R3 relations not ingested into IR edges', async () => {
+    const workDir = createWorkDir('r3-relations-missing');
+    // r3-relational JSONL has 2 relations
+    writeJsonl(path.join(workDir, '2_extract', 'r3-relational'), 'a.jsonl', [
+      { id: 'R3-REL-0001', category: 'relational', statement: 'A depends on B',
+        source_file: 'srs.md', confidence: 'high',
+        metadata: { relation: { type: 'depends_on', target: 'R1-REQ-0002' }, source_id: 'R1-REQ-0001' } },
+      { id: 'R3-REL-0002', category: 'relational', statement: 'C refines D',
+        source_file: 'srs.md', confidence: 'high',
+        metadata: { relation: { type: 'refines', target: 'R1-REQ-0004' }, source_id: 'R1-REQ-0003' } },
+    ]);
+    // IR has NO edges — relations were not ingested
+    fs.writeFileSync(path.join(workDir, 'srs-ir.json'), JSON.stringify({
+      version: '2.1.0', nodes: [
+        { id: 'R1-REQ-0001', kind: 'requirement', statement: 'A', module: 'S001' },
+        { id: 'R1-REQ-0002', kind: 'requirement', statement: 'B', module: 'S001' },
+        { id: 'R1-REQ-0003', kind: 'requirement', statement: 'C', module: 'S001' },
+        { id: 'R1-REQ-0004', kind: 'requirement', statement: 'D', module: 'S001' },
+      ], edges: [], crossRefs: [], nfrProfile: { detectedCategories: [] },
+      gaps: [], glossary: {}, meta: { buildTimestamp: new Date().toISOString() },
+    }), 'utf-8');
+    const { checkR3RelationIngest } = await import('../lib/verify-gate/checks-r3.js');
+    const result = checkR3RelationIngest(workDir);
+    assert.strictEqual(result.passed, false, `expected missing relations to fail, got: ${result.detail}`);
+    assert.ok(result.detail?.includes('relation'), `detail should mention relations: ${result.detail}`);
+  });
+
+  it('passes when R3 relations are in IR edges', async () => {
+    const workDir = createWorkDir('r3-relations-present');
+    writeJsonl(path.join(workDir, '2_extract', 'r3-relational'), 'a.jsonl', [
+      { id: 'R3-REL-0001', category: 'relational', statement: 'A depends on B',
+        source_file: 'srs.md', confidence: 'high',
+        metadata: { relation: { type: 'depends_on', target: 'R1-REQ-0002' }, source_id: 'R1-REQ-0001' } },
+    ]);
+    fs.writeFileSync(path.join(workDir, 'srs-ir.json'), JSON.stringify({
+      version: '2.1.0', nodes: [
+        { id: 'R1-REQ-0001', kind: 'requirement', statement: 'A', module: 'S001' },
+        { id: 'R1-REQ-0002', kind: 'requirement', statement: 'B', module: 'S001' },
+      ], edges: [
+        { id: 'e1', type: 'depends_on', source: 'R1-REQ-0001', target: 'R1-REQ-0002' },
+      ], crossRefs: [], nfrProfile: { detectedCategories: [] },
+      gaps: [], glossary: {}, meta: { buildTimestamp: new Date().toISOString() },
+    }), 'utf-8');
+    const { checkR3RelationIngest } = await import('../lib/verify-gate/checks-r3.js');
+    const result = checkR3RelationIngest(workDir);
+    assert.strictEqual(result.passed, true, `expected present relations to pass, got: ${result.detail}`);
+  });
+
+  it('flags R3 relations partial loss (>50% but not 100%)', async () => {
+    const workDir = createWorkDir('r3-relations-partial-loss');
+    // 3 relations: depends_on, refines, triggers
+    writeJsonl(path.join(workDir, '2_extract', 'r3-relational'), 'a.jsonl', [
+      { id: 'R3-REL-0001', category: 'relational', statement: 'A depends on B',
+        source_file: 'srs.md', confidence: 'high',
+        metadata: { relation: { type: 'depends_on', target: 'R1-REQ-0002' }, source_id: 'R1-REQ-0001' } },
+      { id: 'R3-REL-0002', category: 'relational', statement: 'C refines D',
+        source_file: 'srs.md', confidence: 'high',
+        metadata: { relation: { type: 'refines', target: 'R1-REQ-0004' }, source_id: 'R1-REQ-0003' } },
+      { id: 'R3-REL-0003', category: 'relational', statement: 'E triggers F',
+        source_file: 'srs.md', confidence: 'high',
+        metadata: { relation: { type: 'triggers', target: 'R1-REQ-0006' }, source_id: 'R1-REQ-0005' } },
+    ]);
+    // IR edges only has the depends_on edge — 2/3 missing = 66.7% loss > 50%
+    fs.writeFileSync(path.join(workDir, 'srs-ir.json'), JSON.stringify({
+      version: '2.1.0', nodes: [
+        { id: 'R1-REQ-0001', kind: 'requirement', statement: 'A', module: 'S001' },
+        { id: 'R1-REQ-0002', kind: 'requirement', statement: 'B', module: 'S001' },
+        { id: 'R1-REQ-0003', kind: 'requirement', statement: 'C', module: 'S001' },
+        { id: 'R1-REQ-0004', kind: 'requirement', statement: 'D', module: 'S001' },
+        { id: 'R1-REQ-0005', kind: 'requirement', statement: 'E', module: 'S001' },
+        { id: 'R1-REQ-0006', kind: 'requirement', statement: 'F', module: 'S001' },
+      ], edges: [
+        { id: 'e1', type: 'depends_on', source: 'R1-REQ-0001', target: 'R1-REQ-0002' },
+      ], crossRefs: [], nfrProfile: { detectedCategories: [] },
+      gaps: [], glossary: {}, meta: { buildTimestamp: new Date().toISOString() },
+    }), 'utf-8');
+    const { checkR3RelationIngest } = await import('../lib/verify-gate/checks-r3.js');
+    const result = checkR3RelationIngest(workDir);
+    assert.strictEqual(result.passed, false, `expected partial loss to fail, got: ${result.detail}`);
+    assert.ok(result.detail?.includes('2/3'), `detail should report 2/3 missing: ${result.detail}`);
+  });
+
+  it('flags r3-relational below minimum threshold (< 3 records when R1 has > 10)', async () => {
+    const workDir = createWorkDir('r3-threshold-fail');
+    // R1 has 15 records
+    const r1Records = Array.from({ length: 15 }, (_, i) => ({
+      id: `R1-REQ-${String(i + 1).padStart(4, '0')}`, category: 'explicit',
+      statement: `req ${i}`, source_file: 'srs.md', confidence: 'high',
+    }));
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', r1Records);
+    // r3-relational has only 1 record (< 3 threshold)
+    writeJsonl(path.join(workDir, '2_extract', 'r3-relational'), 'a.jsonl', [
+      { id: 'R3-REL-0001', category: 'relational', statement: 'A depends on B',
+        source_file: 'srs.md', confidence: 'high',
+        metadata: { relation: { type: 'depends_on', target: 'R1-REQ-0002' }, source_id: 'R1-REQ-0001' } },
+    ]);
+    const { checkR3RelationalThreshold } = await import('../lib/verify-gate/checks-r3.js');
+    const result = checkR3RelationalThreshold(workDir);
+    assert.strictEqual(result.passed, false, `expected low r3 count to fail, got: ${result.detail}`);
+  });
 });

@@ -7,18 +7,10 @@ import * as path from 'node:path';
 import { readJsonl, listJsonlFiles } from '../jsonl.js';
 import { Graph, type GraphData } from '../graph.js';
 import { checkConnectivity, analyzeAtomicTree } from '../middle-end/connectivity-checker.js';
-import type { SRSIR } from '../../types/srs-ir.js';
-import type { CheckResult } from './shared.js';
+import { loadIR, type CheckResult } from './shared.js';
+import { checkR2R3Ingest, checkR3RelationIngest, checkR3RelationalThreshold } from './checks-r3-relational.js';
 
-function loadIR(workDir: string): SRSIR | null {
-  const irPath = path.join(workDir, 'srs-ir.json');
-  if (!fs.existsSync(irPath)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(irPath, 'utf-8')) as SRSIR;
-  } catch {
-    return null;
-  }
-}
+export { checkR2R3Ingest, checkR3RelationIngest, checkR3RelationalThreshold };
 
 export function checkAllJsonlDirsHaveFiles(workDir: string): CheckResult {
   const jsonlDirs = ['2_extract/r1-explicit', '2_extract/r2-implicit', '2_extract/r3-relational'];
@@ -551,69 +543,5 @@ export function checkContainsEdgeDirection(workDir: string): CheckResult {
     };
   } catch (err) {
     return { name: 'Contains edge direction', passed: false, detail: `Could not check edge directions: ${(err as Error).message}` };
-  }
-}
-
-/**
- * R3: R2/R3 节点入 IR 检查。
- *
- * 统计 r2-implicit 和 r3-relational JSONL 中的记录数，与 IR/graph 中的
- * R2 / R3 节点数比对。如果 JSONL 有记录但 IR 中无对应节点，说明
- * assemble-ir 未将 R2/R3 ingest 到 IR（根因报告 §4.1：83 条丢失）。
- *
- * 容忍率：允许 IR 中 R2/R3 节点数 >= JSONL 记录数的 90%（provenance
- * 为 needs-clarification 的记录不进 IR，属正常）。
- */
-export function checkR2R3Ingest(workDir: string): CheckResult {
-  try {
-    const subdirs = ['2_extract/r2-implicit', '2_extract/r3-relational'];
-    const issues: string[] = [];
-
-    // 加载 graph 节点 ID 集合
-    const graphPaths = [
-      path.join(workDir, '3_graph', 'graph', 'graph.merged.json'),
-      path.join(workDir, '3_graph', 'graph', 'graph.structure_fixed.json'),
-      path.join(workDir, '3_graph', 'graph', 'graph.json'),
-    ];
-    let irNodeIds: Set<string> | null = null;
-    for (const gp of graphPaths) {
-      if (fs.existsSync(gp)) {
-        const data = JSON.parse(fs.readFileSync(gp, 'utf-8')) as { nodes: { id: string }[] };
-        irNodeIds = new Set(data.nodes.map(n => n.id));
-        break;
-      }
-    }
-    if (!irNodeIds) return { name: 'R2/R3 ingest into IR', passed: false, detail: 'No graph file found' };
-
-    for (const subdir of subdirs) {
-      const dirPath = path.join(workDir, subdir);
-      if (!fs.existsSync(dirPath)) continue;
-      const files = listJsonlFiles(dirPath, workDir);
-      let jsonlCount = 0;
-      let missingCount = 0;
-      const prefix = subdir.includes('r2-implicit') ? 'R2' : 'R3';
-      for (const file of files) {
-        const records = readJsonl(file, workDir);
-        for (const r of records) {
-          // 跳过 needs-clarification（不进 IR 是正常的）
-          const provenance = r.metadata?.['provenance'];
-          if (typeof provenance === 'string' && provenance === 'needs-clarification') continue;
-          jsonlCount++;
-          if (!irNodeIds.has(r.id)) missingCount++;
-        }
-      }
-      if (jsonlCount > 0 && missingCount === jsonlCount) {
-        issues.push(`${prefix}: ${missingCount}/${jsonlCount} records missing from IR (all lost)`);
-      } else if (missingCount > jsonlCount * 0.1) {
-        issues.push(`${prefix}: ${missingCount}/${jsonlCount} records missing from IR (>10% loss)`);
-      }
-    }
-    return {
-      name: 'R2/R3 ingest into IR',
-      passed: issues.length === 0,
-      detail: issues.length === 0 ? 'All R2/R3 records ingested into IR' : issues.join('; '),
-    };
-  } catch (err) {
-    return { name: 'R2/R3 ingest into IR', passed: false, detail: `Could not check R2/R3 ingest: ${(err as Error).message}` };
   }
 }

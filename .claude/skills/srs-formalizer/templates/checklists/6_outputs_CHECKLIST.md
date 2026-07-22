@@ -2,10 +2,9 @@
 
 ## 硬门禁
 - [ ] verify-gate --stage FINAL：全部 PASS
-- [ ] build-system-architecture: `converged: true`
 - [ ] cross-graph-report.json: `overall_converged: true`
 
-## 十个根本问题（全部可回答）
+## 十三个根本问题（全部可回答）
 - [ ] Q1 它是什么？（本质定义、核心定位）— 高置信度
 - [ ] Q2 它做什么？（核心功能、主要作用）— 高置信度
 - [ ] Q3 它能做什么？（具体能力、应用场景）— 高置信度
@@ -16,7 +15,10 @@
 - [ ] Q8 它与外部如何交互（BDD+TLA+联合建模）— 中/高置信度
 - [ ] Q9 它的工作边界是什么（联合建模+边界条件）— 中/高置信度
 - [ ] Q10 它的兜底方案是什么（降级、回滚、恢复）— 中/高置信度
-- [ ] 高置信度 ≥ 7 / 10
+- [ ] Q11 它的性能约束是什么（吞吐/延迟/资源）— 中/高置信度
+- [ ] Q12 它的安全边界是什么（Lean 4 建模）— 中/高置信度
+- [ ] Q13 它的容量扩展极限是什么（水平/垂直扩展）— 中/高置信度
+- [ ] 高置信度 ≥ 9 / 13
 
 ## 产物完整性
 - [ ] STATE.md 所有阶段 ✅
@@ -24,8 +26,8 @@
 - [ ] `outputs/graphs/` 下 4 个 .cypher 文件存在（srs-graph/behavior-graph/tla-interaction/lean-proof）
 - [ ] `outputs/reports/traceability.cypher` 存在
 - [ ] `6_outputs/brainstorming/brainstorm_context.json` 存在
-- [ ] `6_outputs/deliverables.md` 存在
-- [ ] `6_outputs/convergence-log.jsonl` 记录完整（每次迭代均有日志）
+- [ ] `outputs/reports/deliverables.md` 存在
+- [ ] `outputs/reports/convergence-log.jsonl` 记录完整（每次迭代均有日志）
 - [ ] 全部分片 → R1 → 架构 → R2 → R3 → 图谱 → BDD 链路完整
 
 ## 不一致处理

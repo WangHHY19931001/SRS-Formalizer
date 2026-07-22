@@ -81,9 +81,13 @@ export async function main(args: string[]): Promise<CliResult> {
   }
   if (/warning:/i.test(output)) return { status: 'error', message: 'lake build emitted warnings', data: { reason: 'build-warning', output } };
   const sourceHash = hashFiles(files);
+  // P0: irHash must bind to the current srs-ir.json content (not sourceHash, which
+  // made the field useless). checkReportAuthenticity rejects reports whose irHash
+  // does not match the current IR — catching artifacts not re-validated after IR changed.
+  const irHash = hashText(fs.readFileSync(path.join(workDir, 'srs-ir.json'), 'utf-8'));
   const reportPath = path.join(artifactPath(workDir, ARTIFACT_PATHS.leanValidation), `${sourceHash}.json`);
   writeValidationReport(reportPath, {
-    artifactKind: 'lean4', lifecycle: 'verified', sourcePaths: files, sourceHash, irHash: sourceHash,
+    artifactKind: 'lean4', lifecycle: 'verified', sourcePaths: files, sourceHash, irHash,
     tools: [{ name: 'lake', version: version.trim() }], startedAt, completedAt: new Date().toISOString(), passed: true,
     checks: [{ name: 'source audit', passed: true }, { name: 'Lake project contract', passed: true }, { name: 'lake build', passed: true }],
     // P0-1: bind report to the real `lake build` run so a hand-written report

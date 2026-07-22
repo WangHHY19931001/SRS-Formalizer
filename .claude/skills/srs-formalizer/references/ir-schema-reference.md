@@ -29,7 +29,7 @@ interface SRSIR {
 interface IRNode {
   id: string;
   type: IRNodeType;
-  module: string;
+  module: string;       // arch-1 子系统名（如 `AuthService`），非源文件路径；来源：architecture JSONL 的 `contains` 关系；`assemble-ir` 无 architecture 信息时用 `shard_id` 占位，Middle-end M5 应替换为真实子系统名
   labels: string[];
   properties: IRProperties;
   source: IRSource;
@@ -61,8 +61,11 @@ interface NFRThreshold {
 }
 
 interface IRSource {
-  filePath: string;  startLine: number;  endLine: number;
-  shardId: string;   chapter: string;
+  filePath: string;    // SRS 源文件相对路径
+  startLine: number;   // 行级精度——该需求在源文件中的起始行号（非 shard 起始行）
+  endLine: number;     // 行级精度——该需求在源文件中的结束行号（非 shard 结束行）
+  shardId: string;     // 所属 shard id（SNNN）
+  chapter: string;     // 所属章节标题
 }
 
 interface IRAnalysis {

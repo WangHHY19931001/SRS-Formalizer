@@ -3,6 +3,9 @@ import * as path from 'node:path';
 import { scanLeanSourceForPlaceholders, scanTlaSourceForPlaceholders, type CheckResult } from './shared.js';
 import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
 import { collectByExtension, collectFiles, hashFiles, readMatchingReport, readPassingReports } from '../artifacts/validation-report.js';
+import { tlaModulesInVerified, checkReportAuthenticity, checkReportArtifactRatio, checkAntiPatterns } from './checks-authenticity.js';
+
+export { checkReportAuthenticity, checkReportArtifactRatio, checkAntiPatterns };
 
 export function verifiedArtifactCheck(workDir: string, kind: 'bdd' | 'lean4', required: boolean): CheckResult {
   const config = {
@@ -14,16 +17,6 @@ export function verifiedArtifactCheck(workDir: string, kind: 'bdd' | 'lean4', re
   if (files.length === 0) return { name: `${kind} verified artifacts`, passed: false, detail: 'verified source missing' };
   const passing = readMatchingReport(artifactPath(workDir, config.validation), kind, hashFiles(files));
   return { name: `${kind} verified artifacts`, passed: passing, detail: passing ? `${files.length} verified input(s) match a successful validation report` : 'current verified content has no matching successful validation report' };
-}
-
-/** A TLA+ module = a `<name>.tla` + matching `<name>.cfg` pair. */
-function tlaModulesInVerified(root: string): Map<string, string[]> {
-  const modules = new Map<string, string[]>();
-  for (const tla of collectByExtension(root, '.tla')) {
-    const cfg = tla.replace(/\.tla$/, '.cfg');
-    if (fs.existsSync(cfg)) modules.set(path.basename(tla, '.tla'), [tla, cfg]);
-  }
-  return modules;
 }
 
 /**
@@ -196,6 +189,18 @@ export function checkFormalArtifacts(workDir: string): CheckResult[] {
       checkTlaCoverage(workDir),
       // P1-7: each arch-1 subsystem must have at least one verified artifact
       checkArch1Coverage(workDir),
+      // P0: 伪造报告检测
+      checkReportAuthenticity(workDir, 'bdd'),
+      checkReportAuthenticity(workDir, 'tlaplus'),
+      checkReportAuthenticity(workDir, 'lean4'),
+      checkReportArtifactRatio(workDir, 'bdd'),
+      checkReportArtifactRatio(workDir, 'tlaplus'),
+      checkReportArtifactRatio(workDir, 'lean4'),
+      // P2: legacy source placeholder scan (previously dead code)
+      checkLegacyTlaSource(workDir),
+      checkLegacyLeanSource(workDir),
+      // P0: 反模式检测（Agent 绕过门禁行为）
+      checkAntiPatterns(workDir),
     ];
   } catch { return [{ name: 'SRS IR available for artifact requirements', passed: false, detail: 'srs-ir.json cannot be read' }]; }
 }

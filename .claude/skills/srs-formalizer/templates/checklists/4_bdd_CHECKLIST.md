@@ -9,4 +9,4 @@
 - [ ] 每个 Then 含 `# verification_method:` 标注
 - [ ] validate-bdd PASS
 - [ ] **gherkin-lint 严格模式全部通过**（20 条规则）
-- [ ] Agent 生成 + validate-bdd PASS（behavior-graph）
+- [ ] Agent 按 executor-bdd.md 生成 + validate-bdd PASS

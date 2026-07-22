@@ -5,7 +5,7 @@ import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 import { validateFeatureBasic, validateFeatureNFR, validateFeatureSemantics } from '../lib/bdd-validator.js';
 import { runGherkinLint, runGherklin } from '../lib/bdd-tool-runner.js';
 import { ARTIFACT_PATHS, artifactPath } from '../lib/artifacts/paths.js';
-import { hashFiles, writeValidationReport } from '../lib/artifacts/validation-report.js';
+import { hashFiles, hashText, writeValidationReport } from '../lib/artifacts/validation-report.js';
 
 import { promoteFiles } from '../lib/artifacts/promotion.js';
 
@@ -58,11 +58,16 @@ export async function main(args: string[]): Promise<CliResult> {
   // checks-final.ts (which hashes the verified/ paths) can match the report's sourceHash.
   // Earlier versions hashed sourcePaths (draft paths) which never matched verified paths.
   const sourceHash = hashFiles(verifiedFiles);
+  // P0: irHash must bind to the current srs-ir.json content (not sourceHash, which
+  // made the field useless). checkReportAuthenticity rejects reports whose irHash
+  // does not match the current IR — catching artifacts not re-validated after IR changed.
+  const irHash = hashText(fs.readFileSync(path.join(workDir, 'srs-ir.json'), 'utf-8'));
+  const startedAt = new Date().toISOString();
   const reportPath = path.join(artifactPath(workDir, ARTIFACT_PATHS.bddValidation), `${sourceHash}.json`);
   writeValidationReport(reportPath, {
-    artifactKind: 'bdd', lifecycle: 'verified', sourcePaths: verifiedFiles, sourceHash, irHash: sourceHash,
+    artifactKind: 'bdd', lifecycle: 'verified', sourcePaths: verifiedFiles, sourceHash, irHash,
     tools: strict ? [{ name: 'gherkin-lint', version: 'configured' }, { name: 'gherklin', version: 'configured' }] : [],
-    startedAt: new Date().toISOString(), completedAt: new Date().toISOString(), passed: true,
+    startedAt, completedAt: new Date().toISOString(), passed: true,
     checks: [{ name: 'BDD structure', passed: true }, { name: 'strict validation', passed: strict }],
   });
   return { status: 'ok', data: { valid: true, files_checked: files.length, files: verifiedFiles, report: reportPath } };
