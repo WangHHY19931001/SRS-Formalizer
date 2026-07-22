@@ -1,6 +1,6 @@
 {
   "skill_name": "srs-formalizer",
-  "packed_at": "2026-07-22T06:39:41.569Z",
+  "packed_at": "2026-07-22T06:43:42.550Z",
   "total_files": 238,
   "files": {
     "BASELINE.md": "1f018d8132545154850fc6fc68c017f7ade8f41e99b23073b4867c5d59871888",
@@ -8,7 +8,7 @@
     "SKILL.md": "12f03042e39ead7b76bc259a773cc7c456f616a30e8b5a7ed170e48b3c7f8154",
     "agent-card.json": "69a5c920426dde9cd49448bac22106b94e0b4c058ae85824d2cb07175ce8fcda",
     "examples/README.md": "283d257230170d20507f50e4f02d6700c92d207ea58c224e88e3066a91807e35",
-    "examples/end-to-end-walkthrough.md": "d44742f13f32673a6ea0d44c85a725fc937653d2ac09460b6d283588fe4cd103",
+    "examples/end-to-end-walkthrough.md": "ca93804aeb128531cec10009a85b5ae79201d9b530f2c8c1a9383fb22e2699a7",
     "examples/online-store-srs.md": "4502019e94c50d3e82d6f79d575be1e897d0d1caac38c4d2a39c226c20d4dcb0",
     "prompts/debug-lean.md": "b20f7fbc2ae699bbb69e745c71386efd06254fa00086c51f3db5e38f48a33879",
     "prompts/debug-tlc.md": "3647eae689ee78847e271d3018a3875a0a5411c983e353a1a37ebea3283d5c9a",
@@ -79,7 +79,7 @@
     "scripts/__tests__/fixtures/test-skill/references/test-ref.md": "8837f56716b7fc65d21206c625adfff089f478e5d4d70968939f9e9bf2836c98",
     "scripts/__tests__/fixtures/test-skill/templates/test.template": "acd1e607d9e45912550e065c76c3d384cf815ac411adf391fe2fbf43f156b8d4",
     "scripts/__tests__/hash-compute.test.ts": "1c22081f5f9da137bd73e351da124e9b8d2bc4e2c7c0bd9873976778c1f964e5",
-    "scripts/__tests__/index.test.ts": "65d40aa3a9eecce2d24574d7f02e69852146560533baaab296cead2ced8001aa",
+    "scripts/__tests__/index.test.ts": "977574ae4a327034c092386e39dca44a04aeb44433ee62cacd8507cc0c579e4b",
     "scripts/__tests__/jsonl.test.ts": "d81a140aafb37204fb6db26b39bd331b61cedb4d6b58925331607e5141c7da68",
     "scripts/__tests__/middle-end-connectivity.test.ts": "251af5a4d8d6a113aa4d770f424b7f02f52a1748e98e6535fc6b6242b4f1d409",
     "scripts/__tests__/middle-end-dataflow.test.ts": "33f0e096f067c9e2d8d59cd4c813597f19b6863a263eb8d37535895ed73a27fb",

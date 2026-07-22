@@ -15,7 +15,7 @@ All commands below run from `.claude/skills/srs-formalizer/scripts/`.
 ## Pipeline
 
 ```text
-init → manifest → guided extraction → build-ir → analysis → emit
+init → manifest → guided extraction → assemble-ir → analysis → Agent 生成产物
      → strict validation and promotion → verified-only graph/report generation → FINAL gate
 ```
 
@@ -69,12 +69,10 @@ Send the returned prompt to the appropriate extraction agent, then validate and 
 ## 3. Build and analyze SRS-IR
 
 ```bash
-npx tsx index.ts build-ir --workdir .srs_formalizer
-npx tsx index.ts analyze-structure --workdir .srs_formalizer
-npx tsx index.ts analyze-graph --workdir .srs_formalizer
-npx tsx index.ts tag-nfr --workdir .srs_formalizer
+npx tsx index.ts assemble-ir --workdir .srs_formalizer
+npx tsx index.ts validate-semantics --workdir .srs_formalizer
 npx tsx index.ts check-connectivity --workdir .srs_formalizer
-npx tsx index.ts score-risk --workdir .srs_formalizer
+npx tsx index.ts analyze-dataflow --workdir .srs_formalizer
 npx tsx index.ts verify-gate --workdir .srs_formalizer --stage R3
 ```
 
@@ -82,15 +80,11 @@ The hard gate reports its findings in `data.pass`. Resolve failed checks before 
 
 ## 4. Emit drafts and deterministic artifacts
 
-```bash
-npx tsx index.ts emit --group graphs --workdir .srs_formalizer
-npx tsx index.ts emit --group bdd --workdir .srs_formalizer
-npx tsx index.ts emit --group formal --workdir .srs_formalizer
-```
+Agent 按 `prompts/executor-backend-cypher.md` 生成图谱产物到 `outputs/graphs/`。
+Agent 按 `prompts/executor-bdd.md` 生成 BDD .feature 文件到 `outputs/bdd/draft/`。
+Agent 按 `prompts/executor-tlaplus.md` 和 `prompts/executor-lean4.md` 生成形式化产物到 `outputs/tlaplus/draft/` 和 `outputs/lean4/draft/`。
 
-Use `emit --group all` only when every registered emitter is needed. There is no `emit-all` command.
-
-Emitters write BDD, TLA+, and Lean content to draft directories. A draft is not a delivery artifact and must not be used as FINAL input.
+A draft is not a delivery artifact and must not be used as FINAL input.
 
 ## 5. Complete and promote BDD
 
@@ -127,13 +121,9 @@ Strict Lean validation runs source auditing and `lake build`. It rejects `sorry`
 
 ## 8. Generate verified-input downstream outputs
 
-Graph, fixture, traceability, and cross-graph emitters use verified formal artifacts only. Re-run the relevant deterministic groups after successful promotions:
+Graph, fixture, traceability, and cross-graph downstream outputs use verified formal artifacts only. After successful promotions, Agent re-runs the relevant executor prompts to regenerate deterministic outputs based on verified artifacts:
 
-```bash
-npx tsx index.ts emit --group graphs --workdir .srs_formalizer
-npx tsx index.ts emit --group vmodel --workdir .srs_formalizer
-npx tsx index.ts emit --group verify --workdir .srs_formalizer
-```
+Agent 按 `prompts/executor-backend-cypher.md`、`prompts/executor-backend-fixture.md`、`prompts/executor-backend-traceability.md` 重新生成图谱、fixtures 与 traceability 产物。
 
 ## 9. Run the FINAL hard gate
 
