@@ -20,6 +20,63 @@ import {
 import { listJsonlFiles, readJsonl } from '../lib/jsonl.js';
 import { toDataFlowGraph, validateDataFlowRecords, type DataFlowRecord } from '../lib/dataflow-extract.js';
 
+const R1_FILENAME_REGEX = /^S\d{3}\.jsonl$/;
+
+/**
+ * P0-2: 预检 R1 文件名规范（拒绝区间命名如 S006-007.jsonl）。
+ * 仅在 shard_index.json 含 SNNN 格式 shard ID 时启用（向后兼容无 shard_index 的测试场景）。
+ * 允许：S001.jsonl ~ S999.jsonl + _empty_shards.json。
+ */
+function checkR1Filenames(r1Dir: string): string[] {
+  const errors: string[] = [];
+  if (!fs.existsSync(r1Dir)) return errors;
+  const files = fs.readdirSync(r1Dir).filter(f => f.endsWith('.jsonl') || f === '_empty_shards.json');
+  for (const f of files) {
+    if (f === '_empty_shards.json') continue;
+    if (!R1_FILENAME_REGEX.test(f)) {
+      errors.push(`R1 文件名违规: "${f}"，必须匹配 ^S\\d{3}\\.jsonl$（禁止区间命名）`);
+    }
+  }
+  return errors;
+}
+
+/**
+ * P0-2: 预检 R1 分片覆盖率。每个 shard 必须在 R1 记录中出现或在 _empty_shards.json 声明。
+ * 缺失即拒绝装配，避免编排者跳过分片后谎报 totalExplicitRules。
+ */
+function checkR1ShardCoverage(
+  r1Dir: string,
+  workDir: string,
+  shardIds: string[],
+): string[] {
+  const errors: string[] = [];
+  const coveredShards = new Set<string>();
+  if (fs.existsSync(r1Dir)) {
+    for (const file of listJsonlFiles(r1Dir, workDir)) {
+      for (const r of readJsonl(file, workDir)) {
+        const m = r.id.match(/^R1-(S\d{3})-\d{4}$/);
+        if (m) coveredShards.add(m[1]!);
+      }
+    }
+  }
+  // _empty_shards.json 显式声明零规范分片
+  const emptyPath = path.join(r1Dir, '_empty_shards.json');
+  let emptyShards: string[] = [];
+  if (fs.existsSync(emptyPath)) {
+    try {
+      emptyShards = JSON.parse(fs.readFileSync(emptyPath, 'utf-8')) as string[];
+    } catch {
+      errors.push('_empty_shards.json 解析失败');
+    }
+  }
+  for (const sid of emptyShards) coveredShards.add(sid);
+  const missing = shardIds.filter(sid => !coveredShards.has(sid));
+  if (missing.length > 0) {
+    errors.push(`R1 分片覆盖率不足: 缺失 ${missing.length} 个分片 ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? '...' : ''}（无对应 R1 记录且未在 _empty_shards.json 声明）`);
+  }
+  return errors;
+}
+
 const REQUIREMENT_SUBDIRS = ['r1-explicit', 'r2-implicit', 'r3-relational', 'r3-cross', 'r4-nfr'] as const;
 const ARCHITECTURE_SUBDIR = 'architecture';
 const DATA_ENTITIES_SUBDIR = 'data-entities';
@@ -179,6 +236,23 @@ function checkIntegrity(ir: SRSIR): string[] {
   return errors;
 }
 
+/**
+ * P0-3: Frontend 阶段（无 R3 凭证）禁止写入 Middle-end 专属字段。
+ * riskScore / highRiskShards 由 M6 写回；nfrProfile 由 M3 写回。
+ * assemble-ir 自己产出的 IR 不应含这些字段——若含则说明代码有 bug
+ * 或编排者通过其他方式注入了 Middle-end 字段。
+ */
+function checkFieldWriteAuthority(ir: SRSIR): string[] {
+  const errors: string[] = [];
+  if (ir.nfrProfile.detectedCategories.length > 0) {
+    errors.push('assemble-ir 不应填入 nfrProfile.detectedCategories（M3 专属字段）');
+  }
+  if (ir.meta.riskScore !== undefined) {
+    errors.push('assemble-ir 不应填入 meta.riskScore（M6 专属字段）');
+  }
+  return errors;
+}
+
 interface ShardIndexMeta {
   sourcePath: string;
   sourceHash: string;
@@ -243,6 +317,36 @@ export async function main(args: string[]): Promise<CliResult> {
   }
 
   try {
+    // P0-2: R1 文件名 + 分片覆盖率预检（仅在 shard_index.json 含 SNNN shard ID 时启用）
+    {
+      const r1Dir = path.join(workDir, '2_extract', 'r1-explicit');
+      let shardIds: string[] = [];
+      try {
+        const indexPath = path.join(workDir, '_ctx', 'shard_index.json');
+        if (fs.existsSync(indexPath)) {
+          const raw = JSON.parse(fs.readFileSync(indexPath, 'utf-8')) as Record<string, unknown>;
+          if (Array.isArray(raw['shards'])) {
+            shardIds = (raw['shards'] as Array<Record<string, unknown>>)
+              .map(s => toStr(s['id'], ''))
+              .filter(id => /^S\d{3}$/.test(id));
+          }
+        }
+      } catch {
+        // shard_index 损坏由 validate-shard-index 兜底
+      }
+      // 仅在有 SNNN shard ID 时才启用文件名+覆盖率预检（向后兼容无 shard_index 的场景）
+      if (shardIds.length > 0) {
+        const filenameErrors = checkR1Filenames(r1Dir);
+        if (filenameErrors.length > 0) {
+          return { status: 'error', message: `R1 文件名预检失败: ${filenameErrors.join('; ')}` };
+        }
+        const coverageErrors = checkR1ShardCoverage(r1Dir, workDir, shardIds);
+        if (coverageErrors.length > 0) {
+          return { status: 'error', message: `R1 覆盖率预检失败: ${coverageErrors.join('; ')}` };
+        }
+      }
+    }
+
     const nodes: IRNode[] = [];
     const idSet = new Set<string>();
 
@@ -344,7 +448,7 @@ export async function main(args: string[]): Promise<CliResult> {
       glossary: [],
     };
 
-    const errors = checkIntegrity(ir);
+    const errors = [...checkIntegrity(ir), ...checkFieldWriteAuthority(ir)];
     if (errors.length > 0) {
       return { status: 'error', message: `IR 完整性校验失败: ${errors.join('; ')}` };
     }

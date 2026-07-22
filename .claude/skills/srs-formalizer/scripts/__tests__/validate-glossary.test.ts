@@ -155,4 +155,72 @@ describe('validate-glossary command', () => {
     assert.equal(result.status, 'error');
     assert.ok(result.message!.includes('File not found'));
   });
+
+  // --- P2-1: term provenance tests ---
+
+  it('P2-1: detects fabricated term not in source file', async () => {
+    // Create a temp workdir with shard_index pointing to a source file
+    // that does NOT contain the term "FabricatedTerm"
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'srs-gloss-p21-'));
+    const workDir = path.join(tmpDir, '.srs_formalizer');
+    fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
+    const srcFile = path.join(tmpDir, 'source.md');
+    fs.writeFileSync(srcFile, '# Test\nThis document mentions RealTerm but not the fabricated one.\n', 'utf-8');
+    fs.writeFileSync(
+      path.join(workDir, '_ctx', 'shard_index.json'),
+      JSON.stringify({ shards: [{ id: 'S001', source_path: srcFile }] }),
+    );
+    // NOTE: glossary file MUST be inside workDir to pass isPathSafe security check
+    const glossaryFile = path.join(workDir, 'glossary.json');
+    fs.writeFileSync(
+      glossaryFile,
+      JSON.stringify({
+        batch_id: 'B001',
+        shards_covered: ['S001'],
+        terms: [
+          { term: 'RealTerm', definition: 'A real term that exists in source', source_shard: 'S001', confidence: 'high', category: 'domain_concept' },
+          { term: 'FabricatedTerm', definition: 'A term that does not exist in source', source_shard: 'S001', confidence: 'high', category: 'domain_concept' },
+        ],
+      }),
+    );
+    const { main } = await import('../commands/validate-glossary.js');
+    const result = await main(['--file', glossaryFile, '--workdir', workDir, '--min-high', '0']);
+    const data = result.data as { checks: Array<{ name: string; passed: boolean }> };
+    const provenanceCheck = data.checks.find(c => c.name === 'term_provenance');
+    assert.ok(provenanceCheck, 'term_provenance check should exist');
+    assert.strictEqual(provenanceCheck!.passed, false);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('P2-1: passes when all terms exist in source file', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'srs-gloss-p21-ok-'));
+    const workDir = path.join(tmpDir, '.srs_formalizer');
+    fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
+    const srcFile = path.join(tmpDir, 'source.md');
+    fs.writeFileSync(srcFile, '# Test\nThis document mentions Alpha and Beta terms.\n', 'utf-8');
+    fs.writeFileSync(
+      path.join(workDir, '_ctx', 'shard_index.json'),
+      JSON.stringify({ shards: [{ id: 'S001', source_path: srcFile }] }),
+    );
+    // NOTE: glossary file MUST be inside workDir to pass isPathSafe security check
+    const glossaryFile = path.join(workDir, 'glossary.json');
+    fs.writeFileSync(
+      glossaryFile,
+      JSON.stringify({
+        batch_id: 'B001',
+        shards_covered: ['S001'],
+        terms: [
+          { term: 'Alpha', definition: 'Alpha term definition here', source_shard: 'S001', confidence: 'high', category: 'domain_concept' },
+          { term: 'Beta', definition: 'Beta term definition here', source_shard: 'S001', confidence: 'high', category: 'domain_concept' },
+        ],
+      }),
+    );
+    const { main } = await import('../commands/validate-glossary.js');
+    const result = await main(['--file', glossaryFile, '--workdir', workDir, '--min-high', '0']);
+    const data = result.data as { checks: Array<{ name: string; passed: boolean }> };
+    const provenanceCheck = data.checks.find(c => c.name === 'term_provenance');
+    assert.ok(provenanceCheck, 'term_provenance check should exist');
+    assert.strictEqual(provenanceCheck!.passed, true);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

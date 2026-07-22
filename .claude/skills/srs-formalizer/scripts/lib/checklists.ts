@@ -24,6 +24,16 @@ export const CHECKLISTS: Record<string, string> = {
 - [ ] 用户已确认阶段触发方案
 - [ ] 用户已确认语言偏好（zh/en）
 `,
+  'S1': `# S1 预处理 — 验收清单
+
+- [ ] Bootstrap 成功创建 \`.srs_formalizer/\` 及全部阶段目录（Agent 手动创建工作目录，SKILL.md §Bootstrap）
+- [ ] _ctx/confirmation.json 存在且 user_confirm=true（Inversion 模式机械触发器）
+- [ ] F1 分片产出 _ctx/shard_index.json，validate-shard-index PASS
+- [ ] 每个 shard 含 locator（{file_abspath}-{start}-{end}-{chunk_id}）
+- [ ] 每个 shard 的 source_path 指向的源文件存在
+- [ ] GAPS.md 已生成（非 .template 未填充），缺口已标注优先级
+- [ ] STATE.md 当前阶段标记为 S1 完成，且引用 _ctx/gate-S1.json receiptHash
+`,
   '2_extract': `# S2 需求提取 — 验收清单
 
 ## R1 (S2.1)
@@ -151,6 +161,11 @@ export const CANONICAL: Record<string, CanonicalDef> = {
     required_headers: ['S0', '发现', '确认'],
     required_phrases: ['SRS', '文件路径', '格式识别', 'TLA+', 'Lean', '触发', '用户', '确认'],
   },
+  'S1': {
+    expected_count: 7,
+    required_headers: ['S1', '预处理', '验收清单'],
+    required_phrases: ['Bootstrap', 'confirmation.json', 'validate-shard-index', 'locator', 'GAPS.md', 'STATE.md'],
+  },
   '2_extract': {
     expected_count: 23,
     required_headers: ['S2', '需求提取', 'R1', 'Arch-1', 'R2', 'Arch-2', 'R3-1', 'Arch-3', 'R3-2'],
@@ -184,7 +199,7 @@ export const CANONICAL: Record<string, CanonicalDef> = {
 
 /** 将 CHECKLISTS 写入工作目录的各阶段子目录 */
 export function writeChecklists(workDir: string): void {
-  const stageDirs = ['S0', '2_extract', '3_graph', '4_bdd', '5_formal', '6_outputs'];
+  const stageDirs = ['S0', 'S1', '2_extract', '3_graph', '4_bdd', '5_formal', '6_outputs'];
   for (const dir of stageDirs) {
     const content = CHECKLISTS[dir];
     if (content) {

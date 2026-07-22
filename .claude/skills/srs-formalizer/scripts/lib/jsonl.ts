@@ -71,9 +71,39 @@ export function validateJsonlRecord(
     errors.push(`${prefix}: statement is empty`);
   }
 
-  const validConfidences = ['high', 'medium', 'low'];
-  if (record.confidence && !validConfidences.includes(record.confidence)) {
-    errors.push(`${prefix}: invalid confidence "${record.confidence}"`);
+  // P1-4: confidence 接受 'high'|'medium'|'low' 字符串或 0~1 数值
+  if (record.confidence !== undefined && record.confidence !== null) {
+    if (typeof record.confidence === 'string') {
+      if (!['high', 'medium', 'low'].includes(record.confidence)) {
+        errors.push(`${prefix}: invalid confidence "${record.confidence}"`);
+      }
+    } else if (typeof record.confidence === 'number') {
+      if (!Number.isFinite(record.confidence) || record.confidence < 0 || record.confidence > 1) {
+        errors.push(`${prefix}: confidence number must be in [0, 1], got ${record.confidence}`);
+      }
+    } else {
+      errors.push(`${prefix}: confidence must be string or number, got ${typeof record.confidence}`);
+    }
+  }
+
+  // P1-5: R3 relational 记录必须含 metadata.relation/source_id/target_id
+  if (record.category === 'relational' || /^R3-/.test(record.id)) {
+    const meta = record.metadata;
+    if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) {
+      errors.push(`${prefix}: R3 relational record missing metadata object`);
+    } else {
+      const m = meta as Record<string, unknown>;
+      const relation = m['relation'];
+      if (typeof relation !== 'string' || !['DEPENDS_ON', 'REFINES', 'CONFLICTS_WITH'].includes(relation)) {
+        errors.push(`${prefix}: R3 metadata.relation must be one of DEPENDS_ON/REFINES/CONFLICTS_WITH, got ${JSON.stringify(relation)}`);
+      }
+      if (typeof m['source_id'] !== 'string' || !/^R[123]-[A-Za-z0-9_.]+-\d{4}$/.test(m['source_id'])) {
+        errors.push(`${prefix}: R3 metadata.source_id missing or invalid: ${JSON.stringify(m['source_id'])}`);
+      }
+      if (typeof m['target_id'] !== 'string' || !/^R[123]-[A-Za-z0-9_.]+-\d{4}$/.test(m['target_id'])) {
+        errors.push(`${prefix}: R3 metadata.target_id missing or invalid: ${JSON.stringify(m['target_id'])}`);
+      }
+    }
   }
 
   return errors;

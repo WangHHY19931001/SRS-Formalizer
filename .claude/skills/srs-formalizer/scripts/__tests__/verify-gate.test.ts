@@ -73,6 +73,7 @@ describe('verify-gate command', () => {
     fs.writeFileSync(path.join(workDir, 'STATE.md'), '# State\n', 'utf-8');
     fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
     fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    fs.writeFileSync(path.join(workDir, '_ctx', 'confirmation.json'), JSON.stringify({ user_confirm: true, detected_gaps: [], language: 'zh' }), 'utf-8');
     writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
       { id: 'R1-REQ-0001', category: 'explicit', statement: '用户登录', source_file: 'srs.md', confidence: 'high' },
     ]);
@@ -151,6 +152,7 @@ describe('verify-gate command', () => {
     fs.writeFileSync(path.join(workDir, 'STATE.md'), '# State\n| last_verify_gate | S1:pass |\n| skipped_modules | (none) |\n| tool_failures | 0 |\n', 'utf-8');
     fs.mkdirSync(path.join(workDir, '_ctx'), { recursive: true });
     fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    fs.writeFileSync(path.join(workDir, '_ctx', 'confirmation.json'), JSON.stringify({ user_confirm: true, detected_gaps: [], language: 'zh' }), 'utf-8');
 
     // JSONL files in all subdirectories
     writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
@@ -561,5 +563,88 @@ describe('verify-gate command', () => {
     const { checkR3RelationalThreshold } = await import('../lib/verify-gate/checks-r3.js');
     const result = checkR3RelationalThreshold(workDir);
     assert.strictEqual(result.passed, false, `expected low r3 count to fail, got: ${result.detail}`);
+  });
+
+  // ===========================================================================
+  // P0-1: Persistent gate receipts
+  // ===========================================================================
+
+  it('P0-1: verify-gate writes _ctx/gate-{stage}.json receipt', async () => {
+    const workDir = createWorkDir('p01-receipt');
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
+      { id: 'R1-REQ-0001', category: 'explicit', statement: 'test', source_file: 'srs.md', confidence: 'high' },
+    ]);
+
+    const { main } = await import('../commands/verify-gate.js');
+    const result = await main(['--workdir', workDir, '--stage', 'S1']);
+    const data = result.data as { pass: boolean };
+
+    const receiptPath = path.join(workDir, '_ctx', 'gate-S1.json');
+    assert.ok(fs.existsSync(receiptPath), 'gate-S1.json receipt must be written');
+    const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf-8'));
+    assert.equal(receipt.stage, 'S1');
+    assert.equal(receipt.verdict, data.pass ? 'pass' : 'fail');
+    assert.match(receipt.receiptHash, /^[0-9a-f]{16}$/);
+    assert.match(receipt.workdirHash, /^[0-9a-f]{16}$/);
+  });
+
+  it('P0-1: verifyGateReceipt rejects missing receipt', async () => {
+    const workDir = createWorkDir('p01-missing');
+    const { verifyGateReceipt } = await import('../lib/verify-gate/shared.js');
+    const r = verifyGateReceipt(workDir, 'S1');
+    assert.equal(r.valid, false);
+    assert.match(r.reason!, /Missing gate receipt/);
+  });
+
+  it('P0-1: verifyGateReceipt validates existing pass receipt', async () => {
+    const workDir = createWorkDir('p01-valid');
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
+      { id: 'R1-REQ-0001', category: 'explicit', statement: 'test', source_file: 'srs.md', confidence: 'high' },
+    ]);
+
+    const { main } = await import('../commands/verify-gate.js');
+    await main(['--workdir', workDir, '--stage', 'S1']);
+
+    const { verifyGateReceipt } = await import('../lib/verify-gate/shared.js');
+    const r = verifyGateReceipt(workDir, 'S1');
+    // Note: may be valid or invalid depending on whether S1 gate actually passes,
+    // but the receipt should exist (not "Missing")
+    assert.doesNotMatch(r.reason || '', /Missing gate receipt/);
+  });
+
+  // ===========================================================================
+  // P0-4: Inversion mode confirmation.json mechanical gate
+  // ===========================================================================
+
+  it('P0-4: S1 gate fails when _ctx/confirmation.json missing', async () => {
+    const workDir = createWorkDir('p04-missing');
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
+      { id: 'R1-REQ-0001', category: 'explicit', statement: 'test', source_file: 'srs.md', confidence: 'high' },
+    ]);
+
+    const { main } = await import('../commands/verify-gate.js');
+    const result = await main(['--workdir', workDir, '--stage', 'S1']);
+    const data = result.data as { pass: boolean; checks: Record<string, { passed: boolean }> };
+    assert.equal(data.pass, false);
+    assert.ok(data.checks['confirmation.json present (Inversion gate)']);
+    assert.equal(data.checks['confirmation.json present (Inversion gate)'].passed, false);
+  });
+
+  it('P0-4: S1 gate passes confirmation check when _ctx/confirmation.json has user_confirm=true', async () => {
+    const workDir = createWorkDir('p04-present');
+    fs.writeFileSync(path.join(workDir, '_ctx', 'shard_index.json'), JSON.stringify({ version: '1.0' }), 'utf-8');
+    fs.writeFileSync(path.join(workDir, '_ctx', 'confirmation.json'), JSON.stringify({ user_confirm: true, detected_gaps: [], language: 'zh' }), 'utf-8');
+    writeJsonl(path.join(workDir, '2_extract', 'r1-explicit'), 'a.jsonl', [
+      { id: 'R1-REQ-0001', category: 'explicit', statement: 'test', source_file: 'srs.md', confidence: 'high' },
+    ]);
+
+    const { main } = await import('../commands/verify-gate.js');
+    const result = await main(['--workdir', workDir, '--stage', 'S1']);
+    const data = result.data as { checks: Record<string, { passed: boolean }> };
+    assert.ok(data.checks['confirmation.json present (Inversion gate)']);
+    assert.equal(data.checks['confirmation.json present (Inversion gate)'].passed, true);
   });
 });

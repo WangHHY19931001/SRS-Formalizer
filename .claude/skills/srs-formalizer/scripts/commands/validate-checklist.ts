@@ -138,6 +138,25 @@ export async function main(args: string[]): Promise<CliResult> {
     }
   }
 
+  // P2-5: 检测未填充 .template 文件
+  const workDir = getWorkDir(filePath);
+  if (workDir) {
+    const templateFiles = ['GAPS.md.template', 'CONTEXT.md.template', 'BEHAVIORS.md.template', 'STATE.md.template'];
+    for (const tpl of templateFiles) {
+      const tplPath = path.join(workDir, tpl);
+      if (fs.existsSync(tplPath)) {
+        const tplContent = fs.readFileSync(tplPath, 'utf-8');
+        if (tplContent.includes('{{') && tplContent.includes('}}')) {
+          const mdName = tpl.replace('.template', '');
+          const mdPath = path.join(workDir, mdName);
+          if (!fs.existsSync(mdPath)) {
+            integrityErrors.push(`Template ${tpl} contains placeholders but ${mdName} not filled`);
+          }
+        }
+      }
+    }
+  }
+
   const data: ChecklistData = {
     valid: unchecked === 0 && integrityErrors.filter(e => !e.startsWith('Repaired:')).length === 0,
     total: checked + unchecked,

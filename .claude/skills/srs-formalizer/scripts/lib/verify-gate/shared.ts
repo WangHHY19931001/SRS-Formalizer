@@ -4,6 +4,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as crypto from 'node:crypto';
 import type { SRSIR } from '../../types/srs-ir.js';
 
 // ---------------------------------------------------------------------------
@@ -216,4 +217,78 @@ export function scanTlaSourceForPlaceholders(
     }
   }
   return hits;
+}
+
+// ---------------------------------------------------------------------------
+// P0-1: Persistent gate receipts — prevent orchestrators from lying about gate passage
+// ---------------------------------------------------------------------------
+
+/**
+ * P0-1: 把门禁结论持久化为 `_ctx/gate-{stage}.json`，含 workdir hash + timestamp + verdict。
+ * STATE.md 的阶段✅标记必须引用此文件的 receiptHash，避免编排者谎报通过。
+ */
+export function writeGateReceipt(
+  workDir: string,
+  stage: string,
+  output: VerifyOutput,
+): string {
+  const ctxDir = path.join(workDir, '_ctx');
+  fs.mkdirSync(ctxDir, { recursive: true });
+  const receipt = {
+    stage,
+    timestamp: new Date().toISOString(),
+    verdict: output.pass ? 'pass' : 'fail',
+    errors: output.errors,
+    // workdir hash 防止 receipt 跨工作目录复用
+    workdirHash: crypto
+      .createHash('sha256')
+      .update(fs.realpathSync(workDir))
+      .digest('hex')
+      .slice(0, 16),
+  };
+  const json = JSON.stringify(receipt, null, 2);
+  const receiptHash = crypto.createHash('sha256').update(json).digest('hex').slice(0, 16);
+  const receiptWithHash = { ...receipt, receiptHash };
+  const receiptPath = path.join(ctxDir, `gate-${stage}.json`);
+  fs.writeFileSync(receiptPath, JSON.stringify(receiptWithHash, null, 2), 'utf-8');
+  return receiptPath;
+}
+
+/**
+ * P0-1: 校验指定 stage 的 gate 凭证存在且 verdict=pass。
+ * assemble-ir / orchestrator 在阶段转换时调用此函数。
+ */
+export function verifyGateReceipt(workDir: string, stage: string): {
+  valid: boolean;
+  reason?: string;
+} {
+  const receiptPath = path.join(workDir, '_ctx', `gate-${stage}.json`);
+  if (!fs.existsSync(receiptPath)) {
+    return { valid: false, reason: `Missing gate receipt: _ctx/gate-${stage}.json` };
+  }
+  try {
+    const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf-8')) as {
+      stage: string;
+      verdict: string;
+      workdirHash: string;
+      receiptHash: string;
+    };
+    if (receipt.stage !== stage) {
+      return { valid: false, reason: `Stage mismatch: expected ${stage}, got ${receipt.stage}` };
+    }
+    if (receipt.verdict !== 'pass') {
+      return { valid: false, reason: `Gate ${stage} verdict=${receipt.verdict}` };
+    }
+    const currentWorkdirHash = crypto
+      .createHash('sha256')
+      .update(fs.realpathSync(workDir))
+      .digest('hex')
+      .slice(0, 16);
+    if (receipt.workdirHash !== currentWorkdirHash) {
+      return { valid: false, reason: 'workdirHash mismatch — receipt from different workdir' };
+    }
+    return { valid: true };
+  } catch (err) {
+    return { valid: false, reason: `Corrupt receipt: ${(err as Error).message}` };
+  }
 }

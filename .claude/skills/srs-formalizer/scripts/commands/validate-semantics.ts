@@ -81,8 +81,14 @@ function checkTypeValidity(ir: SRSIR, findings: ValidationFinding[]): void {
     if (n.properties.category !== undefined && !validCategory.has(n.properties.category)) {
       findings.push({ severity: 'error', category: 'type', message: `Invalid category "${n.properties.category}"`, path: `${p}.properties.category` });
     }
-    if (n.properties.confidence !== undefined && !validConfidence.has(n.properties.confidence)) {
-      findings.push({ severity: 'error', category: 'type', message: `Invalid confidence "${n.properties.confidence}"`, path: `${p}.properties.confidence` });
+    if (n.properties.confidence !== undefined) {
+      const c = n.properties.confidence;
+      const cValid = typeof c === 'string'
+        ? validConfidence.has(c)
+        : typeof c === 'number' && Number.isFinite(c) && c >= 0 && c <= 1;
+      if (!cValid) {
+        findings.push({ severity: 'error', category: 'type', message: `Invalid confidence "${c}"`, path: `${p}.properties.confidence` });
+      }
     }
     if (n.properties.nfrCategory !== undefined && !validCats.has(n.properties.nfrCategory)) {
       findings.push({ severity: 'error', category: 'type', message: `Invalid nfrCategory "${n.properties.nfrCategory}"`, path: `${p}.properties.nfrCategory` });

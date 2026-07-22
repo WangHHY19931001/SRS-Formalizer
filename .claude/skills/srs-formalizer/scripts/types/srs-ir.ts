@@ -46,7 +46,8 @@ export type ArchVersion = 1 | 2 | 3;
 export interface IRProperties {
   statement?: string;
   category?: 'explicit' | 'implicit' | 'relational';
-  confidence?: 'high' | 'medium' | 'low';
+  /** P1-4: confidence 接受字符串枚举或 0~1 数值 */
+  confidence?: 'high' | 'medium' | 'low' | number;
   nfrCategory?: NFRCategory;
   nfrThreshold?: NFRThreshold;
   archType?: 'Module' | 'Actor' | 'Constraint' | 'Component' | 'Interface';
@@ -178,7 +179,8 @@ export interface IRGlossaryEntry {
   acronym?: string;
   definition: string;
   sourceShard: string;
-  confidence: 'high' | 'medium' | 'low';
+  /** P1-4: confidence 接受字符串枚举或 0~1 数值 */
+  confidence: 'high' | 'medium' | 'low' | number;
   category: 'domain_concept' | 'acronym' | 'technical_entity'
           | 'business_entity' | 'defined_term';
 }

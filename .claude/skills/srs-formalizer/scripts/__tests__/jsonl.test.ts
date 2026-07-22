@@ -57,4 +57,54 @@ describe('jsonl lib', () => {
       /SecurityError/
     );
   });
+
+  it('P1-4: accepts numeric confidence in [0, 1]', async () => {
+    const { validateJsonlRecord } = await import('../lib/jsonl.js');
+    const errors = validateJsonlRecord({
+      id: 'R1-S001-0001', category: 'explicit', confidence: 0.95,
+      statement: 'x', source_file: '/tmp/x.md',
+    } as any, 0);
+    assert.equal(errors.length, 0, JSON.stringify(errors));
+  });
+
+  it('P1-4: rejects numeric confidence > 1', async () => {
+    const { validateJsonlRecord } = await import('../lib/jsonl.js');
+    const errors = validateJsonlRecord({
+      id: 'R1-S001-0001', category: 'explicit', confidence: 1.5,
+      statement: 'x', source_file: '/tmp/x.md',
+    } as any, 0);
+    assert.ok(errors.some(e => e.includes('confidence')));
+  });
+
+  it('P1-5: R3 relational record without metadata.relation fails', async () => {
+    const { validateJsonlRecord } = await import('../lib/jsonl.js');
+    const errors = validateJsonlRecord({
+      id: 'R3-S015-0001', category: 'relational', confidence: 'high',
+      statement: 'x', source_file: '/tmp/x.md',
+      metadata: { collaborates_with: 'X' },
+    } as any, 0);
+    assert.ok(errors.some(e => e.includes('metadata.relation')));
+    assert.ok(errors.some(e => e.includes('source_id')));
+    assert.ok(errors.some(e => e.includes('target_id')));
+  });
+
+  it('P1-5: R3 relational record with valid relation/source_id/target_id passes', async () => {
+    const { validateJsonlRecord } = await import('../lib/jsonl.js');
+    const errors = validateJsonlRecord({
+      id: 'R3-S015-0001', category: 'relational', confidence: 'high',
+      statement: 'x', source_file: '/tmp/x.md',
+      metadata: { relation: 'DEPENDS_ON', source_id: 'R1-S001-0001', target_id: 'R1-S002-0001' },
+    } as any, 0);
+    assert.equal(errors.length, 0, JSON.stringify(errors));
+  });
+
+  it('P1-5: R3 record with invalid relation enum fails', async () => {
+    const { validateJsonlRecord } = await import('../lib/jsonl.js');
+    const errors = validateJsonlRecord({
+      id: 'R3-S015-0001', category: 'relational', confidence: 'high',
+      statement: 'x', source_file: '/tmp/x.md',
+      metadata: { relation: 'SAMENESS_AS', source_id: 'R1-S001-0001', target_id: 'R1-S002-0001' },
+    } as any, 0);
+    assert.ok(errors.some(e => e.includes('metadata.relation')));
+  });
 });

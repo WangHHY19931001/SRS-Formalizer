@@ -104,6 +104,21 @@ SRS 文档
 
 **未确认前禁止执行 Bootstrap 或任何文件写入操作。** 信息不全（缺口过多、格式无法识别）时，向用户提问澄清，不进下一阶段。此即 **Inversion 模式**——未确认的假设不进入流水线。
 
+**机械凭证**：用户确认后，Agent 必须写入 `_ctx/confirmation.json`：
+
+```json
+{
+  "user_confirm": true,
+  "confirmed_at": "<ISO-8601>",
+  "detected_gaps": ["..."],
+  "language": "zh|en",
+  "tla_trigger": "yes|no|pending",
+  "lean_trigger": "yes|no|pending"
+}
+```
+
+`verify-gate --stage S1` 会校验此文件存在且 `user_confirm=true`；缺失即 FAIL，从机械上阻止"未确认就 Bootstrap"的 Inversion 违规。
+
 ### 阶段 2：Bootstrap（替代 init 命令）
 
 Agent 按 SKILL.md Bootstrap 段指令创建工作目录结构（无脚本，幂等保留已有文件）：
@@ -168,7 +183,15 @@ npx tsx index.ts validate-jsonl --file <path> --workdir .srs_formalizer
 
 Agent 构建**架构树 v1**（arch-1 基础树：module/actor/constraint），产出 `2_extract/architecture/arch-1*.jsonl`，每条记录顶层 `arch_version: 1`。这是交替演进循环的第一版架构树，为 F4a 隐含需求推导提供上下文。
 
-> 🔴 **架构溯源铁律（§P0-0d）**：每条 arch-1 记录（`ARCH-*`）必须带 `source_shard` 字段（格式 `SNNN`，如 `"S005"`），标注该架构元素来自哪个源分片。校验器对缺失或格式错误的 `source_shard` 判 FAIL。务必覆盖顶层分层架构（如 §5）与独立子系统章节（如 MCP §17、Skill §18），避免顶层结构与独立子系统被泛化模块吞并而丢失。
+> 🔴 **架构溯源铁律（§P0-0d）**：每条 arch-1 记录（`ARCH-*`）必须带 `source_shard` 字段（格式 `SNNN`，如 `"S005"`），标注该架构元素来自哪个源分片。校验器对缺失或格式错误的 `source_shard` 判 FAIL。
+
+> 🔴 **架构覆盖强制清单（§P1-3）**：arch-1 必须覆盖以下四类（若源文档存在）：
+> 1. **根节点**（系统总称，如 "Shell Agent System"）
+> 2. **顶层分层架构**（如 §5.1 的分层结构）
+> 3. **正式子系统清单的每一项**（如 §5.2 列出的全部子系统，逐项覆盖，不得遗漏）
+> 4. **每个独立子系统章节**（如 §14 知识图谱、§15 代理协作、§16 A2A、§17 MCP、§18 Skill、§19 Governance 等）
+>
+> "如" 字样的章节为例示，**实际覆盖范围以源文档实际章节为准**。Agent 必须先扫描源文档章节列表，再据实覆盖，避免顶层结构与独立子系统被泛化模块吞并而丢失。
 
 > **分层要求**：架构树不得塌缩成平铺一层。用 `contains` 边表达子系统层级（父模块 contains 子需求/子模块）。R3 分层深度闸门要求架构树最大链长 ≥2，且 ≥3 个架构节点时不得全部无层级（`flatTree` 即 FAIL）。
 

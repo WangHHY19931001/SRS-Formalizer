@@ -13,11 +13,11 @@
 
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
-import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardCompleteness, checkShardCoverage, checkGlossaryExists, checkDataFlowFormat } from '../lib/verify-gate/checks-s1.js';
+import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardCompleteness, checkShardCoverage, checkGlossaryExists, checkDataFlowFormat, checkConfirmationReceipt } from '../lib/verify-gate/checks-s1.js';
 import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1, checkOrphanRatio, checkHierarchyDepth, checkOrphanAdjudication, checkAtomicTree, checkEdgeTypeDiversity, checkContainsEdgeDirection, checkR2R3Ingest, checkR3RelationIngest, checkR3RelationalThreshold } from '../lib/verify-gate/checks-r3.js';
 import { checkFormalArtifacts, verifiedArtifactCheck, tlaVerifiedCheck, leanVerifiedCheck } from '../lib/verify-gate/checks-final.js';
 import { checkFidelityReport, checkSafetyCriticalCoverage } from '../lib/verify-gate/checks-fidelity.js';
-import { VALID_STAGES, checkChecklistComplete, checkStateMdCrossCheck, type CheckResult, type VerifyOutput } from '../lib/verify-gate/shared.js';
+import { VALID_STAGES, checkChecklistComplete, checkStateMdCrossCheck, writeGateReceipt, type CheckResult, type VerifyOutput } from '../lib/verify-gate/shared.js';
 
 // ---------------------------------------------------------------------------
 // Main entry point
@@ -65,6 +65,7 @@ export async function main(args: string[]): Promise<CliResult> {
   allChecks.push(checkShardCoverage(workDir));
   allChecks.push(checkGlossaryExists(workDir));
   allChecks.push(checkDataFlowFormat(workDir));
+  allChecks.push(checkConfirmationReceipt(workDir));
 
   // === Stage checklist gates (S1/R3/FINAL) ===
   if (stageArg === 'S1' || stageArg === 'R3' || stageArg === 'FINAL') {
@@ -128,6 +129,14 @@ export async function main(args: string[]): Promise<CliResult> {
     checks: Object.fromEntries(allChecks.map(c => [c.name, { passed: c.passed, detail: c.detail }])),
     errors,
   };
+
+  // P0-1: 持久化门禁凭证到 _ctx/gate-{stage}.json
+  try {
+    writeGateReceipt(workDir, stageArg, output);
+  } catch (err) {
+    // 凭证写入失败不阻塞门禁结论，但记录到 errors
+    output.errors = [...output.errors, `Failed to write gate receipt: ${(err as Error).message}`];
+  }
 
   return { status: stageArg === 'FINAL' && !allPassed ? 'error' : 'ok', data: output, ...(stageArg === 'FINAL' && !allPassed ? { message: 'Verification gate failed' } : {}) };
 }
