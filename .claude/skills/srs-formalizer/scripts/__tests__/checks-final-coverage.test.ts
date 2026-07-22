@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { hashFiles, hashText } from '../lib/artifacts/validation-report.js';
 import { ARTIFACT_PATHS, artifactPath } from '../lib/artifacts/paths.js';
-import { checkReportAuthenticity, checkReportArtifactRatio } from '../lib/verify-gate/checks-final.js';
+import { checkReportAuthenticity, checkReportArtifactRatio, checkAntiPatterns } from '../lib/verify-gate/checks-final.js';
 
 const TMP = path.join(os.tmpdir(), `srs-formalizer-coverage-test-${Date.now()}`);
 
@@ -194,5 +194,50 @@ describe('TLA+ coverage and arch-1 coverage gates', () => {
     const result = checkReportArtifactRatio(workDir, 'bdd');
     assert.strictEqual(result.passed, false, `expected missing-report to fail, got: ${result.detail}`);
     assert.ok(result.detail?.includes('report'), `detail should mention missing report: ${result.detail}`);
+  });
+
+  // ===========================================================================
+  // P0: Anti-pattern detection
+  // ===========================================================================
+
+  it('flags manual .cfg file in tlaplus/draft (bypassing validate-tla)', () => {
+    const workDir = createWorkDir('manual-cfg');
+    const draftDir = artifactPath(workDir, ARTIFACT_PATHS.tlaDraft);
+    fs.mkdirSync(draftDir, { recursive: true });
+    fs.writeFileSync(path.join(draftDir, 'Module.cfg'), 'INIT Init\n', 'utf-8');
+    fs.writeFileSync(path.join(draftDir, 'Module.tla'), '---- MODULE Module ----\n====\n', 'utf-8');
+    const result = checkAntiPatterns(workDir);
+    assert.strictEqual(result.passed, false, `expected manual .cfg to fail, got: ${result.detail}`);
+    assert.ok(result.detail?.includes('cfg'), `detail should mention .cfg: ${result.detail}`);
+  });
+
+  it('flags /tmp script in workdir (bypassing path safety)', () => {
+    const workDir = createWorkDir('tmp-script');
+    fs.mkdirSync(path.join(workDir, 'tmp'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, 'tmp', 'hack.sh'), '#!/bin/bash\necho hacked\n', 'utf-8');
+    const result = checkAntiPatterns(workDir);
+    assert.strictEqual(result.passed, false, `expected /tmp script to fail, got: ${result.detail}`);
+    assert.ok(result.detail?.includes('tmp'), `detail should mention tmp: ${result.detail}`);
+  });
+
+  it('flags CHECKLIST all-checked but referenced file missing', () => {
+    const workDir = createWorkDir('checklist-file-missing');
+    fs.mkdirSync(path.join(workDir, '6_outputs'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, '6_outputs', 'CHECKLIST.md'),
+      '# S6\n- [x] `outputs/graphs/srs-graph.cypher` exists\n', 'utf-8');
+    // Note: outputs/graphs/srs-graph.cypher does NOT exist
+    const result = checkAntiPatterns(workDir);
+    assert.strictEqual(result.passed, false, `expected missing file to fail, got: ${result.detail}`);
+    assert.ok(result.detail?.includes('cypher') || result.detail?.includes('CHECKLIST'),
+      `detail should mention the missing file or checklist: ${result.detail}`);
+  });
+
+  it('passes when no anti-patterns detected', () => {
+    const workDir = createWorkDir('clean-workdir');
+    fs.mkdirSync(path.join(workDir, '6_outputs'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, '6_outputs', 'CHECKLIST.md'),
+      '# S6\n- [ ] pending\n', 'utf-8');
+    const result = checkAntiPatterns(workDir);
+    assert.strictEqual(result.passed, true, `expected clean workdir to pass, got: ${result.detail}`);
   });
 });
