@@ -296,6 +296,7 @@ metadata:
 4. **子代理输出必须通过 JSONL 格式校验**（`validate-jsonl` 硬门禁，6 项检查）
 5. **子代理 ID 必须 ASCII-only**，正则 `^R[123]-[A-Za-z0-9_.]+-\d{4}$`，禁止中文
 6. **SRS 回写必须经用户确认**；**技能工程零运行时 npm 依赖**（devDeps 仅 typescript、@types/node、gherkin-lint、gherklin）
+7. **语言保持（§P2-4）**：`lang=zh` 时 R1/R2/R3 statement 默认保留中文原文；若编排者翻译为英文，必须在 `metadata.translated: true` 且附 `metadata.source_text`（原文逐字片段）。`validate-jsonl` 校验：`lang=zh` 且 `metadata.translated` 非 true 时，statement 不得为纯 ASCII。
 
 ## 失败模式与恢复
 

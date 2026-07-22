@@ -295,4 +295,23 @@ describe('validate-checklist command', () => {
     assert.equal(data.checked, 8);
     assert.notEqual(data.repaired, true); // no repair needed
   });
+
+  // --- P2-5: unfilled .template detection ---
+
+  it('P2-5: detects unfilled .template with placeholders', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'srs-chk-p25-'));
+    const workDir = path.join(tmpDir, '.srs_formalizer');
+    fs.mkdirSync(path.join(workDir, 'S0'), { recursive: true });
+    // Create a CHECKLIST.md with all items checked
+    fs.writeFileSync(path.join(workDir, 'S0', 'CHECKLIST.md'), '- [x] SRS\n- [x] 文件路径\n- [x] 格式识别\n- [x] §7\n- [x] 术语表\n- [x] TLA+\n- [x] Lean\n- [x] 用户确认\n', 'utf-8');
+    // Create an unfilled .template with placeholders
+    fs.writeFileSync(path.join(workDir, 'GAPS.md.template'), '# GAPS\n\n{{GAP_LIST}}\n', 'utf-8');
+    // Do NOT create GAPS.md (it's unfilled)
+
+    const { main } = await import('../commands/validate-checklist.js');
+    const result = await main(['--file', path.join(workDir, 'S0', 'CHECKLIST.md')]);
+    const data = result.data as { integrity_errors: string[] };
+    assert.ok(data.integrity_errors.some(e => e.includes('GAPS.md.template') && e.includes('not filled')));
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

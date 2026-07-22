@@ -29,6 +29,17 @@
 |---------|---------|-------------|---------|---------|
 | (M3 完成后填写) | | | | |
 
+## Risk Assessment
+
+> 此段必须引用 `3_graph/analysis/risk.json` 的 SHA-256；M6 未运行时此段必须为 "pending"。
+
+| 字段 | 值 |
+|------|-----|
+| risk.json hash | `{{RISK_JSON_HASH_OR_PENDING}}` |
+| Overall Risk Score | `{{RISK_SCORE_OR_PENDING}}` |
+| Orphan Rate | `{{ORPHAN_RATE_OR_PENDING}}` |
+| High-Risk Shards | `{{HIGH_RISK_SHARDS_OR_PENDING}}` |
+
 ## 决策记录
 | ID | 时间 | 决策 | 原因 |
 |----|------|------|------|

@@ -13,9 +13,11 @@
  *   6. term 名称合理（≥2 字符，≤100 字符）
  *   7. 无重复 term（case-insensitive）
  *   8. 高置信度条数 ≥ --min-high（默认 5）
+ *   9. term 溯源（P2-1）：term/aliases 必须在 source_shard 对应源文件字面出现（仅 --workdir 时启用）
  */
 
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { CliResult } from '../types/index.js';
 import { safeParseArg, isPathSafe, validateWorkDir } from '../lib/cli.js';
 
@@ -33,7 +35,7 @@ interface GlossaryCheck {
 const VALID_CONFIDENCE = new Set(['high', 'medium', 'low']);
 const VALID_CATEGORIES = new Set(['domain_concept', 'acronym', 'technical_entity', 'business_entity', 'defined_term']);
 
-function validateBatch(batch: unknown, minHigh: number): GlossaryCheck[] {
+function validateBatch(batch: unknown, minHigh: number, workDir: string | null): GlossaryCheck[] {
   const checks: GlossaryCheck[] = [];
 
   // 1. Top-level structure
@@ -156,6 +158,52 @@ function validateBatch(batch: unknown, minHigh: number): GlossaryCheck[] {
     severity: 'error',
   });
 
+  // P2-1: term 溯源——term 或 aliases 至少一项必须在 source_shard 对应源文件文本中字面出现
+  if (workDir) {
+    let sourceTextCache: Map<string, string> | null = null;
+    try {
+      const indexPath = path.join(workDir, '_ctx', 'shard_index.json');
+      if (fs.existsSync(indexPath)) {
+        const index = JSON.parse(fs.readFileSync(indexPath, 'utf-8')) as { shards?: Array<{ id: string; source_path?: string }> };
+        const shardToSource = new Map<string, string>();
+        for (const shard of index.shards || []) {
+          if (shard.id && shard.source_path) shardToSource.set(shard.id, shard.source_path);
+        }
+        sourceTextCache = new Map();
+        // Preload source files
+        for (const [shardId, srcPath] of shardToSource) {
+          if (fs.existsSync(srcPath)) {
+            sourceTextCache.set(shardId, fs.readFileSync(srcPath, 'utf-8'));
+          }
+        }
+      }
+    } catch { /* shard_index not available — skip provenance check */ }
+
+    if (sourceTextCache && sourceTextCache.size > 0) {
+      let fabricatedCount = 0;
+      for (let i = 0; i < terms.length; i++) {
+        const t = terms[i] as Record<string, unknown> | undefined;
+        if (!t || typeof t !== 'object') continue;
+        const term = typeof t.term === 'string' ? t.term : '';
+        const aliases = Array.isArray(t.aliases) ? t.aliases.filter((a: unknown) => typeof a === 'string') : [];
+        const sourceShard = typeof t.source_shard === 'string' ? t.source_shard : '';
+        const srcText = sourceTextCache.get(sourceShard);
+        if (!srcText) continue; // Can't check if source not available
+        const candidates = [term, ...aliases as string[]].filter(s => s.length > 0);
+        const found = candidates.some(c => srcText.includes(c));
+        if (!found) fabricatedCount++;
+      }
+      checks.push({
+        name: 'term_provenance',
+        passed: fabricatedCount === 0,
+        detail: fabricatedCount > 0
+          ? `${fabricatedCount} 个术语在 source_shard 文件中无字面出现（疑似编造）`
+          : `✓ 全部术语可在源文件中定位`,
+        severity: 'error',
+      });
+    }
+  }
+
   // 6. High-confidence gate
   checks.push({
     name: `min_high_confidence_≥${minHigh}`,
@@ -225,7 +273,7 @@ export async function main(args: string[]): Promise<CliResult> {
     return { status: 'error', message: '文件不是合法 JSON' };
   }
 
-  const checks = validateBatch(batch, minHigh);
+  const checks = validateBatch(batch, minHigh, workDirArg);
   const errorCount = checks.filter(c => c.severity === 'error' && !c.passed).length;
   const warningCount = checks.filter(c => c.severity === 'warning' && !c.passed).length;
   const allPassed = checks.filter(c => c.severity === 'error').every(c => c.passed);
