@@ -286,7 +286,7 @@ metadata:
 2. **依赖闭包不可裁剪**：任何 Backend 产物都依赖 Frontend 与 Middle-end。用户只要 Cypher/BDD 时仍执行 F1-F5、M1-M6，再仅执行 B1/B2。
 3. **默认全量**：用户要求“形式化全部”或未指定产物时执行 B1-B7。TLA+ 默认生成所有 arch-1 子系统模块草稿；**是否强制 `--promote` 由下方「TLA+/Lean4 触发真值表」统一裁决**，不再在此处另行声明。Lean 按 security/compliance 触发。
 4. **尊重显式裁剪**：用户明确不要 TLA+ 或 Lean 时不得擅自生成。将 `requested_outputs`、`skipped_steps`、`reason`、`residual_risk` 写入 `STATE.md`；FINAL 只验证请求范围内的必需产物。若当前 `verify-gate FINAL` 无法表达该裁剪，停止并报告门禁能力缺口，不伪造通过。
-5. **HITL 只在风险点阻塞**：读取和分析 SRS、在沙箱内生成 draft、运行只读门禁无需逐阶段等待；仅 SRS 回写、应用补丁、完整性修复后的继续执行、收敛超限加轮，以及用户要求的检查点需要明确确认。
+5. **HITL 只在风险点阻塞**：读取和分析 SRS、在沙箱内生成 draft、运行只读门禁无需逐阶段等待；仅 SRS 回写、应用补丁、完整性修复后的继续执行、收敛超限加轮，以及用户要求的检查点需要明确确认。**Bootstrap 前必须写入 `_ctx/confirmation.json`（`user_confirm: true`），`verify-gate --stage S1` 校验此文件存在**——这是 Inversion 模式的机械触发器，非文档约定。
 
 ## 核心原则
 

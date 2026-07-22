@@ -104,6 +104,21 @@ SRS 文档
 
 **未确认前禁止执行 Bootstrap 或任何文件写入操作。** 信息不全（缺口过多、格式无法识别）时，向用户提问澄清，不进下一阶段。此即 **Inversion 模式**——未确认的假设不进入流水线。
 
+**机械凭证**：用户确认后，Agent 必须写入 `_ctx/confirmation.json`：
+
+```json
+{
+  "user_confirm": true,
+  "confirmed_at": "<ISO-8601>",
+  "detected_gaps": ["..."],
+  "language": "zh|en",
+  "tla_trigger": "yes|no|pending",
+  "lean_trigger": "yes|no|pending"
+}
+```
+
+`verify-gate --stage S1` 会校验此文件存在且 `user_confirm=true`；缺失即 FAIL，从机械上阻止"未确认就 Bootstrap"的 Inversion 违规。
+
 ### 阶段 2：Bootstrap（替代 init 命令）
 
 Agent 按 SKILL.md Bootstrap 段指令创建工作目录结构（无脚本，幂等保留已有文件）：

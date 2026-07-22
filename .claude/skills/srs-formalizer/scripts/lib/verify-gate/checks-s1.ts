@@ -211,3 +211,32 @@ export function checkDataFlowFormat(workDir: string): CheckResult {
       : `${report.errors.length} format error(s): ${report.errors.slice(0, 3).join('; ')}`,
   };
 }
+
+/**
+ * P0-4: 校验 _ctx/confirmation.json 存在且 user_confirm=true。
+ * Inversion 模式机械触发器：Bootstrap 前必须存在用户确认凭证。
+ */
+export function checkConfirmationReceipt(workDir: string): CheckResult {
+  const name = 'confirmation.json present (Inversion gate)';
+  const confPath = path.join(workDir, '_ctx', 'confirmation.json');
+  if (!fs.existsSync(confPath)) {
+    return {
+      name,
+      passed: false,
+      detail: 'Missing _ctx/confirmation.json — Bootstrap must not proceed without user confirmation (Inversion mode)',
+    };
+  }
+  try {
+    const conf = JSON.parse(fs.readFileSync(confPath, 'utf-8')) as {
+      user_confirm?: boolean;
+      detected_gaps?: unknown[];
+      language?: string;
+    };
+    if (conf.user_confirm !== true) {
+      return { name, passed: false, detail: 'confirmation.json user_confirm must be true' };
+    }
+    return { name, passed: true, detail: `confirmed, gaps=${Array.isArray(conf.detected_gaps) ? conf.detected_gaps.length : 0}` };
+  } catch (err) {
+    return { name, passed: false, detail: `Corrupt confirmation.json: ${(err as Error).message}` };
+  }
+}
