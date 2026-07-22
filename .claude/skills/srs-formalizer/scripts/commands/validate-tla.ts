@@ -183,9 +183,13 @@ export async function main(args: string[]): Promise<CliResult> {
   // Earlier versions hashed draft paths which never matched verified paths.
   const files = promote ? promoteFilesMerge(sourceDir, artifactPath(workDir, ARTIFACT_PATHS.tlaVerified), [`${name}.tla`, `${name}.cfg`]) : [tlaFile, cfgFile];
   const sourceHash = hashFiles(files);
+  // P0: irHash must bind to the current srs-ir.json content (not sourceHash, which
+  // made the field useless). checkReportAuthenticity rejects reports whose irHash
+  // does not match the current IR — catching artifacts not re-validated after IR changed.
+  const irHash = hashText(fs.readFileSync(path.join(workDir, 'srs-ir.json'), 'utf-8'));
   const reportPath = path.join(artifactPath(workDir, ARTIFACT_PATHS.tlaValidation), `${sourceHash}.json`);
   writeValidationReport(reportPath, {
-    artifactKind: 'tlaplus', lifecycle: 'verified', sourcePaths: files, sourceHash, irHash: sourceHash,
+    artifactKind: 'tlaplus', lifecycle: 'verified', sourcePaths: files, sourceHash, irHash,
     tools: [{ name: 'java', version: result.javaVersion }, { name: 'tla2tools', version: result.jarVersion }],
     startedAt, completedAt: new Date().toISOString(), passed: true,
     checks: [{ name: 'static specification checks', passed: true }, { name: 'SANY', passed: true, detail: result.sany.output.slice(0, 500) }, { name: 'TLC', passed: true, detail: result.tlc.output.slice(0, 500) }],

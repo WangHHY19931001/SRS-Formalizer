@@ -3,7 +3,9 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { hashFiles } from '../lib/artifacts/validation-report.js';
+import { hashFiles, hashText } from '../lib/artifacts/validation-report.js';
+import { ARTIFACT_PATHS, artifactPath } from '../lib/artifacts/paths.js';
+import { checkReportAuthenticity, checkReportArtifactRatio } from '../lib/verify-gate/checks-final.js';
 
 const TMP = path.join(os.tmpdir(), `srs-formalizer-coverage-test-${Date.now()}`);
 
@@ -104,5 +106,93 @@ describe('TLA+ coverage and arch-1 coverage gates', () => {
     const { checkArch1Coverage } = await import('../lib/verify-gate/checks-final.js');
     const result = checkArch1Coverage(workDir);
     assert.ok(!result.passed, 'expected fail when no artifacts for arch-1 subsystems');
+  });
+
+  // ===========================================================================
+  // P0: Fake-report detection (irHash / startedAt=completedAt / 1:1 ratio)
+  // ===========================================================================
+
+  it('flags report with startedAt === completedAt (0ms fake report)', () => {
+    const workDir = createWorkDir('fake-zero-ms');
+    const verifiedDir = artifactPath(workDir, ARTIFACT_PATHS.bddVerified);
+    const validationDir = artifactPath(workDir, ARTIFACT_PATHS.bddValidation);
+    fs.mkdirSync(verifiedDir, { recursive: true });
+    fs.mkdirSync(validationDir, { recursive: true });
+    fs.writeFileSync(path.join(verifiedDir, 'Login.feature'), 'Feature: Login\n', 'utf-8');
+    const sameTime = '2026-07-22T10:00:00.000Z';
+    const report = {
+      artifactKind: 'bdd', lifecycle: 'verified', passed: true,
+      sourcePaths: [path.join(verifiedDir, 'Login.feature')],
+      sourceHash: hashFiles([path.join(verifiedDir, 'Login.feature')]),
+      irHash: '0'.repeat(64),
+      tools: [], startedAt: sameTime, completedAt: sameTime,
+      checks: [{ name: 'BDD structure', passed: true }],
+    };
+    fs.writeFileSync(path.join(validationDir, `${report.sourceHash}.json`), JSON.stringify(report), 'utf-8');
+    const result = checkReportAuthenticity(workDir, 'bdd');
+    assert.strictEqual(result.passed, false, `expected 0ms report to fail, got: ${result.detail}`);
+    assert.ok(result.detail?.includes('0ms'), `detail should mention 0ms: ${result.detail}`);
+  });
+
+  it('flags report with irHash not matching current srs-ir.json (stale artifact)', () => {
+    const workDir = createWorkDir('fake-stale-ir');
+    const verifiedDir = artifactPath(workDir, ARTIFACT_PATHS.bddVerified);
+    const validationDir = artifactPath(workDir, ARTIFACT_PATHS.bddValidation);
+    fs.mkdirSync(verifiedDir, { recursive: true });
+    fs.mkdirSync(validationDir, { recursive: true });
+    fs.writeFileSync(path.join(verifiedDir, 'Login.feature'), 'Feature: Login\n', 'utf-8');
+    const irContent = JSON.stringify({ version: '2.1.0', nodes: [], edges: [] });
+    fs.writeFileSync(path.join(workDir, 'srs-ir.json'), irContent, 'utf-8');
+    const report = {
+      artifactKind: 'bdd', lifecycle: 'verified', passed: true,
+      sourcePaths: [path.join(verifiedDir, 'Login.feature')],
+      sourceHash: hashFiles([path.join(verifiedDir, 'Login.feature')]),
+      irHash: 'deadbeef'.repeat(8), // wrong irHash
+      tools: [],
+      startedAt: '2026-07-22T10:00:00.000Z', completedAt: '2026-07-22T10:00:05.000Z',
+      checks: [{ name: 'BDD structure', passed: true }],
+    };
+    fs.writeFileSync(path.join(validationDir, `${report.sourceHash}.json`), JSON.stringify(report), 'utf-8');
+    const result = checkReportAuthenticity(workDir, 'bdd');
+    assert.strictEqual(result.passed, false, `expected stale-ir report to fail, got: ${result.detail}`);
+    assert.ok(result.detail?.includes('irHash'), `detail should mention irHash mismatch: ${result.detail}`);
+  });
+
+  it('passes when irHash matches current srs-ir.json', () => {
+    const workDir = createWorkDir('authentic-ir');
+    const verifiedDir = artifactPath(workDir, ARTIFACT_PATHS.bddVerified);
+    const validationDir = artifactPath(workDir, ARTIFACT_PATHS.bddValidation);
+    fs.mkdirSync(verifiedDir, { recursive: true });
+    fs.mkdirSync(validationDir, { recursive: true });
+    fs.writeFileSync(path.join(verifiedDir, 'Login.feature'), 'Feature: Login\n', 'utf-8');
+    const irContent = JSON.stringify({ version: '2.1.0', nodes: [], edges: [] });
+    fs.writeFileSync(path.join(workDir, 'srs-ir.json'), irContent, 'utf-8');
+    const realIrHash = hashText(irContent);
+    const artifactHash = hashFiles([path.join(verifiedDir, 'Login.feature')]);
+    const report = {
+      artifactKind: 'bdd', lifecycle: 'verified', passed: true,
+      sourcePaths: [path.join(verifiedDir, 'Login.feature')],
+      sourceHash: artifactHash, irHash: realIrHash,
+      tools: [],
+      startedAt: '2026-07-22T10:00:00.000Z', completedAt: '2026-07-22T10:00:05.000Z',
+      checks: [{ name: 'BDD structure', passed: true }],
+    };
+    fs.writeFileSync(path.join(validationDir, `${artifactHash}.json`), JSON.stringify(report), 'utf-8');
+    const result = checkReportAuthenticity(workDir, 'bdd');
+    assert.strictEqual(result.passed, true, `expected authentic report to pass, got: ${result.detail}`);
+  });
+
+  it('flags verified artifacts with no matching validation report (1:1 ratio)', () => {
+    const workDir = createWorkDir('missing-report');
+    const verifiedDir = artifactPath(workDir, ARTIFACT_PATHS.bddVerified);
+    const validationDir = artifactPath(workDir, ARTIFACT_PATHS.bddValidation);
+    fs.mkdirSync(verifiedDir, { recursive: true });
+    fs.mkdirSync(validationDir, { recursive: true });
+    fs.writeFileSync(path.join(verifiedDir, 'Login.feature'), 'Feature: Login\n', 'utf-8');
+    const irContent = JSON.stringify({ version: '2.1.0', nodes: [], edges: [] });
+    fs.writeFileSync(path.join(workDir, 'srs-ir.json'), irContent, 'utf-8');
+    const result = checkReportArtifactRatio(workDir, 'bdd');
+    assert.strictEqual(result.passed, false, `expected missing-report to fail, got: ${result.detail}`);
+    assert.ok(result.detail?.includes('report'), `detail should mention missing report: ${result.detail}`);
   });
 });
