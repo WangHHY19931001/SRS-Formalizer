@@ -273,7 +273,7 @@ metadata:
 
 1. **先解析范围，不猜测**：读取 `source`、`lang` 与用户要求的产物。缺少源路径或语言且无法从上下文确定时，一次只询问一个阻塞问题；不得在输入契约未满足前 Bootstrap。
 2. **依赖闭包不可裁剪**：任何 Backend 产物都依赖 Frontend 与 Middle-end。用户只要 Cypher/BDD 时仍执行 F1-F5、M1-M6，再仅执行 B1/B2。
-3. **默认全量**：用户要求“形式化全部”或未指定产物时执行 B1-B7；TLA+ 默认覆盖所有模块，Lean 按 security/compliance 触发。
+3. **默认全量**：用户要求“形式化全部”或未指定产物时执行 B1-B7。TLA+ 默认生成所有 arch-1 子系统模块草稿；**是否强制 `--promote` 由下方「TLA+/Lean4 触发真值表」统一裁决**，不再在此处另行声明。Lean 按 security/compliance 触发。
 4. **尊重显式裁剪**：用户明确不要 TLA+ 或 Lean 时不得擅自生成。将 `requested_outputs`、`skipped_steps`、`reason`、`residual_risk` 写入 `STATE.md`；FINAL 只验证请求范围内的必需产物。若当前 `verify-gate FINAL` 无法表达该裁剪，停止并报告门禁能力缺口，不伪造通过。
 5. **HITL 只在风险点阻塞**：读取和分析 SRS、在沙箱内生成 draft、运行只读门禁无需逐阶段等待；仅 SRS 回写、应用补丁、完整性修复后的继续执行、收敛超限加轮，以及用户要求的检查点需要明确确认。
 
@@ -374,10 +374,23 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 
 **风险评分公式**：`riskScore = orphanRate×0.2 + crossFileCoverage×0.3 + nfrCoverage×0.3 + gapWeight×0.2`（详见 `references/risk-scoring-formula.md`）。
 
-**NFR 条件触发 TLA+/Lean 4**（Agent 按以下规则判断，禁止模糊决策）：
-- `performance` 关键词 ≥5 且 `total_shards ≥100` → **强制 TLA+**，必须 `--promote`
-- `security`/`compliance` 关键词 ≥1 → **强制 Lean 4**，必须 `--promote`
-- `availability` 关键词 ≥3 → 生成 TLA+ 草稿；若 `total_shards ≥50` 或 `performance ≥5` → **强制 `--promote`**；仅当 `total_shards < 50` 且 `performance < 5` 时可跳过 `--promote`，但须在 STATE.md 记录跳过理由、风险与责任人，且须经 🛑 **STOP** 人类确认
+**TLA+/Lean4 触发真值表**（全系统唯一裁决来源，Agent 按此表判断，禁止在其他章节另行声明触发条件）：
+
+> **核心原则**：TLA+ 默认为所有 arch-1 子系统生成草稿（draft）；下表决定是否**强制 `--promote`**（即是否必须通过 SANY+TLC 验证并提升到 verified）。草稿不等于已验证交付。
+
+| NFR 类别 | 关键词数 | total_shards | TLA+ 草稿 | TLA+ `--promote` | Lean4 草稿 | Lean4 `--promote` |
+|---------|---------|-------------|----------|-----------------|-----------|-----------------|
+| `performance` | ≥5 | ≥100 | ✅ 全 arch-1 | **强制** | — | — |
+| `performance` | ≥5 | <100 | ✅ 全 arch-1 | 推荐（可经 HITL 裁剪） | — | — |
+| `performance` | <5 | 任意 | ✅ 全 arch-1 | 推荐（可经 HITL 裁剪） | — | — |
+| `security` | ≥1 | 任意 | ✅ 全 arch-1 | **强制** | ✅ | **强制** |
+| `compliance` | ≥1 | 任意 | ✅ 全 arch-1 | **强制** | ✅ | **强制** |
+| `availability` | ≥3 | ≥50 或 perf≥5 | ✅ 全 arch-1 | **强制** | — | — |
+| `availability` | ≥3 | <50 且 perf<5 | ✅ 全 arch-1 | 可跳过（须 HITL 确认 + STATE.md 记录理由/风险/责任人） | — | — |
+| `availability` | <3 | 任意 | ✅ 全 arch-1 | 推荐（可经 HITL 裁剪） | — | — |
+| 无 NFR | — | 任意 | ✅ 全 arch-1 | 推荐（可经 HITL 裁剪） | — | — |
+
+**跳过 `--promote` 的强制条件**（不可省略）：① 在 STATE.md 记录跳过模块、跳过理由、残余风险、责任人；② 🛑 **STOP · 等待人类确认**；③ FINAL 门禁会标记该模块为 `partial_convergence`。
 
 > 🔴 **CHECKPOINT · R3 门禁收口**：M6 完成 `verify-gate --stage R3` 必须通过才可进入 Backend。R3 失败 → 修复 Middle-end 分析（结构/语义/NFR/连通性/冲突/风险）后重跑，禁止跳过。
 
@@ -401,7 +414,7 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 
 **BDD 四级门禁**（`validate-bdd --strict --promote`）：Phase1 TS 基础结构（Feature/Scenario/Given/When/Then 存在性与顺序）→ Phase2 NFR 专项（阈值数值/认证前置/LLM_FILL 残留）→ Phase3 gherkin-lint（20 条规则，配置 `templates/.gherkin-lintrc-strict`）→ Phase4 Gherklin 语义层。不允许 `error/failed/undefined/untested/占位/简化/错误实现/GAP/TODO/FIXME/TBD/待定/未定义/待实现`；每个 SRS 需求至少一个可执行场景；NFR 场景含具体阈值。独立 `.feature` 文件，不接受 Markdown 描述。
 
-**TLA+ 全模块覆盖**（`validate-tla --name <module> --strict --promote`）：仅使用内置 `tools/tla2tools-1.7.4.jar` 执行 SANY + TLC（启用死锁检测），不联网、不下载 JAR、不创建 cfg。层次化拆解 L1→L2→L3（变量组合 >1k 考虑拆，>1w 强制拆）。每个 verified 模块必须：单一匹配文件名的模块头/尾、声明全部 CONSTANTS/VARIABLES + ASSUME、TypeOK 覆盖所有状态变量、非空 Init + 带 guard 的 Next + Spec、每个 SRS 状态转换与至少一个 Action 追溯。6 类 NFR 不变式均须在模型配置中检查。不允许死锁/状态爆炸/违法不变式/活锁/奇迹。
+**TLA+ 模块验证**（`validate-tla --name <module> --strict --promote`）：每个 arch-1 子系统生成独立 TLA+ 模块草稿；是否 `--promote` 由上方「TLA+/Lean4 触发真值表」裁决。仅使用内置 `tools/tla2tools-1.7.4.jar` 执行 SANY + TLC（启用死锁检测），不联网、不下载 JAR、不创建 cfg。层次化拆解 L1→L2→L3（变量组合 >1k 考虑拆，>1w 强制拆）。每个 verified 模块必须：单一匹配文件名的模块头/尾、声明全部 CONSTANTS/VARIABLES + ASSUME、TypeOK 覆盖所有状态变量、非空 Init + 带 guard 的 Next + Spec、每个 SRS 状态转换与至少一个 Action 追溯。6 类 NFR 不变式均须在模型配置中检查。不允许死锁/状态爆炸/违法不变式/活锁/奇迹。
 
 **Lean 4 拆分证明**（`validate-lean --strict --promote`）：在 Lake 项目根（`lakefile.lean` 或 `lakefile.toml`）审计并运行 `lake build`。0 `sorry`/`admit`/`axiom`、0 warning。每个声明为与 SRS 对应的 `theorem` + 完整 `proof`，禁止 `: True` 弱化；每个 lemma 独立文件（≤100 行），proof >50 行或 have 块 >30 行必须拆分；允许使用 Mathlib 4 标准库（优先按需导入具体子模块如 `import Mathlib.Data.*`），`validate-lean` 拒绝 `import Mathlib` 全量导入（脚本正则 `/^\s*import\s+Mathlib\s*$/m`）。对每个交付 theorem 运行 `#print axioms` 拒绝未批准公理。平台：Linux x86_64 ✅、macOS ARM64 ✅、Windows ❌。
 
