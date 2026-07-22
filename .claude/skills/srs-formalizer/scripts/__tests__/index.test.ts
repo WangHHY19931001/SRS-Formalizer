@@ -22,11 +22,11 @@ function runCli(args: string): { stdout: string; stderr: string; exitCode: numbe
   }
 }
 
-// DESIGN.md §3 — 23 命令清单（11 门禁 + 12 工具），与 index.ts COMMANDS 注册表一致
+// DESIGN.md §3 — 24 命令清单（12 门禁 + 12 工具），与 index.ts COMMANDS 注册表一致
 const EXPECTED_COMMANDS = [
   'validate-jsonl', 'validate-semantics', 'validate-architecture', 'validate-cypher',
   'validate-bdd', 'validate-tla', 'validate-lean', 'validate-glossary',
-  'validate-checklist', 'validate-dataflow', 'verify-gate',
+  'validate-checklist', 'validate-dataflow', 'validate-shard-index', 'verify-gate',
   'assemble-ir', 'check-connectivity', 'analyze-dataflow', 'query-graph', 'hash-compute',
   'tlc-trace-parse', 'verify-skill-integrity', 'pack-skill',
   'build-rid-mapping', 'analyze-fidelity', 'validate-convergence-log', 'semantic-gate',
