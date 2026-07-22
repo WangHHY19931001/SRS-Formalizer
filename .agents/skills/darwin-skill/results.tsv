@@ -1,9 +1,0 @@
-timestamp	commit	skill	old_score	new_score	status	dimension	note	eval_mode
-2026-07-17T06:42	baseline	srs-formalizer	-	81.9	baseline	-	初始9维评估	dry_run
-2026-07-17T06:44	5acbef4	srs-formalizer	81.9	81.9	keep	P0-runtime	compatibility字段runtime-neutral+去重	gate_pass
-2026-07-17T06:46	eb1bba9	srs-formalizer	81.9	86.8	keep	dim4	🔴CHECKPOINT/🛑STOP视觉标记6处	dry_run
-2026-07-17T06:48	6ad4001	srs-formalizer	86.8	87.6	keep	dim8	Q1-Q13内联+TLC trace示例	dry_run
-2026-07-17T06:50	4841827	srs-formalizer	87.6	87.0	judge_variance	dim9	反模式表独立成节(dim9=10)；总分因dim5裁判方差降	dry_run
-2026-07-17T06:51	5d05405	srs-formalizer	87.6	93.2	keep	dim5+dim9	建议TLA+→显式指令+反模式表	dry_run
-2026-07-20T10:30	-	srs-formalizer	93.2	86.8	rebaseline	judge_switch	切换独立judge blind eval修正自评乐观偏差（反模式#1）；dim1-7/9=9 dim8=8(单测+evals证据dry_run)	dry_run
-2026-07-20T10:35	b49af94	srs-formalizer	86.8	86.8	keep	P0+P1	P0修4个critical bugs(NFR六类/Mathlib/TLA+cmd/S5→B3-B4)+P1结构改进(20 prompts调用时机+11 executor视觉检查点+人设迁移+软化措辞+orchestrator_backend拆分)	full_test
