@@ -189,7 +189,7 @@ metadata:
     - validate-checklist
     - validate-dataflow
     - verify-gate
-    # Independent Tools (11)
+    # Independent Tools (12)
     - assemble-ir
     - check-connectivity
     - analyze-dataflow
@@ -201,6 +201,7 @@ metadata:
     - tlc-trace-parse
     - verify-skill-integrity
     - pack-skill
+    - semantic-gate
   capability_requirements:
     # 每个阶段对 LLM 能力的最低要求（0=跳过, 1=需人工, 2=引导式, 3=自动）
     frontend_discovery: { text_analysis: 2, reasoning: 2 }
@@ -453,7 +454,7 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 | `validate-dataflow --file <path> --workdir <wd>` | F4e 数据流抽取后，校验 entity/flow JSONL 格式 |
 | `verify-gate --stage S1\|R3\|FINAL --workdir <wd>` | S1（Frontend 收口）/R3（Middle-end 收口）/FINAL（Backend 收口）三级门禁 |
 
-**Independent Tools（11 个，处理 LLM 不便操作的数据结构/算法）**：
+**Independent Tools（12 个，处理 LLM 不便操作的数据结构/算法）**：
 
 | 命令 | 何时调用 |
 |------|----------|
@@ -468,6 +469,7 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 | `tlc-trace-parse --trace <path> --workdir <wd>` | B5 TLC 反例 trace 解析为状态序列，供 Agent 生成反例 fixture |
 | `verify-skill-integrity --skill-dir <path> [--repair]` | 每个阶段转换前 SHA-256 比对 MANIFEST.json，篡改则 `--repair` 从加密备份恢复 |
 | `pack-skill --skill-dir <path> --force` | **仅人类显式操作**：技能开发模式修改后重建加密备份；Agent/编排者/自动化流程均无权调用 |
+| `semantic-gate --workdir <wd> --kind <bdd\|tlaplus\|lean4> [--generate-template]` | B2/B3/B4 `validate-* --strict --promote` 之前的二级语义验证闸门：`--generate-template` 生成评分模板 JSON 供 LLM Verifier 填写；无该参数则校验对应 semantic-report 存在且 `verdict=APPROVED`。脚本不调用 LLM |
 
 ## 安全约束
 

@@ -46,6 +46,7 @@ const COMMAND_GROUPS: CommandGroup[] = [
       { name: "tlc-trace-parse", desc: "解析 TLC 反例 trace 为状态序列", usage: "tlc-trace-parse --trace <path> --workdir .srs_formalizer" },
       { name: "verify-skill-integrity", desc: "技能完整性校验 [--repair]", usage: "verify-skill-integrity --skill-dir <path> [--repair]" },
       { name: "pack-skill", desc: "加密备份 (仅人类 --force)", usage: "pack-skill --skill-dir <path> --output <backup.tar.gz> --force" },
+      { name: "semantic-gate", desc: "二级语义验证闸门 (生成评分模板/校验 APPROVED) [--generate-template]", usage: "semantic-gate --workdir .srs_formalizer --kind <bdd|tlaplus|lean4> [--generate-template]" },
     ],
   },
 ];
@@ -131,6 +132,7 @@ const COMMANDS: Record<
   "validate-convergence-log": () => import("./commands/validate-convergence-log.js"),
   "hash-compute": () => import("./commands/hash-compute.js"),
   "tlc-trace-parse": () => import("./commands/tlc-trace-parse.js"),
+  "semantic-gate": () => import("./commands/semantic-gate.js"),
 };
 
 async function main(): Promise<void> {
