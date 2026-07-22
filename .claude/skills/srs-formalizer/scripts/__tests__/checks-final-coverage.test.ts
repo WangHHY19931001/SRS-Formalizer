@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { hashFiles, hashText } from '../lib/artifacts/validation-report.js';
 import { ARTIFACT_PATHS, artifactPath } from '../lib/artifacts/paths.js';
-import { checkReportAuthenticity, checkReportArtifactRatio, checkAntiPatterns } from '../lib/verify-gate/checks-final.js';
+import { checkFormalArtifacts, checkReportAuthenticity, checkReportArtifactRatio, checkAntiPatterns } from '../lib/verify-gate/checks-final.js';
 
 const TMP = path.join(os.tmpdir(), `srs-formalizer-coverage-test-${Date.now()}`);
 
@@ -239,5 +239,43 @@ describe('TLA+ coverage and arch-1 coverage gates', () => {
       '# S6\n- [ ] pending\n', 'utf-8');
     const result = checkAntiPatterns(workDir);
     assert.strictEqual(result.passed, true, `expected clean workdir to pass, got: ${result.detail}`);
+  });
+
+  // ===========================================================================
+  // P2-9: legacy TLA+/Lean source scan wired into checkFormalArtifacts (FINAL gate)
+  // ===========================================================================
+
+  it('checkFormalArtifacts includes legacy TLA+ source scan', () => {
+    const workDir = createWorkDir('legacy-tla-scan');
+    // checkFormalArtifacts reads srs-ir.json — must exist
+    fs.writeFileSync(path.join(workDir, 'srs-ir.json'), JSON.stringify({
+      version: '2.1.0', nodes: [], edges: [], crossRefs: [],
+      nfrProfile: { detectedCategories: [] }, gaps: [], glossary: {},
+      meta: { buildTimestamp: new Date().toISOString() },
+    }), 'utf-8');
+    // Create 5_formal/specs/ with a .tla file containing TODO placeholder
+    const specsDir = path.join(workDir, '5_formal', 'specs');
+    fs.mkdirSync(specsDir, { recursive: true });
+    fs.writeFileSync(path.join(specsDir, 'Bad.tla'), '---- MODULE Bad ----\n(* TODO: implement *)\n====', 'utf-8');
+    const results = checkFormalArtifacts(workDir);
+    const tlaScan = results.find(r => r.name === 'legacy TLA source scan');
+    assert.ok(tlaScan, 'checkFormalArtifacts should include legacy TLA source scan');
+    assert.strictEqual(tlaScan.passed, false, 'should detect TODO placeholder');
+  });
+
+  it('checkFormalArtifacts includes legacy Lean source scan', () => {
+    const workDir = createWorkDir('legacy-lean-scan');
+    fs.writeFileSync(path.join(workDir, 'srs-ir.json'), JSON.stringify({
+      version: '2.1.0', nodes: [], edges: [], crossRefs: [],
+      nfrProfile: { detectedCategories: [] }, gaps: [], glossary: {},
+      meta: { buildTimestamp: new Date().toISOString() },
+    }), 'utf-8');
+    const proofsDir = path.join(workDir, '5_formal', 'proofs');
+    fs.mkdirSync(proofsDir, { recursive: true });
+    fs.writeFileSync(path.join(proofsDir, 'Bad.lean'), 'theorem bad : True := by sorry', 'utf-8');
+    const results = checkFormalArtifacts(workDir);
+    const leanScan = results.find(r => r.name === 'legacy Lean source scan');
+    assert.ok(leanScan, 'checkFormalArtifacts should include legacy Lean source scan');
+    assert.strictEqual(leanScan.passed, false, 'should detect sorry');
   });
 });

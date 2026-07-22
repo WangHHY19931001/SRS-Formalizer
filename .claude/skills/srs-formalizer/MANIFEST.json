@@ -1,6 +1,6 @@
 {
   "skill_name": "srs-formalizer",
-  "packed_at": "2026-07-22T06:43:42.550Z",
+  "packed_at": "2026-07-22T06:52:36.651Z",
   "total_files": 238,
   "files": {
     "BASELINE.md": "1f018d8132545154850fc6fc68c017f7ade8f41e99b23073b4867c5d59871888",
@@ -66,7 +66,7 @@
     "scripts/__tests__/bdd-tool-runner.test.ts": "70cf6aaed5365be0682a7c59cfd14e85973b37d49fbc4d3c304a433c6df3df1a",
     "scripts/__tests__/bdd-validator.test.ts": "465378c9d979df961123f3d0797deb05c2c93a2da13029e61a3468e6626a9b40",
     "scripts/__tests__/checks-fidelity.test.ts": "23d0d4dc2c81c7b8c0d30b92699bf8ad559dbb89a17b398554778740a2fc081d",
-    "scripts/__tests__/checks-final-coverage.test.ts": "6fc0a4103bfdc282506264d3134db370e48e9a7fb25590d377ae2fe244778702",
+    "scripts/__tests__/checks-final-coverage.test.ts": "fb1739fa671cfabec2c82965db4670735ad0582645f535f353e84061b59048d0",
     "scripts/__tests__/checks-r3-enhanced.test.ts": "4e26cdbc9320e6153c4b3d56f4fe91e4ee00e8650f7e32395418581ed73a7821",
     "scripts/__tests__/convergence-log.test.ts": "40c25636cd9e0e33b67cfc156138f74de96c9ef0e3be447bddb8507e16675470",
     "scripts/__tests__/dataflow-extract.test.ts": "88d1a8838f41f5312c5209180214a38c31482ff6dd31c61f7fbc08ad39ee3aec",
@@ -169,7 +169,7 @@
     "scripts/lib/tla-validator.ts": "3a2d21403480e446b295c455787a55260025aa54e554d4cb5f33553d14d48cc5",
     "scripts/lib/verify-gate/checks-authenticity.ts": "3542d55cf4d9bc7e4501d4c46f9bfec3b1479969fe84da01cc3f85da013e6f3c",
     "scripts/lib/verify-gate/checks-fidelity.ts": "db6027f7368db7e0bb7d592807d22004080724c2dbceffb6d30bf320349bbeb6",
-    "scripts/lib/verify-gate/checks-final.ts": "86d4cf5f7a23a6bb3b7e927e6984383d09240f09375f2f532f98a6b71ffd77fb",
+    "scripts/lib/verify-gate/checks-final.ts": "80889b2404559808c9dd917491d85d70addcdf6883729ce5a93b1bd6449d6d19",
     "scripts/lib/verify-gate/checks-r3.ts": "cb6393892efdc87c92053fd1fc99980ecef944be0a7af5c220d6f60151199e2e",
     "scripts/lib/verify-gate/checks-s1.ts": "f678a6d897b2b56df88f583f7b49a58d9af2004eda76ecddba2de12d3c320d15",
     "scripts/lib/verify-gate/shared.ts": "97dfac7c0cded7ca5273255b9c1458453978101fe5f749f95fbcb06be9a64ef1",

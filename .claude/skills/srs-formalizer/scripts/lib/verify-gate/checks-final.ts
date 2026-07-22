@@ -196,6 +196,9 @@ export function checkFormalArtifacts(workDir: string): CheckResult[] {
       checkReportArtifactRatio(workDir, 'bdd'),
       checkReportArtifactRatio(workDir, 'tlaplus'),
       checkReportArtifactRatio(workDir, 'lean4'),
+      // P2: legacy source placeholder scan (previously dead code)
+      checkLegacyTlaSource(workDir),
+      checkLegacyLeanSource(workDir),
       // P0: 反模式检测（Agent 绕过门禁行为）
       checkAntiPatterns(workDir),
     ];
