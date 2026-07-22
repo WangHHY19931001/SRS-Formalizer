@@ -4,7 +4,7 @@ import { scanLeanSourceForPlaceholders, scanTlaSourceForPlaceholders, type Check
 import { ARTIFACT_PATHS, artifactPath } from '../artifacts/paths.js';
 import { collectByExtension, collectFiles, hashFiles, readMatchingReport, readPassingReports } from '../artifacts/validation-report.js';
 
-function verifiedArtifactCheck(workDir: string, kind: 'bdd' | 'lean4', required: boolean): CheckResult {
+export function verifiedArtifactCheck(workDir: string, kind: 'bdd' | 'lean4', required: boolean): CheckResult {
   const config = {
     bdd: { verified: ARTIFACT_PATHS.bddVerified, validation: ARTIFACT_PATHS.bddValidation, files: (root: string) => collectByExtension(root, '.feature') },
     lean4: { verified: ARTIFACT_PATHS.leanVerified, validation: ARTIFACT_PATHS.leanValidation, files: (root: string) => [...collectByExtension(root, '.lean'), ...collectFiles(root, ['lakefile.lean', 'lakefile.toml', 'lean-toolchain'])] },
@@ -37,7 +37,7 @@ function tlaModulesInVerified(root: string): Map<string, string[]> {
  * a passing report. Any validated module missing from verified/ (the drop the
  * destructive promote caused) fails the gate with the missing module named.
  */
-function tlaVerifiedCheck(workDir: string): CheckResult {
+export function tlaVerifiedCheck(workDir: string): CheckResult {
   const name = 'tlaplus verified artifacts';
   const verifiedRoot = artifactPath(workDir, ARTIFACT_PATHS.tlaVerified);
   const validationDir = artifactPath(workDir, ARTIFACT_PATHS.tlaValidation);
@@ -83,11 +83,120 @@ function tlaVerifiedCheck(workDir: string): CheckResult {
   return { name, passed: true, detail: `${modules.size} TLA+ module(s) verified and matched: ${[...modules.keys()].sort().join(', ')}` };
 }
 
-export function checkFormalArtifacts(workDir: string): CheckResult[] {
+/** B4/FINAL: Lean4 verified artifacts — required only when IR has security/compliance NFR */
+export function leanVerifiedCheck(workDir: string): CheckResult {
   try {
     const ir = JSON.parse(fs.readFileSync(path.join(workDir, 'srs-ir.json'), 'utf8')) as { nfrProfile?: { detectedCategories?: Array<{ category: string }> } };
     const leanRequired = ir.nfrProfile?.detectedCategories?.some(entry => entry.category === 'security' || entry.category === 'compliance') ?? false;
-    return [verifiedArtifactCheck(workDir, 'bdd', true), tlaVerifiedCheck(workDir), verifiedArtifactCheck(workDir, 'lean4', leanRequired)];
+    return verifiedArtifactCheck(workDir, 'lean4', leanRequired);
+  } catch {
+    return { name: 'lean4 verified artifacts', passed: false, detail: 'srs-ir.json cannot be read' };
+  }
+}
+
+/** IR node 的最小内联类型（避免依赖外部类型文件，保持脚本自包含） */
+interface IrNodeLike {
+  id: string;
+  kind?: string;
+  statement?: string;
+  metadata?: { archLevel?: number; archName?: string } & Record<string, unknown>;
+}
+
+/** 从 IR nodes 中提取 arch-1 (level=1) 子系统名称列表 */
+function extractArch1Subsystems(ir: unknown): string[] {
+  const irObj = ir as { nodes?: IrNodeLike[] };
+  const nodes = irObj?.nodes;
+  if (!Array.isArray(nodes)) return [];
+  return nodes
+    .filter(n => n.kind === 'architecture' && n.metadata?.archLevel === 1)
+    .map(n => n.metadata?.archName ?? n.statement ?? n.id)
+    .filter((name): name is string => typeof name === 'string' && name.length > 0);
+}
+
+/**
+ * P0-3: TLA+ 覆盖率门禁。
+ * 检查 verified/ 中的 TLA+ 模块集是否覆盖 IR 中所有 arch-1 子系统。
+ * 每个 arch-1 子系统应有同名 TLA+ 模块（或用户显式裁剪记录在 STATE.md）。
+ */
+export function checkTlaCoverage(workDir: string): CheckResult {
+  const name = 'tlaplus arch-1 coverage';
+  try {
+    const ir = JSON.parse(fs.readFileSync(path.join(workDir, 'srs-ir.json'), 'utf8'));
+    const arch1Subsystems = extractArch1Subsystems(ir);
+    if (arch1Subsystems.length === 0) {
+      return { name, passed: true, detail: 'no arch-1 subsystems in IR (nothing to cover)' };
+    }
+    const verifiedRoot = artifactPath(workDir, ARTIFACT_PATHS.tlaVerified);
+    const modules = tlaModulesInVerified(verifiedRoot);
+    const moduleNames = new Set(modules.keys());
+    const missing = arch1Subsystems.filter(sub => !moduleNames.has(sub)).sort();
+    if (missing.length > 0) {
+      return {
+        name,
+        passed: false,
+        detail: `${missing.length}/${arch1Subsystems.length} arch-1 subsystem(s) missing TLA+ module: ${missing.join(', ')} (if intentionally skipped, record in STATE.md with reason + residual risk)`,
+      };
+    }
+    return { name, passed: true, detail: `${arch1Subsystems.length}/${arch1Subsystems.length} arch-1 subsystem(s) covered by TLA+ modules` };
+  } catch {
+    return { name, passed: false, detail: 'srs-ir.json cannot be read' };
+  }
+}
+
+/**
+ * P1-7: arch-1 覆盖率校验。
+ * 检查每个 arch-1 子系统至少在 BDD、TLA+、Lean4（若需要）之一中有 verified 产物。
+ * 完全无产物的子系统意味着该子系统未被任何形式化方法覆盖。
+ */
+export function checkArch1Coverage(workDir: string): CheckResult {
+  const name = 'arch-1 formalization coverage';
+  try {
+    const ir = JSON.parse(fs.readFileSync(path.join(workDir, 'srs-ir.json'), 'utf8'));
+    const arch1Subsystems = extractArch1Subsystems(ir);
+    if (arch1Subsystems.length === 0) {
+      return { name, passed: true, detail: 'no arch-1 subsystems in IR' };
+    }
+    // Collect all verified artifact names (basenames without extension)
+    const verifiedDirs = [
+      artifactPath(workDir, ARTIFACT_PATHS.bddVerified),
+      artifactPath(workDir, ARTIFACT_PATHS.tlaVerified),
+      artifactPath(workDir, ARTIFACT_PATHS.leanVerified),
+    ];
+    const artifactNames = new Set<string>();
+    for (const dir of verifiedDirs) {
+      if (!fs.existsSync(dir)) continue;
+      for (const file of fs.readdirSync(dir)) {
+        const base = path.basename(file).replace(/\.(feature|tla|lean)$/, '');
+        artifactNames.add(base);
+      }
+    }
+    const uncovered = arch1Subsystems.filter(sub => !artifactNames.has(sub)).sort();
+    if (uncovered.length > 0) {
+      return {
+        name,
+        passed: false,
+        detail: `${uncovered.length}/${arch1Subsystems.length} arch-1 subsystem(s) have no verified artifact in BDD/TLA+/Lean4: ${uncovered.join(', ')}`,
+      };
+    }
+    return { name, passed: true, detail: `${arch1Subsystems.length}/${arch1Subsystems.length} arch-1 subsystem(s) covered` };
+  } catch {
+    return { name, passed: false, detail: 'srs-ir.json cannot be read' };
+  }
+}
+
+export function checkFormalArtifacts(workDir: string): CheckResult[] {
+  try {
+    // Read IR to determine lean requirement; if IR unreadable, fail.
+    JSON.parse(fs.readFileSync(path.join(workDir, 'srs-ir.json'), 'utf8'));
+    return [
+      verifiedArtifactCheck(workDir, 'bdd', true),
+      tlaVerifiedCheck(workDir),
+      leanVerifiedCheck(workDir),
+      // P0-3: TLA+ module set must cover all arch-1 subsystems
+      checkTlaCoverage(workDir),
+      // P1-7: each arch-1 subsystem must have at least one verified artifact
+      checkArch1Coverage(workDir),
+    ];
   } catch { return [{ name: 'SRS IR available for artifact requirements', passed: false, detail: 'srs-ir.json cannot be read' }]; }
 }
 

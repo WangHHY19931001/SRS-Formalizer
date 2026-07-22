@@ -30,7 +30,7 @@ export interface VerifyOutput {
 // Constants
 // ---------------------------------------------------------------------------
 
-export const VALID_STAGES = ['S1', 'R3', 'FINAL'] as const;
+export const VALID_STAGES = ['S1', 'R3', 'B2', 'B3', 'B4', 'FINAL'] as const;
 
 // ---------------------------------------------------------------------------
 // Shared check functions
@@ -70,6 +70,64 @@ export function checkChecklistComplete(stageDir: string, workDir: string): Check
   } catch {
     return { name: `${stageDir}/CHECKLIST.md complete`, passed: false, detail: 'Could not read CHECKLIST.md' };
   }
+}
+
+// ---------------------------------------------------------------------------
+// STATE.md cross-validation (P1-11)
+// ---------------------------------------------------------------------------
+
+/**
+ * P1-11: 交叉校验 STATE.md 与 CHECKLIST.md 的一致性。
+ * 检查 STATE.md 中标记为 ✅ 的阶段，其对应 CHECKLIST.md 是否也已完成。
+ * 同时检查 STATE.md 是否包含运维必需字段（last_verify_gate / skipped_modules / tool_failures）。
+ */
+export function checkStateMdCrossCheck(workDir: string): CheckResult {
+  const name = 'STATE.md cross-validation';
+  const statePath = path.join(workDir, 'STATE.md');
+  if (!fs.existsSync(statePath)) {
+    return { name, passed: false, detail: 'STATE.md not found' };
+  }
+  const content = fs.readFileSync(statePath, 'utf-8');
+  const issues: string[] = [];
+
+  // Check required fields
+  const requiredFields = ['last_verify_gate', 'skipped_modules', 'tool_failures'];
+  for (const field of requiredFields) {
+    if (!content.includes(field)) {
+      issues.push(`missing field: ${field}`);
+    }
+  }
+
+  // Cross-check: if STATE.md marks a stage as ✅, its CHECKLIST should be complete
+  const stageMap: Record<string, string> = {
+    'S1 预处理': 'S0',
+    'S2 需求提取': '2_extract',
+    'S3 图谱构建': '3_graph',
+    'S4 BDD 生成': '4_bdd',
+    'S5 形式化': '5_formal',
+    'S6 验收闸门': '6_outputs',
+  };
+  for (const [stageLabel, checklistDir] of Object.entries(stageMap)) {
+    const stageDoneRegex = new RegExp(`\\|\\s*${stageLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\|\\s*✅`);
+    if (stageDoneRegex.test(content)) {
+      const checklistPath = path.join(workDir, checklistDir, 'CHECKLIST.md');
+      if (fs.existsSync(checklistPath)) {
+        const checklistContent = fs.readFileSync(checklistPath, 'utf-8');
+        const hasUnchecked = /^-\s*\[\s*\]/m.test(checklistContent);
+        if (hasUnchecked) {
+          issues.push(`STATE.md marks ${stageLabel} as ✅ but ${checklistDir}/CHECKLIST.md has unchecked items`);
+        }
+      }
+    }
+  }
+
+  return {
+    name,
+    passed: issues.length === 0,
+    detail: issues.length === 0
+      ? 'STATE.md fields present and consistent with CHECKLISTs'
+      : issues.join('; '),
+  };
 }
 
 // ---------------------------------------------------------------------------

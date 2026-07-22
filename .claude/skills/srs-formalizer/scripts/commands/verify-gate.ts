@@ -15,9 +15,9 @@ import type { CliResult } from '../types/index.js';
 import { safeParseArg, validateWorkDir } from '../lib/cli.js';
 import { checkStateMd, checkShardIndex, checkR1HasJsonlFiles, checkShardCompleteness, checkShardCoverage, checkGlossaryExists, checkDataFlowFormat } from '../lib/verify-gate/checks-s1.js';
 import { checkAllJsonlDirsHaveFiles, checkArchitectureExists, checkIdUniqueness, checkGraphLoadable, checkGraphEdgeIntegrity, checkNodeCountVsR1, checkOrphanRatio, checkHierarchyDepth, checkOrphanAdjudication, checkAtomicTree, checkEdgeTypeDiversity, checkContainsEdgeDirection, checkR2R3Ingest } from '../lib/verify-gate/checks-r3.js';
-import { checkFormalArtifacts } from '../lib/verify-gate/checks-final.js';
+import { checkFormalArtifacts, verifiedArtifactCheck, tlaVerifiedCheck, leanVerifiedCheck } from '../lib/verify-gate/checks-final.js';
 import { checkFidelityReport, checkSafetyCriticalCoverage } from '../lib/verify-gate/checks-fidelity.js';
-import { VALID_STAGES, checkChecklistComplete, type CheckResult, type VerifyOutput } from '../lib/verify-gate/shared.js';
+import { VALID_STAGES, checkChecklistComplete, checkStateMdCrossCheck, type CheckResult, type VerifyOutput } from '../lib/verify-gate/shared.js';
 
 // ---------------------------------------------------------------------------
 // Main entry point
@@ -73,6 +73,8 @@ export async function main(args: string[]): Promise<CliResult> {
   if (stageArg === 'R3' || stageArg === 'FINAL') {
     allChecks.push(checkChecklistComplete('2_extract', workDir));
     allChecks.push(checkChecklistComplete('3_graph', workDir));
+    // P1-11: STATE.md cross-validation (R3/FINAL only — S1 is initial stage, fields not yet populated)
+    allChecks.push(checkStateMdCrossCheck(workDir));
   }
 
   // === R3 / FINAL additional checks ===
@@ -90,6 +92,22 @@ export async function main(args: string[]): Promise<CliResult> {
     allChecks.push(checkEdgeTypeDiversity(workDir));
     allChecks.push(checkContainsEdgeDirection(workDir));
     allChecks.push(checkR2R3Ingest(workDir));
+  }
+
+  // === Backend stage gates (B2/B3/B4) — P0-1 ===
+  // Each Backend stage gets its own checkpoint instead of waiting for FINAL.
+  // FINAL stage uses checkFormalArtifacts() below for unified coverage.
+  // B2: BDD verified artifacts exist and match sourceHash
+  if (stageArg === 'B2') {
+    allChecks.push(verifiedArtifactCheck(workDir, 'bdd', true));
+  }
+  // B3: TLA+ verified artifacts (module set coverage checked at FINAL)
+  if (stageArg === 'B3') {
+    allChecks.push(tlaVerifiedCheck(workDir));
+  }
+  // B4: Lean4 verified artifacts (only if security/compliance NFR present)
+  if (stageArg === 'B4') {
+    allChecks.push(leanVerifiedCheck(workDir));
   }
 
   // === FINAL-only checks ===

@@ -22,6 +22,19 @@ export function auditLean(source: string): string[] {
     // comments are already stripped, and `True` as a codomain is always vacuous.
     [/(?:->|→)\s*True\b/, 'theorem with True consequent is vacuous (→ True)'],
     [/(?:<->|↔)\s*True\b/, 'theorem with True consequent is vacuous (↔ True)'],
+    // P0-2: tautology — proof body is a bare hypothesis reference (assumption-as-conclusion).
+    // Matches `:= h` / `:= h1` / `:= hyp` where the entire proof is a single identifier
+    // that is a hypothesis name. Does NOT match `:= by` (tactic mode), `:= h.val` or `:= h <;> foo`.
+    // Uses [ \t] instead of \s to prevent cross-line matching (multi-line proofs).
+    [/:=[ \t]*(?!by\b)[a-z]\w*[ \t]*$/m, 'tautology: proof body is a bare hypothesis reference (assumption-as-conclusion)'],
+    // P0-2: tautology — `:= by exact <hypothesis>` discharges via assumption, no real proof.
+    [/:=[ \t]*by[ \t]+exact[ \t]+[a-z]\w*[ \t]*$/m, 'tautology: proof is `by exact <hypothesis>` (assumption-as-conclusion)'],
+    // P1-8: over-simplified — `:= by simp` alone is insufficient for security-critical theorems.
+    [/:=[ \t]*by[ \t]+simp[ \t]*$/m, 'over-simplified proof: `by simp` alone is insufficient for security-critical theorems'],
+    // P1-8: over-simplified — `:= trivial` discharges any True-like goal.
+    [/:=[ \t]*trivial[ \t]*$/m, 'over-simplified proof: `trivial` alone is insufficient for security-critical theorems'],
+    // P1-8: suspicious — `:= rfl` proves only definitional equality, flag for review.
+    [/:=[ \t]*rfl[ \t]*$/m, 'suspicious: `rfl` proves only definitional equality — review if theorem claims substantive property'],
   ];
   return checks.filter(([pattern]) => pattern.test(clean)).map(([, message]) => message);
 }

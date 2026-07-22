@@ -189,7 +189,7 @@ metadata:
     - validate-checklist
     - validate-dataflow
     - verify-gate
-    # Independent Tools (11)
+    # Independent Tools (12)
     - assemble-ir
     - check-connectivity
     - analyze-dataflow
@@ -201,6 +201,7 @@ metadata:
     - tlc-trace-parse
     - verify-skill-integrity
     - pack-skill
+    - semantic-gate
   capability_requirements:
     # 每个阶段对 LLM 能力的最低要求（0=跳过, 1=需人工, 2=引导式, 3=自动）
     frontend_discovery: { text_analysis: 2, reasoning: 2 }
@@ -273,7 +274,7 @@ metadata:
 
 1. **先解析范围，不猜测**：读取 `source`、`lang` 与用户要求的产物。缺少源路径或语言且无法从上下文确定时，一次只询问一个阻塞问题；不得在输入契约未满足前 Bootstrap。
 2. **依赖闭包不可裁剪**：任何 Backend 产物都依赖 Frontend 与 Middle-end。用户只要 Cypher/BDD 时仍执行 F1-F5、M1-M6，再仅执行 B1/B2。
-3. **默认全量**：用户要求“形式化全部”或未指定产物时执行 B1-B7；TLA+ 默认覆盖所有模块，Lean 按 security/compliance 触发。
+3. **默认全量**：用户要求“形式化全部”或未指定产物时执行 B1-B7。TLA+ 默认生成所有 arch-1 子系统模块草稿；**是否强制 `--promote` 由下方「TLA+/Lean4 触发真值表」统一裁决**，不再在此处另行声明。Lean 按 security/compliance 触发。
 4. **尊重显式裁剪**：用户明确不要 TLA+ 或 Lean 时不得擅自生成。将 `requested_outputs`、`skipped_steps`、`reason`、`residual_risk` 写入 `STATE.md`；FINAL 只验证请求范围内的必需产物。若当前 `verify-gate FINAL` 无法表达该裁剪，停止并报告门禁能力缺口，不伪造通过。
 5. **HITL 只在风险点阻塞**：读取和分析 SRS、在沙箱内生成 draft、运行只读门禁无需逐阶段等待；仅 SRS 回写、应用补丁、完整性修复后的继续执行、收敛超限加轮，以及用户要求的检查点需要明确确认。
 
@@ -292,15 +293,22 @@ metadata:
 
 | 触发条件 | 一线修复 | 仍失败兜底 |
 |---------|---------|-----------|
-| `verify-gate --stage S1` 未通过 | 检查 `validate-jsonl` / `validate-architecture` / `validate-glossary` 报错 → 修复对应 JSONL 后重跑 F2-F4 → 重新 `assemble-ir` | 连续 2 次修复失败 → 🛑 **STOP**：将错误报告与当前 shard_index 打包，等待人类确认是否跳过或重建 |
-| `verify-gate --stage R3` 未通过 | 检查 `validate-semantics --strict` 具体字段 → 修复结构/语义/NFR/连通性/冲突/风险中对应项 → 重跑 M1-M6 | 连续 2 次修复失败 → 🛑 **STOP**：输出 `3_graph/analysis/` 全量快照，等待人类决策 |
-| `verify-gate --stage FINAL` 未通过 | 检查 `sourceHash` 不匹配项 → 定位过期/草稿/跨类型产物 → 回退至对应 Backend 步骤（B1-B4）重新生成 → 重新 `--strict --promote` | 连续 2 次修复失败 → 🛑 **STOP**：禁止提交草稿或过期报告，等待人类确认是否加轮或收工 |
+| `verify-gate --stage S1` 未通过 | 检查 `validate-jsonl` / `validate-architecture` / `validate-glossary` 报错 → 修复对应 JSONL 后重跑 F2-F4 → 重新 `assemble-ir` | 连续 **3** 次修复失败 → 🛑 **STOP**：将错误报告与当前 shard_index 打包，等待人类确认是否跳过或重建 |
+| `verify-gate --stage R3` 未通过 | 检查 `validate-semantics --strict` 具体字段 → 修复结构/语义/NFR/连通性/冲突/风险中对应项 → 重跑 M1-M6 | 连续 **3** 次修复失败 → 🛑 **STOP**：输出 `3_graph/analysis/` 全量快照，等待人类决策 |
+| `verify-gate --stage B2` 未通过 | 检查 BDD verified 产物缺失/sourceHash 不匹配 → 回退 B2 executor 重做 → 重新 `validate-bdd --strict --promote` | 连续 **3** 次修复失败 → 🛑 **STOP**：等待人类确认是否跳过该模块 |
+| `verify-gate --stage B3` 未通过 | 检查 TLA+ verified 模块集/覆盖率缺失 → 回退 B3 executor 重做 → 重新 `validate-tla --strict --promote` | 连续 **3** 次修复失败 → 🛑 **STOP**：等待人类确认是否裁剪模块 |
+| `verify-gate --stage B4` 未通过 | 检查 Lean4 verified 产物/sourceHash/同义反复 → 回退 B4 executor 重做 → 重新 `validate-lean --strict --promote` | 连续 **3** 次修复失败 → 🛑 **STOP**：等待人类确认是否跳过 Lean |
+| `verify-gate --stage FINAL` 未通过 | 检查 `sourceHash` 不匹配项 → 定位过期/草稿/跨类型产物 → 回退至对应 Backend 步骤重新生成 → 重新 `--strict --promote` | 连续 **3** 次修复失败 → 🛑 **STOP**：禁止提交草稿或过期报告，等待人类确认是否加轮或收工 |
 | `assemble-ir` 装配失败 | 保留上一阶段有效 JSONL 产物 → 检查去重冲突与悬挂边 → 修复后重跑 | 仍失败 → 回退到 F2 重新提取，不删除已有校验数据 |
 | B3 TLA+ SANY/TLC 报错 | 根据错误行定位模块 → 检查 TypeOK/Init/Next/Spec 完整性 → 修复后重跑 `validate-tla --strict --promote` | 仍失败 → 检查是否需 L2→L3 拆分；若状态爆炸则加 `--promote` 前必须先拆分 |
-| B4 Lean 4 `lake build` 失败 | 检查 `sorry`/`admit`/`axiom`/`: True`/全量 `import Mathlib` → 逐项消除后重跑 | 仍失败 → 若为 Windows 工具链不可用，生成 `S5_SKIP_REPORT.md`，标记 `platform_unsupported`、受影响需求、替代验证与残余风险；不得把跳过宣称为 Lean verified |
+| B4 Lean 4 `lake build` 失败 | 检查 `sorry`/`admit`/`axiom`/`: True`/全量 `import Mathlib`/同义反复 → 逐项消除后重跑 | 仍失败 → 若为 Windows 工具链不可用，生成 `S5_SKIP_REPORT.md`，标记 `platform_unsupported`、受影响需求、替代验证与残余风险；不得把跳过宣称为 Lean verified |
 | B7 收敛循环超限（>max_iterations） | 检查当前 high-confidence 比例与 NFR 覆盖率 → 若 ≥7/13 且 NFR≥60% → 允许标记 `partial_convergence`；否则 → 苏格拉底拷问当前最大分歧点 | 仍无法收敛 → 🛑 **STOP**：强制人类确认是否加轮或收工 |
 | 文件写入冲突/越界 | `isPathSafe` + `assertSafePath` 拦截 → 改用 `path.join()` 修正路径 → 原子 temp-file + rename 重试 | 仍失败 → 中止当前操作并告警，不继续写入 |
-| 子代理输出 JSONL 校验失败 | `validate-jsonl` 返回具体行号与字段 → 重派子代理修正该批次 → 不通过则整批重跑 | 连续 3 次子代理修正失败 → 降级为人工提取该 shard |
+| 子代理输出 JSONL 校验失败 | `validate-jsonl` 返回具体行号与字段 → 重派子代理修正该批次 → 不通过则整批重跑 | 连续 **3** 次子代理修正失败 → 降级为人工提取该 shard |
+| 🆕 **模块跳过请求**（用户或 Agent 提议跳过某 arch-1 子系统的形式化） | 不得自行跳过 → 必须在 STATE.md 记录：跳过模块名、跳过理由、残余风险、责任人 → 🛑 **STOP · 等待人类确认** | 人类确认后方可跳过；FINAL 门禁标记 `partial_convergence`，交付报告必须列明跳过范围与残余风险 |
+| 🆕 **工具异常/崩溃**（`validate-*` / `assemble-ir` / `verify-gate` 等脚本非零退出且非已知失败模式） | 立即 🛑 **STOP** → 不得重试或绕过 → 收集错误日志、stack trace、工作目录快照 → 报告人类 | 人类确认工具修复后方可继续；禁止将工具异常降级为“环境限制”或“跳过” |
+
+> **统一失败计数**：全管线所有“连续 N 次修复失败”阈值统一为 **N=3**（S1/R3/B2/B3/B4/FINAL/JSONL 均如此）。收敛循环的 `max_iterations` 按规模自适应（≤50→3, 51-100→5, >100→8），不属于“修复失败”计数，而是收敛上限。Agent 不得自行调整 N 值。
 
 > **Agent 自检**：每阶段转换前扫描本表，若当前场景命中任一触发条件但未执行对应修复 → 阻断阶段提升。
 
@@ -374,10 +382,23 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 
 **风险评分公式**：`riskScore = orphanRate×0.2 + crossFileCoverage×0.3 + nfrCoverage×0.3 + gapWeight×0.2`（详见 `references/risk-scoring-formula.md`）。
 
-**NFR 条件触发 TLA+/Lean 4**（Agent 按以下规则判断，禁止模糊决策）：
-- `performance` 关键词 ≥5 且 `total_shards ≥100` → **强制 TLA+**，必须 `--promote`
-- `security`/`compliance` 关键词 ≥1 → **强制 Lean 4**，必须 `--promote`
-- `availability` 关键词 ≥3 → 生成 TLA+ 草稿；若 `total_shards ≥50` 或 `performance ≥5` → **强制 `--promote`**；仅当 `total_shards < 50` 且 `performance < 5` 时可跳过 `--promote`，但须在 STATE.md 记录跳过理由、风险与责任人，且须经 🛑 **STOP** 人类确认
+**TLA+/Lean4 触发真值表**（全系统唯一裁决来源，Agent 按此表判断，禁止在其他章节另行声明触发条件）：
+
+> **核心原则**：TLA+ 默认为所有 arch-1 子系统生成草稿（draft）；下表决定是否**强制 `--promote`**（即是否必须通过 SANY+TLC 验证并提升到 verified）。草稿不等于已验证交付。
+
+| NFR 类别 | 关键词数 | total_shards | TLA+ 草稿 | TLA+ `--promote` | Lean4 草稿 | Lean4 `--promote` |
+|---------|---------|-------------|----------|-----------------|-----------|-----------------|
+| `performance` | ≥5 | ≥100 | ✅ 全 arch-1 | **强制** | — | — |
+| `performance` | ≥5 | <100 | ✅ 全 arch-1 | 推荐（可经 HITL 裁剪） | — | — |
+| `performance` | <5 | 任意 | ✅ 全 arch-1 | 推荐（可经 HITL 裁剪） | — | — |
+| `security` | ≥1 | 任意 | ✅ 全 arch-1 | **强制** | ✅ | **强制** |
+| `compliance` | ≥1 | 任意 | ✅ 全 arch-1 | **强制** | ✅ | **强制** |
+| `availability` | ≥3 | ≥50 或 perf≥5 | ✅ 全 arch-1 | **强制** | — | — |
+| `availability` | ≥3 | <50 且 perf<5 | ✅ 全 arch-1 | 可跳过（须 HITL 确认 + STATE.md 记录理由/风险/责任人） | — | — |
+| `availability` | <3 | 任意 | ✅ 全 arch-1 | 推荐（可经 HITL 裁剪） | — | — |
+| 无 NFR | — | 任意 | ✅ 全 arch-1 | 推荐（可经 HITL 裁剪） | — | — |
+
+**跳过 `--promote` 的强制条件**（不可省略）：① 在 STATE.md 记录跳过模块、跳过理由、残余风险、责任人；② 🛑 **STOP · 等待人类确认**；③ FINAL 门禁会标记该模块为 `partial_convergence`。
 
 > 🔴 **CHECKPOINT · R3 门禁收口**：M6 完成 `verify-gate --stage R3` 必须通过才可进入 Backend。R3 失败 → 修复 Middle-end 分析（结构/语义/NFR/连通性/冲突/风险）后重跑，禁止跳过。
 
@@ -401,7 +422,7 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 
 **BDD 四级门禁**（`validate-bdd --strict --promote`）：Phase1 TS 基础结构（Feature/Scenario/Given/When/Then 存在性与顺序）→ Phase2 NFR 专项（阈值数值/认证前置/LLM_FILL 残留）→ Phase3 gherkin-lint（20 条规则，配置 `templates/.gherkin-lintrc-strict`）→ Phase4 Gherklin 语义层。不允许 `error/failed/undefined/untested/占位/简化/错误实现/GAP/TODO/FIXME/TBD/待定/未定义/待实现`；每个 SRS 需求至少一个可执行场景；NFR 场景含具体阈值。独立 `.feature` 文件，不接受 Markdown 描述。
 
-**TLA+ 全模块覆盖**（`validate-tla --name <module> --strict --promote`）：仅使用内置 `tools/tla2tools-1.7.4.jar` 执行 SANY + TLC（启用死锁检测），不联网、不下载 JAR、不创建 cfg。层次化拆解 L1→L2→L3（变量组合 >1k 考虑拆，>1w 强制拆）。每个 verified 模块必须：单一匹配文件名的模块头/尾、声明全部 CONSTANTS/VARIABLES + ASSUME、TypeOK 覆盖所有状态变量、非空 Init + 带 guard 的 Next + Spec、每个 SRS 状态转换与至少一个 Action 追溯。6 类 NFR 不变式均须在模型配置中检查。不允许死锁/状态爆炸/违法不变式/活锁/奇迹。
+**TLA+ 模块验证**（`validate-tla --name <module> --strict --promote`）：每个 arch-1 子系统生成独立 TLA+ 模块草稿；是否 `--promote` 由上方「TLA+/Lean4 触发真值表」裁决。仅使用内置 `tools/tla2tools-1.7.4.jar` 执行 SANY + TLC（启用死锁检测），不联网、不下载 JAR、不创建 cfg。层次化拆解 L1→L2→L3（变量组合 >1k 考虑拆，>1w 强制拆）。每个 verified 模块必须：单一匹配文件名的模块头/尾、声明全部 CONSTANTS/VARIABLES + ASSUME、TypeOK 覆盖所有状态变量、非空 Init + 带 guard 的 Next + Spec、每个 SRS 状态转换与至少一个 Action 追溯。6 类 NFR 不变式均须在模型配置中检查。不允许死锁/状态爆炸/违法不变式/活锁/奇迹。
 
 **Lean 4 拆分证明**（`validate-lean --strict --promote`）：在 Lake 项目根（`lakefile.lean` 或 `lakefile.toml`）审计并运行 `lake build`。0 `sorry`/`admit`/`axiom`、0 warning。每个声明为与 SRS 对应的 `theorem` + 完整 `proof`，禁止 `: True` 弱化；每个 lemma 独立文件（≤100 行），proof >50 行或 have 块 >30 行必须拆分；允许使用 Mathlib 4 标准库（优先按需导入具体子模块如 `import Mathlib.Data.*`），`validate-lean` 拒绝 `import Mathlib` 全量导入（脚本正则 `/^\s*import\s+Mathlib\s*$/m`）。对每个交付 theorem 运行 `#print axioms` 拒绝未批准公理。平台：Linux x86_64 ✅、macOS ARM64 ✅、Windows ❌。
 
@@ -433,7 +454,7 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 | `validate-dataflow --file <path> --workdir <wd>` | F4e 数据流抽取后，校验 entity/flow JSONL 格式 |
 | `verify-gate --stage S1\|R3\|FINAL --workdir <wd>` | S1（Frontend 收口）/R3（Middle-end 收口）/FINAL（Backend 收口）三级门禁 |
 
-**Independent Tools（11 个，处理 LLM 不便操作的数据结构/算法）**：
+**Independent Tools（12 个，处理 LLM 不便操作的数据结构/算法）**：
 
 | 命令 | 何时调用 |
 |------|----------|
@@ -448,6 +469,7 @@ Agent 在收到 SRS 输入后，按以下指令创建工作目录（无脚本，
 | `tlc-trace-parse --trace <path> --workdir <wd>` | B5 TLC 反例 trace 解析为状态序列，供 Agent 生成反例 fixture |
 | `verify-skill-integrity --skill-dir <path> [--repair]` | 每个阶段转换前 SHA-256 比对 MANIFEST.json，篡改则 `--repair` 从加密备份恢复 |
 | `pack-skill --skill-dir <path> --force` | **仅人类显式操作**：技能开发模式修改后重建加密备份；Agent/编排者/自动化流程均无权调用 |
+| `semantic-gate --workdir <wd> --kind <bdd\|tlaplus\|lean4> [--generate-template]` | B2/B3/B4 `validate-* --strict --promote` 之前的二级语义验证闸门：`--generate-template` 生成评分模板 JSON 供 LLM Verifier 填写；无该参数则校验对应 semantic-report 存在且 `verdict=APPROVED`。脚本不调用 LLM |
 
 ## 安全约束
 
