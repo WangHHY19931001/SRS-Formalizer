@@ -61,23 +61,29 @@ export const CHECKLISTS: Record<string, string> = {
 `,
   '3_graph': `# S3 图谱构建 — 验收清单
 
-- [ ] build-ir 成功：srs-ir.json 存在，节点数 ≥ JSONL 记录数
-- [ ] build-architecture 成功：Module/Actor/Constraint 节点存在
-- [ ] analyze-structure 完成：orphan/dangling/island/cross-file 报告
-- [ ] analyze-graph 完成：duplicate/conflict/cluster 报告
-- [ ] emit --name cypher 成功：srs-graph.cypher 非空
+- [ ] assemble-ir 成功：节点数 ≥ R1 显式需求数（自动生成 graph.merged.json）
+- [ ] Agent 手动构建 + validate-architecture PASS：Module/Actor/Constraint 节点存在
+- [ ] query-graph 完成：orphan/dangling/island 报告已生成（M1 Structure Analyzer）
+- [ ] M5 Merge Optimizer 完成：补全建议已应用
+- [ ] Agent 完成 duplicate/conflict/cluster 分析报告
+- [ ] Agent 完成语义判定合并
+- [ ] Agent 按 executor-backend-cypher.md 生成：outputs/graphs/srs-graph.cypher 非空
 - [ ] validate-cypher PASS
-- [ ] tag-nfr 完成：NFR 节点标注 + 阈值提取
-- [ ] verify-gate R3 PASS（边完整性检查）
+- [ ] verify-gate --stage R3 PASS
+- [ ] 图边完整性：每条边的 source/target 节点存在
 `,
-  '4_bdd': `# S4 BDD 生成 — 验收清单
+  '4_bdd': `# S4 BDD 生成 — 验收清单（严格模式）
 
-- [ ] emit --name gherkin 成功：feature 文件数 ≥ 模块数
-- [ ] 每个 .feature 含 # SYSTEM: # TRACE: 头部
-- [ ] 每个 Scenario 含 Given/When/Then
-- [ ] 无 <THEN_PLACEHOLDER> 残留
-- [ ] 每个 Then 含 # verification_method:
-- [ ] validate-bdd --strict PASS
+- [ ] validate-bdd --strict --promote 成功：feature 文件数 ≥ 模块数
+- [ ] 每个 .feature 文件含 # SYSTEM: # TRACE: 头部标注
+- [ ] 每个 Scenario 含 Given / When / Then
+- [ ] 无 <THEN_PLACEHOLDER> 残留（gherkin-lint 严格模式）
+- [ ] 无 GAP / TODO / FIXME / UNDEFINED 标记
+- [ ] 无 TBD / 待定 / 未定义 / 待实现 文本
+- [ ] 每个 Then 含 # verification_method: 标注
+- [ ] validate-bdd PASS
+- [ ] gherkin-lint 严格模式全部通过（20 条规则）
+- [ ] Agent 按 executor-bdd.md 生成 + validate-bdd PASS
 `,
   '5_formal': `# S5 形式化 — 验收清单
 
@@ -90,16 +96,41 @@ export const CHECKLISTS: Record<string, string> = {
 ## Lean 4（条件触发）
 - [ ] 触发条件已确认
 - [ ] 工具链 elan+lake 就绪
+- [ ] lake exe cache get 完成（Mathlib 缓存下载）
 - [ ] lake build 通过：无 sorry/无告警/无 axiom
+- [ ] validate-lean PASS：无同义反复（:= h / := by exact h / := trivial 等）
 - [ ] PROOFS.md 索引已更新
 `,
-  '6_outputs': `# S6 验收闸门 — 最终清单
+  '6_outputs': `# S6 验收闸门 — 最终清单（含跨图一致性）
 
+## 硬门禁
 - [ ] verify-gate --stage FINAL：全部 PASS
+- [ ] cross-graph-report.json: overall_converged: true
+
+## 十三个根本问题（全部可回答）
+- [ ] Q1 它是什么？（本质定义、核心定位）— 高置信度
+- [ ] Q2 它做什么？（核心功能、主要作用）— 高置信度
+- [ ] Q3 它能做什么？（具体能力、应用场景）— 高置信度
+- [ ] Q4 它为什么可以这样？（技术原理、论文URL、开源URL，含Lean 4建模）— 中/高置信度
+- [ ] Q5 能不能和其他软件/工具联合使用？（集成场景、联动能力）— 中/高置信度
+- [ ] Q6 它的内部行为是怎样的（TLA+多层子系统建模）— 中/高置信度
+- [ ] Q7 它与其他系统如何交互（BDD+TLA+联合建模）— 中/高置信度
+- [ ] Q8 它与外部如何交互（BDD+TLA+联合建模）— 中/高置信度
+- [ ] Q9 它的工作边界是什么（联合建模+边界条件）— 中/高置信度
+- [ ] Q10 它的兜底方案是什么（降级、回滚、恢复）— 中/高置信度
+- [ ] Q11 它的性能约束是什么（吞吐/延迟/资源）— 中/高置信度
+- [ ] Q12 它的安全边界是什么（Lean 4 建模）— 中/高置信度
+- [ ] Q13 它的容量扩展极限是什么（水平/垂直扩展）— 中/高置信度
+- [ ] 高置信度 ≥ 9 / 13
+
+## 产物完整性
 - [ ] STATE.md 所有阶段 ✅
 - [ ] MINDMAP.md 全部模块 ✅
-- [ ] srs-graph.cypher 可导入 Neo4j
-- [ ] brainstorm_context.json 存在
+- [ ] outputs/graphs/ 下 4 个 .cypher 文件存在
+- [ ] outputs/reports/traceability.cypher 存在
+- [ ] 6_outputs/brainstorming/brainstorm_context.json 存在
+- [ ] outputs/reports/deliverables.md 存在
+- [ ] outputs/reports/convergence-log.jsonl 记录完整
 - [ ] 全链路 S1→S6 完整
 `,
 };
@@ -126,24 +157,24 @@ export const CANONICAL: Record<string, CanonicalDef> = {
     required_phrases: ['validate-jsonl', 'validate-architecture', 'category', 'metadata', 'derived_from', 'DEPENDS_ON', 'REFINES', 'CONFLICTS_WITH'],
   },
   '3_graph': {
-    expected_count: 7,
+    expected_count: 10,
     required_headers: ['S3', '图谱构建', '验收清单'],
-    required_phrases: ['build-ir', 'build-architecture', 'analyze-structure', 'emit --name cypher', 'validate-cypher', '边完整性'],
+    required_phrases: ['assemble-ir', 'validate-architecture', 'query-graph', 'validate-cypher', 'verify-gate', '边完整性'],
   },
   '4_bdd': {
-    expected_count: 6,
+    expected_count: 10,
     required_headers: ['S4', 'BDD', '验收清单'],
-    required_phrases: ['emit --name gherkin', '# SYSTEM:', 'Given', 'When', 'Then', 'THEN_PLACEHOLDER', 'verification_method', 'validate-bdd --strict'],
+    required_phrases: ['validate-bdd', '# SYSTEM:', 'Given', 'When', 'Then', 'THEN_PLACEHOLDER', 'verification_method', 'gherkin-lint'],
   },
   '5_formal': {
-    expected_count: 8,
+    expected_count: 10,
     required_headers: ['S5', '形式化', 'TLA+', 'Lean'],
-    required_phrases: ['触发条件', '工具链', 'TLC', 'lake build', 'sorry', 'PROOFS.md'],
+    required_phrases: ['触发条件', '工具链', 'TLC', 'lake exe cache get', 'lake build', 'sorry', 'PROOFS.md'],
   },
   '6_outputs': {
-    expected_count: 6,
-    required_headers: ['S6', '验收闸门', '最终清单'],
-    required_phrases: ['verify-gate', 'STATE.md', 'MINDMAP.md', 'srs-graph.cypher', 'brainstorm_context.json', '全链路'],
+    expected_count: 23,
+    required_headers: ['S6', '验收闸门', '最终清单', '硬门禁', '根本问题', '产物完整性'],
+    required_phrases: ['verify-gate', 'cross-graph-report', 'Q1', 'Q13', '≥ 9', 'STATE.md', 'MINDMAP.md', 'traceability.cypher', 'convergence-log'],
   },
 };
 

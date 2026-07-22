@@ -1,6 +1,6 @@
 {
   "skill_name": "srs-formalizer",
-  "packed_at": "2026-07-22T06:22:09.929Z",
+  "packed_at": "2026-07-22T06:33:02.211Z",
   "total_files": 238,
   "files": {
     "BASELINE.md": "1f018d8132545154850fc6fc68c017f7ade8f41e99b23073b4867c5d59871888",
@@ -142,7 +142,7 @@
     "scripts/lib/artifacts/validation-report.ts": "066d56b5fde8fb23b70535093cbe252d6b36c5b36b4fb0c7b3be365295f7e175",
     "scripts/lib/bdd-tool-runner.ts": "5df99c37d1ca5c539c2536389c132907b2da28d767c61471fb7fa3e05d445610",
     "scripts/lib/bdd-validator.ts": "eb312ce8b68e10faf2d1d98b40abc73f51e666ffb3e93beeb30faa31b1d5b7b0",
-    "scripts/lib/checklists.ts": "3987d117b59f419696eb24964c0996a7aa49068fb5c773a441cd698b653058b2",
+    "scripts/lib/checklists.ts": "675d0173d0f0ea4e9671e03fd81abeb3e315e622fc94f6e0491cf9b8a0b71df7",
     "scripts/lib/cli.ts": "41a24c5f0ea5372515661bcbc8e47f3662b11eecc34b8287751979ce89506e4b",
     "scripts/lib/convergence-log.ts": "0720457b0d4546269a60916091defe53fefce5e17a406b327a81ff4cc811a94c",
     "scripts/lib/cypher.ts": "231cd38a09bb53fa54f5066d68894d6171662063cee9e877d2acb1ba8dd8cd5d",
