@@ -292,15 +292,22 @@ metadata:
 
 | 触发条件 | 一线修复 | 仍失败兜底 |
 |---------|---------|-----------|
-| `verify-gate --stage S1` 未通过 | 检查 `validate-jsonl` / `validate-architecture` / `validate-glossary` 报错 → 修复对应 JSONL 后重跑 F2-F4 → 重新 `assemble-ir` | 连续 2 次修复失败 → 🛑 **STOP**：将错误报告与当前 shard_index 打包，等待人类确认是否跳过或重建 |
-| `verify-gate --stage R3` 未通过 | 检查 `validate-semantics --strict` 具体字段 → 修复结构/语义/NFR/连通性/冲突/风险中对应项 → 重跑 M1-M6 | 连续 2 次修复失败 → 🛑 **STOP**：输出 `3_graph/analysis/` 全量快照，等待人类决策 |
-| `verify-gate --stage FINAL` 未通过 | 检查 `sourceHash` 不匹配项 → 定位过期/草稿/跨类型产物 → 回退至对应 Backend 步骤（B1-B4）重新生成 → 重新 `--strict --promote` | 连续 2 次修复失败 → 🛑 **STOP**：禁止提交草稿或过期报告，等待人类确认是否加轮或收工 |
+| `verify-gate --stage S1` 未通过 | 检查 `validate-jsonl` / `validate-architecture` / `validate-glossary` 报错 → 修复对应 JSONL 后重跑 F2-F4 → 重新 `assemble-ir` | 连续 **3** 次修复失败 → 🛑 **STOP**：将错误报告与当前 shard_index 打包，等待人类确认是否跳过或重建 |
+| `verify-gate --stage R3` 未通过 | 检查 `validate-semantics --strict` 具体字段 → 修复结构/语义/NFR/连通性/冲突/风险中对应项 → 重跑 M1-M6 | 连续 **3** 次修复失败 → 🛑 **STOP**：输出 `3_graph/analysis/` 全量快照，等待人类决策 |
+| `verify-gate --stage B2` 未通过 | 检查 BDD verified 产物缺失/sourceHash 不匹配 → 回退 B2 executor 重做 → 重新 `validate-bdd --strict --promote` | 连续 **3** 次修复失败 → 🛑 **STOP**：等待人类确认是否跳过该模块 |
+| `verify-gate --stage B3` 未通过 | 检查 TLA+ verified 模块集/覆盖率缺失 → 回退 B3 executor 重做 → 重新 `validate-tla --strict --promote` | 连续 **3** 次修复失败 → 🛑 **STOP**：等待人类确认是否裁剪模块 |
+| `verify-gate --stage B4` 未通过 | 检查 Lean4 verified 产物/sourceHash/同义反复 → 回退 B4 executor 重做 → 重新 `validate-lean --strict --promote` | 连续 **3** 次修复失败 → 🛑 **STOP**：等待人类确认是否跳过 Lean |
+| `verify-gate --stage FINAL` 未通过 | 检查 `sourceHash` 不匹配项 → 定位过期/草稿/跨类型产物 → 回退至对应 Backend 步骤重新生成 → 重新 `--strict --promote` | 连续 **3** 次修复失败 → 🛑 **STOP**：禁止提交草稿或过期报告，等待人类确认是否加轮或收工 |
 | `assemble-ir` 装配失败 | 保留上一阶段有效 JSONL 产物 → 检查去重冲突与悬挂边 → 修复后重跑 | 仍失败 → 回退到 F2 重新提取，不删除已有校验数据 |
 | B3 TLA+ SANY/TLC 报错 | 根据错误行定位模块 → 检查 TypeOK/Init/Next/Spec 完整性 → 修复后重跑 `validate-tla --strict --promote` | 仍失败 → 检查是否需 L2→L3 拆分；若状态爆炸则加 `--promote` 前必须先拆分 |
-| B4 Lean 4 `lake build` 失败 | 检查 `sorry`/`admit`/`axiom`/`: True`/全量 `import Mathlib` → 逐项消除后重跑 | 仍失败 → 若为 Windows 工具链不可用，生成 `S5_SKIP_REPORT.md`，标记 `platform_unsupported`、受影响需求、替代验证与残余风险；不得把跳过宣称为 Lean verified |
+| B4 Lean 4 `lake build` 失败 | 检查 `sorry`/`admit`/`axiom`/`: True`/全量 `import Mathlib`/同义反复 → 逐项消除后重跑 | 仍失败 → 若为 Windows 工具链不可用，生成 `S5_SKIP_REPORT.md`，标记 `platform_unsupported`、受影响需求、替代验证与残余风险；不得把跳过宣称为 Lean verified |
 | B7 收敛循环超限（>max_iterations） | 检查当前 high-confidence 比例与 NFR 覆盖率 → 若 ≥7/13 且 NFR≥60% → 允许标记 `partial_convergence`；否则 → 苏格拉底拷问当前最大分歧点 | 仍无法收敛 → 🛑 **STOP**：强制人类确认是否加轮或收工 |
 | 文件写入冲突/越界 | `isPathSafe` + `assertSafePath` 拦截 → 改用 `path.join()` 修正路径 → 原子 temp-file + rename 重试 | 仍失败 → 中止当前操作并告警，不继续写入 |
-| 子代理输出 JSONL 校验失败 | `validate-jsonl` 返回具体行号与字段 → 重派子代理修正该批次 → 不通过则整批重跑 | 连续 3 次子代理修正失败 → 降级为人工提取该 shard |
+| 子代理输出 JSONL 校验失败 | `validate-jsonl` 返回具体行号与字段 → 重派子代理修正该批次 → 不通过则整批重跑 | 连续 **3** 次子代理修正失败 → 降级为人工提取该 shard |
+| 🆕 **模块跳过请求**（用户或 Agent 提议跳过某 arch-1 子系统的形式化） | 不得自行跳过 → 必须在 STATE.md 记录：跳过模块名、跳过理由、残余风险、责任人 → 🛑 **STOP · 等待人类确认** | 人类确认后方可跳过；FINAL 门禁标记 `partial_convergence`，交付报告必须列明跳过范围与残余风险 |
+| 🆕 **工具异常/崩溃**（`validate-*` / `assemble-ir` / `verify-gate` 等脚本非零退出且非已知失败模式） | 立即 🛑 **STOP** → 不得重试或绕过 → 收集错误日志、stack trace、工作目录快照 → 报告人类 | 人类确认工具修复后方可继续；禁止将工具异常降级为“环境限制”或“跳过” |
+
+> **统一失败计数**：全管线所有“连续 N 次修复失败”阈值统一为 **N=3**（S1/R3/B2/B3/B4/FINAL/JSONL 均如此）。收敛循环的 `max_iterations` 按规模自适应（≤50→3, 51-100→5, >100→8），不属于“修复失败”计数，而是收敛上限。Agent 不得自行调整 N 值。
 
 > **Agent 自检**：每阶段转换前扫描本表，若当前场景命中任一触发条件但未执行对应修复 → 阻断阶段提升。
 
