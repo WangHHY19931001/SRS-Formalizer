@@ -4,6 +4,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import type { SRSIR } from '../../types/srs-ir.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,6 +36,17 @@ export const VALID_STAGES = ['S1', 'R3', 'B2', 'B3', 'B4', 'FINAL'] as const;
 // ---------------------------------------------------------------------------
 // Shared check functions
 // ---------------------------------------------------------------------------
+
+/** 读取 srs-ir.json，失败返回 null */
+export function loadIR(workDir: string): SRSIR | null {
+  const irPath = path.join(workDir, 'srs-ir.json');
+  if (!fs.existsSync(irPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(irPath, 'utf-8')) as SRSIR;
+  } catch {
+    return null;
+  }
+}
 
 /** 读取 CHECKLIST.md 并验证所有 checkbox 已打勾 */
 export function checkChecklistComplete(stageDir: string, workDir: string): CheckResult {

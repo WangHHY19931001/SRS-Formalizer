@@ -1,7 +1,7 @@
 {
   "skill_name": "srs-formalizer",
-  "packed_at": "2026-07-22T06:52:36.651Z",
-  "total_files": 238,
+  "packed_at": "2026-07-22T07:07:00.901Z",
+  "total_files": 239,
   "files": {
     "BASELINE.md": "1f018d8132545154850fc6fc68c017f7ade8f41e99b23073b4867c5d59871888",
     "CHANGELOG.md": "5ab0c3454599fb324b653b388d1ab20b8c7a3a41bafa3a8b98e355f37d7b1dc0",
@@ -170,9 +170,10 @@
     "scripts/lib/verify-gate/checks-authenticity.ts": "3542d55cf4d9bc7e4501d4c46f9bfec3b1479969fe84da01cc3f85da013e6f3c",
     "scripts/lib/verify-gate/checks-fidelity.ts": "db6027f7368db7e0bb7d592807d22004080724c2dbceffb6d30bf320349bbeb6",
     "scripts/lib/verify-gate/checks-final.ts": "80889b2404559808c9dd917491d85d70addcdf6883729ce5a93b1bd6449d6d19",
-    "scripts/lib/verify-gate/checks-r3.ts": "cb6393892efdc87c92053fd1fc99980ecef944be0a7af5c220d6f60151199e2e",
+    "scripts/lib/verify-gate/checks-r3-relational.ts": "41dd37f2f338f686ee04843b78d3080f1412d03403e3f61ef17989aa4a5e58fd",
+    "scripts/lib/verify-gate/checks-r3.ts": "16eec502bcbdf3376450cd35476b616236d0e78575c52437e0f8044ac29ec341",
     "scripts/lib/verify-gate/checks-s1.ts": "f678a6d897b2b56df88f583f7b49a58d9af2004eda76ecddba2de12d3c320d15",
-    "scripts/lib/verify-gate/shared.ts": "97dfac7c0cded7ca5273255b9c1458453978101fe5f749f95fbcb06be9a64ef1",
+    "scripts/lib/verify-gate/shared.ts": "7e2bf35afa251b0c50e41f1dae39b250257b88534aa6dc8af50b949c6e787a74",
     "scripts/package-lock.json": "acfc2b37c395e4264f6da5f9771f0fb1959e9b36556e24170bc02d00a3d9effb",
     "scripts/package.json": "47e9d33a3514d6b561d993e3d614c5838ef9b8dafc31016234705260db0ededd",
     "scripts/templates/bdd-nfr-scenarios.json": "e09fa26c2e983d9acf714f72f8b4c31970754a3d2f3ff41be188e997322408fd",
