@@ -1,3 +1,5 @@
+本技能绝大多数的特有设计已经被 https://github.com/WangHHY19931001/Software_Engineering_W_Development_Model_Skills_Pack 吸收，建议切换到此技能，本仓库将放弃维护，仅参考。
+
 # SRS-Formalizer
 
 将 SRS（软件需求规格说明）文档形式化为工程产物的 AI Agent 技能，采用**Agent 驱动架构**。
